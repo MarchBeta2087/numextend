@@ -15,6 +15,7 @@
  */
 
 #include "nex/bigcomplex/float/nex_bigcomplex_float.h"
+#include "nex/nex_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -219,8 +220,8 @@ bigcomplex_float_err_ty bigcomplex_float_to_str(const bigcomplex_float_ty *cpx,
     if (berr != BIGFLOAT_OK_E) {
         return map_bf_err(berr);
     }
-    char *re_str = (char *)malloc(re_need);
-    char *im_str = (char *)malloc(im_need);
+    char *re_str = (char *)nex_malloc(re_need);
+    char *im_str = (char *)nex_malloc(im_need);
     if ((re_str == NULL) || (im_str == NULL)) {
         free(re_str);
         free(im_str);

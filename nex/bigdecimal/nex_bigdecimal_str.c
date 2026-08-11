@@ -17,6 +17,7 @@
  */
 
 #include "nex/bigdecimal/nex_bigdecimal_internal.h"
+#include "nex/nex_alloc.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -124,7 +125,7 @@ bigdecimal_err_ty bigdecimal_from_str(bigdecimal_ty *dst, const char *str,
 
     // 数字部分（整数 + 可选小数）：收集数字字符到缓冲
     const size_t str_len = strlen(str);
-    char *digits = (char *)malloc(str_len + 1U);
+    char *digits = (char *)nex_malloc(str_len + 1U);
     if (digits == NULL) {
         return BIGDECIMAL_ERR_OOM_E;
     }
@@ -297,7 +298,7 @@ bigdecimal_err_ty bigdecimal_to_str(const bigdecimal_ty *src,
             != BIGINT_OK_E) {
         return BIGDECIMAL_ERR_INVALID_E;
     }
-    char *mant_str = (char *)malloc(mant_need);
+    char *mant_str = (char *)nex_malloc(mant_need);
     if (mant_str == NULL) {
         return BIGDECIMAL_ERR_OOM_E;
     }

@@ -1298,7 +1298,9 @@ bigfloat_err_ty bigfloat_div(bigfloat_ty *dst, const bigfloat_ty *lhs,
             ferr = nex_bf_round_pack(dst, &quot, raw_exp, sticky,
                     neg ? -1 : 1, ctx);
         }
-        berr = (ferr == BIGFLOAT_OK_E) ? BIGINT_OK_E : BIGINT_ERR_INVALID_E;
+        berr = (ferr == BIGFLOAT_OK_E) ? BIGINT_OK_E
+                : (ferr == BIGFLOAT_ERR_OOM_E) ? BIGINT_ERR_OOM_E
+                : BIGINT_ERR_INVALID_E;
     }
 
 div_cleanup:

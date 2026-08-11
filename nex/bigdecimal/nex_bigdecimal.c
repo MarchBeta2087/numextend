@@ -24,6 +24,7 @@
  */
 
 #include "nex/bigdecimal/nex_bigdecimal_internal.h"
+#include "nex/nex_alloc.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -487,7 +488,7 @@ bigint_err_ty nex_dec_isqrt(bigint_dec_ty *q, bigint_dec_ty *rem,
     if (berr != BIGINT_OK_E) {
         return berr;
     }
-    char *digits = (char *)malloc(need + 1U);
+    char *digits = (char *)nex_malloc(need + 1U);
     if (digits == NULL) {
         return BIGINT_ERR_OOM_E;
     }
@@ -1231,7 +1232,9 @@ bigdecimal_err_ty bigdecimal_div(bigdecimal_ty *dst,
             ferr = nex_dec_round_pack(dst, &quot, raw_exp, sticky,
                     neg ? -1 : 1, ctx);
         }
-        berr = (ferr == BIGDECIMAL_OK_E) ? BIGINT_OK_E : BIGINT_ERR_INVALID_E;
+        berr = (ferr == BIGDECIMAL_OK_E) ? BIGINT_OK_E
+                : (ferr == BIGDECIMAL_ERR_OOM_E) ? BIGINT_ERR_OOM_E
+                : BIGINT_ERR_INVALID_E;
     }
 
 div_cleanup:

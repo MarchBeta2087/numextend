@@ -10,6 +10,7 @@
  */
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
+#include "nex/nex_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -37,7 +38,7 @@ static bigint_err_ty ensure_cap(bigint_bin_ty *val, size_t needed)
         return BIGINT_ERR_OOM_E;
     }
 
-    uint32_t *new_limbs = (uint32_t *)realloc(val->limbs, new_cap * sizeof(uint32_t));
+    uint32_t *new_limbs = (uint32_t *)nex_realloc(val->limbs, new_cap * sizeof(uint32_t));
     if (new_limbs == NULL) {
         return BIGINT_ERR_OOM_E;
     }
@@ -502,11 +503,11 @@ static bigint_err_ty bit_op_core(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
         return BIGINT_ERR_OOM_E;
     }
 
-    uint32_t *tc_lhs = (uint32_t *)malloc(tc_len * sizeof(uint32_t));
+    uint32_t *tc_lhs = (uint32_t *)nex_malloc(tc_len * sizeof(uint32_t));
     if (tc_lhs == NULL) {
         return BIGINT_ERR_OOM_E;
     }
-    uint32_t *tc_rhs = (uint32_t *)malloc(tc_len * sizeof(uint32_t));
+    uint32_t *tc_rhs = (uint32_t *)nex_malloc(tc_len * sizeof(uint32_t));
     if (tc_rhs == NULL) {
         free(tc_lhs);
         tc_lhs = NULL;
@@ -720,7 +721,7 @@ static bigint_err_ty digits_generic(const bigint_bin_ty *val, uint32_t base,
     uint32_t group_digits = 0U;
     const uint32_t group_div = base_group(base, &group_digits);
 
-    uint32_t *work = (uint32_t *)malloc(val->len * sizeof(uint32_t));
+    uint32_t *work = (uint32_t *)nex_malloc(val->len * sizeof(uint32_t));
     if (work == NULL) {
         return BIGINT_ERR_OOM_E;
     }
@@ -803,7 +804,7 @@ bigint_err_ty bigint_bin_init_cap(bigint_bin_ty *val, size_t cap)
         return BIGINT_ERR_OOM_E;
     }
 
-    val->limbs = (uint32_t *)malloc(cap * sizeof(uint32_t));
+    val->limbs = (uint32_t *)nex_malloc(cap * sizeof(uint32_t));
     if (val->limbs == NULL) {
         return BIGINT_ERR_OOM_E;
     }
@@ -887,7 +888,7 @@ bigint_err_ty bigint_bin_shrink(bigint_bin_ty *val)
         return BIGINT_OK_E;
     }
 
-    uint32_t *new_limbs = (uint32_t *)realloc(val->limbs,
+    uint32_t *new_limbs = (uint32_t *)nex_realloc(val->limbs,
             val->len * sizeof(uint32_t));
     if (new_limbs == NULL) {
         return BIGINT_ERR_OOM_E;  // 原缓冲区仍有效，val 不变
@@ -1077,7 +1078,7 @@ bigint_err_ty bigint_bin_to_str(const bigint_bin_ty *val, uint32_t base,
 
     // 任意进制下数字个数不超过幅值位长（base 2 达到上界）
     const size_t digit_cap = (val->len > 0U) ? (val->len * 32U + 1U) : 2U;
-    char *digits = (char *)malloc(digit_cap);
+    char *digits = (char *)nex_malloc(digit_cap);
     if (digits == NULL) {
         return BIGINT_ERR_OOM_E;
     }
@@ -1444,7 +1445,7 @@ bigint_err_ty bigint_bin_bit_set(bigint_bin_ty *val, size_t bit, bool value)
         return BIGINT_ERR_OOM_E;
     }
 
-    uint32_t *tc = (uint32_t *)malloc(tc_len * sizeof(uint32_t));
+    uint32_t *tc = (uint32_t *)nex_malloc(tc_len * sizeof(uint32_t));
     if (tc == NULL) {
         return BIGINT_ERR_OOM_E;
     }

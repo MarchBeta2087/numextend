@@ -12,6 +12,7 @@
  */
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
+#include "nex/nex_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -43,7 +44,7 @@ static bigint_err_ty div_ensure_cap(bigint_bin_ty *val, size_t needed)
         return BIGINT_ERR_OOM_E;
     }
 
-    uint32_t *new_limbs = (uint32_t *)realloc(val->limbs,
+    uint32_t *new_limbs = (uint32_t *)nex_realloc(val->limbs,
             new_cap * sizeof(uint32_t));
     if (new_limbs == NULL) {
         return BIGINT_ERR_OOM_E;
@@ -177,11 +178,11 @@ static bigint_err_ty mag_divmod(bigint_bin_ty *quot, bigint_bin_ty *rem,
     if ((u_len > SIZE_MAX / sizeof(uint32_t)) || (n > SIZE_MAX / sizeof(uint32_t))) {
         return BIGINT_ERR_OOM_E;
     }
-    uint32_t *u = (uint32_t *)malloc(u_len * sizeof(uint32_t));
+    uint32_t *u = (uint32_t *)nex_malloc(u_len * sizeof(uint32_t));
     if (u == NULL) {
         return BIGINT_ERR_OOM_E;
     }
-    uint32_t *v = (uint32_t *)malloc(n * sizeof(uint32_t));
+    uint32_t *v = (uint32_t *)nex_malloc(n * sizeof(uint32_t));
     if (v == NULL) {
         free(u);
         return BIGINT_ERR_OOM_E;

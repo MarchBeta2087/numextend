@@ -21,6 +21,7 @@
  */
 
 #include "nex/bigint/dec/nex_bigint_dec.h"
+#include "nex/nex_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +52,7 @@ static bigint_err_ty mul_ensure_cap(bigint_dec_ty *val, size_t needed)
         return BIGINT_ERR_OOM_E;
     }
 
-    uint32_t *new_limbs = (uint32_t *)realloc(val->limbs,
+    uint32_t *new_limbs = (uint32_t *)nex_realloc(val->limbs,
             new_cap * sizeof(uint32_t));
     if (new_limbs == NULL) {
         return BIGINT_ERR_OOM_E;

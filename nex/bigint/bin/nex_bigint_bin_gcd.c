@@ -11,6 +11,7 @@
  */
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
+#include "nex/nex_alloc.h"
 
 /*
  * brief: 统计 val 幅值最低有效位以下的连续零位个数（trailing zeros）

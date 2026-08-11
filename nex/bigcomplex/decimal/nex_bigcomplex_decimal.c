@@ -8,6 +8,7 @@
  */
 
 #include "nex/bigcomplex/decimal/nex_bigcomplex_decimal.h"
+#include "nex/nex_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -215,8 +216,8 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_to_str(
     if (berr != BIGDECIMAL_OK_E) {
         return map_bd_err(berr);
     }
-    char *re_str = (char *)malloc(re_need);
-    char *im_str = (char *)malloc(im_need);
+    char *re_str = (char *)nex_malloc(re_need);
+    char *im_str = (char *)nex_malloc(im_need);
     if ((re_str == NULL) || (im_str == NULL)) {
         free(re_str);
         free(im_str);

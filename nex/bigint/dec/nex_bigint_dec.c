@@ -17,6 +17,7 @@
  */
 
 #include "nex/bigint/dec/nex_bigint_dec.h"
+#include "nex/nex_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -50,7 +51,7 @@ static bigint_err_ty ensure_cap(bigint_dec_ty *val, size_t needed)
         return BIGINT_ERR_OOM_E;
     }
 
-    uint32_t *new_limbs = (uint32_t *)realloc(val->limbs,
+    uint32_t *new_limbs = (uint32_t *)nex_realloc(val->limbs,
             new_cap * sizeof(uint32_t));
     if (new_limbs == NULL) {
         return BIGINT_ERR_OOM_E;
@@ -484,7 +485,7 @@ bigint_err_ty bigint_dec_init_cap(bigint_dec_ty *val, size_t cap)
         return BIGINT_ERR_OOM_E;
     }
 
-    val->limbs = (uint32_t *)malloc(cap * sizeof(uint32_t));
+    val->limbs = (uint32_t *)nex_malloc(cap * sizeof(uint32_t));
     if (val->limbs == NULL) {
         return BIGINT_ERR_OOM_E;
     }
@@ -568,7 +569,7 @@ bigint_err_ty bigint_dec_shrink(bigint_dec_ty *val)
         return BIGINT_OK_E;
     }
 
-    uint32_t *new_limbs = (uint32_t *)realloc(val->limbs,
+    uint32_t *new_limbs = (uint32_t *)nex_realloc(val->limbs,
             val->len * sizeof(uint32_t));
     if (new_limbs == NULL) {
         return BIGINT_ERR_OOM_E;  // 原缓冲区仍有效，val 不变

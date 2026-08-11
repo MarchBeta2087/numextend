@@ -15,6 +15,7 @@
  */
 
 #include "nex/convert/nex_convert.h"
+#include "nex/nex_alloc.h"
 
 #include "nex/bigfloat/nex_bigfloat_internal.h"
 #include "nex/bigdecimal/nex_bigdecimal_internal.h"
@@ -538,7 +539,9 @@ nex_convert_err_ty nex_convert_frac_to_float(bigfloat_ty *dst,
         const bool sticky = !bigint_bin_is_zero(&rem);
         const bigfloat_err_ty ferr = nex_bf_round_pack(dst, &quot, -shift,
                 sticky, sign, ctx);
-        berr = (ferr == BIGFLOAT_OK_E) ? BIGINT_OK_E : BIGINT_ERR_INVALID_E;
+        berr = (ferr == BIGFLOAT_OK_E) ? BIGINT_OK_E
+                : (ferr == BIGFLOAT_ERR_OOM_E) ? BIGINT_ERR_OOM_E
+                : BIGINT_ERR_INVALID_E;
     }
 cleanup:
     bigint_bin_free(&num);
@@ -615,7 +618,9 @@ nex_convert_err_ty nex_convert_frac_to_decimal(bigdecimal_ty *dst,
         const bool sticky = !bigint_dec_is_zero(&rem);
         const bigdecimal_err_ty ferr = nex_dec_round_pack(dst, &quot, -shift,
                 sticky, sign, ctx);
-        berr = (ferr == BIGDECIMAL_OK_E) ? BIGINT_OK_E : BIGINT_ERR_INVALID_E;
+        berr = (ferr == BIGDECIMAL_OK_E) ? BIGINT_OK_E
+                : (ferr == BIGDECIMAL_ERR_OOM_E) ? BIGINT_ERR_OOM_E
+                : BIGINT_ERR_INVALID_E;
     }
 cleanup:
     bigint_dec_free(&num);

@@ -26,6 +26,7 @@
  */
 
 #include "nex/bigfloat/nex_bigfloat_internal.h"
+#include "nex/nex_alloc.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -350,7 +351,9 @@ bigfloat_err_ty nex_bf_from_decimal(bigfloat_ty *dst,
         const bool sticky = !bigint_bin_is_zero(&rem);
         const bigfloat_err_ty ferr = nex_bf_round_pack(dst, &quot, -s,
                 sticky, sign, ctx);
-        berr = (ferr == BIGFLOAT_OK_E) ? BIGINT_OK_E : BIGINT_ERR_INVALID_E;
+        berr = (ferr == BIGFLOAT_OK_E) ? BIGINT_OK_E
+                : (ferr == BIGFLOAT_ERR_OOM_E) ? BIGINT_ERR_OOM_E
+                : BIGINT_ERR_INVALID_E;
     }
 
 dec_cleanup:
@@ -743,7 +746,7 @@ bigfloat_err_ty nex_bf_dec_round(const bigfloat_ty *src, size_t n,
 
     // 3. quot ∈ [10^(n−1), 10^n]：转十进制，取前 n 位
     {
-        char *tmp_buf = (char *)malloc(n + 2U);
+        char *tmp_buf = (char *)nex_malloc(n + 2U);
         if (tmp_buf == NULL) {
             berr = BIGINT_ERR_OOM_E;
             goto round_cleanup;
@@ -970,11 +973,11 @@ bigfloat_err_ty bigfloat_to_str(const bigfloat_ty *src, size_t max_digits,
 
     // 输出缓冲（格式化串最大长度 ≈ 有效位数 + 指数部分）
     const size_t out_cap = n_limit + 256U;
-    char *out_buf = (char *)malloc(out_cap);
+    char *out_buf = (char *)nex_malloc(out_cap);
     if (out_buf == NULL) {
         return BIGFLOAT_ERR_OOM_E;
     }
-    char *digits = (char *)malloc(n_limit + 2U);
+    char *digits = (char *)nex_malloc(n_limit + 2U);
     if (digits == NULL) {
         free(out_buf);
         return BIGFLOAT_ERR_OOM_E;
