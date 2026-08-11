@@ -2,6 +2,9 @@
  * 覆盖：精确互转、逆向精确转换（仅整数）、有损互转（显式 ctx 单次舍入）、
  * 复数 → 实数、特殊值映射与错误路径。 */
 #include "nex/convert/nex_convert.h"
+#ifdef _MSC_VER
+#include <crtdbg.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -416,6 +419,12 @@ static void test_cpx(void) {
 }
 
 int main(void) {
+#ifdef _MSC_VER
+    /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_CRT_DF
+            | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
     test_exact();
     test_reverse();
     test_rounded();

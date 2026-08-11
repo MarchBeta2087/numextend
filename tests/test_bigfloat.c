@@ -1,6 +1,9 @@
 /* 单元测试：bigfloat 全 API（生命周期/上下文、分类、构造与转换、
  * 四则/sqrt、比较、分解合成、舍入模式、错误路径与边界）。 */
 #include "nex/bigfloat/nex_bigfloat.h"
+#ifdef _MSC_VER
+#include <crtdbg.h>
+#endif
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -179,7 +182,7 @@ static void test_from_to_f64(void) {
     const bigfloat_ctx_ty c64 = bigfloat_ctx_binary64();
     const double vals[] = { 0.0, -0.0, 1.0, -1.0, 0.5, 3.141592653589793,
             1e300, 1e-300, 5e-324, 2.2250738585072014e-308,
-            1.7976931348623157e308, 1.0 / 0.0, -1.0 / 0.0 };
+            1.7976931348623157e308, INFINITY, -INFINITY };
     for (size_t i = 0; i < sizeof(vals) / sizeof(vals[0]); i++) {
         CHECK(bigfloat_from_f64(&v, vals[i]) == BIGFLOAT_OK_E);
         double out = 0.0;
@@ -824,6 +827,12 @@ static void test_min_ctx(void) {
 /* ------------------------------------------------------------------ */
 
 int main(void) {
+#ifdef _MSC_VER
+    /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_CRT_DF
+            | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
     test_lifecycle();
     test_classify();
     test_from_to_f64();

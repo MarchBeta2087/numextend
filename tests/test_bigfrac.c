@@ -1,5 +1,8 @@
 /* 单元测试：bigfrac 全 API */
 #include "nex/bigfrac/nex_bigfrac.h"
+#ifdef _MSC_VER
+#include <crtdbg.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -398,6 +401,12 @@ static void test_cmp(void) {
 }
 
 int main(void) {
+#ifdef _MSC_VER
+    /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_CRT_DF
+            | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
     test_lifecycle();
     test_from_ints();
     test_from_str();

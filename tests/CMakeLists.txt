@@ -34,6 +34,20 @@ if(NOT MSVC)
 endif()
 add_test(NAME bigfloat_unit COMMAND test_bigfloat)
 
+add_executable(test_bigfloat_fuzz test_bigfloat_fuzz.c)
+target_link_libraries(test_bigfloat_fuzz PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_bigfloat_fuzz PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigfloat_fuzz COMMAND test_bigfloat_fuzz)
+
+add_executable(test_rounding_tie test_rounding_tie.c)
+target_link_libraries(test_rounding_tie PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_rounding_tie PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME rounding_tie COMMAND test_rounding_tie)
+
 add_executable(bigfloat_golden_driver golden_bigfloat_driver.c)
 target_link_libraries(bigfloat_golden_driver PRIVATE nex)
 
@@ -113,4 +127,26 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/golden_convert.py
                 $<TARGET_FILE:convert_golden_driver>)
+    # 多种子常规化：每种黄金对拍以额外种子再跑两遍（NEX_GOLDEN_SEED），
+    # 捕捉种子相关的不稳定用例（设计 §12 随机验证的常规执行）
+    foreach(seed IN ITEMS 1 2)
+        add_test(NAME bigfloat_golden_seed${seed}
+            COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/golden_bigfloat.py
+                    $<TARGET_FILE:bigfloat_golden_driver>)
+        set_tests_properties(bigfloat_golden_seed${seed} PROPERTIES
+            ENVIRONMENT "NEX_GOLDEN_SEED=${seed}")
+        add_test(NAME bigdecimal_golden_seed${seed}
+            COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/golden_bigdecimal.py
+                    $<TARGET_FILE:bigdecimal_golden_driver>)
+        set_tests_properties(bigdecimal_golden_seed${seed} PROPERTIES
+            ENVIRONMENT "NEX_GOLDEN_SEED=${seed}")
+        add_test(NAME convert_golden_seed${seed}
+            COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/golden_convert.py
+                    $<TARGET_FILE:convert_golden_driver>)
+        set_tests_properties(convert_golden_seed${seed} PROPERTIES
+            ENVIRONMENT "NEX_GOLDEN_SEED=${seed}")
+    endforeach()
 endif()

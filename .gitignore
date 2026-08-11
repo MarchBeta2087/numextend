@@ -1,5 +1,7 @@
 # 构建目录
 /build/
+/build-dbg/
+/build-asan/
 
 # 编译产物
 *.o

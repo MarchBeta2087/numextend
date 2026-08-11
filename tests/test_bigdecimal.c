@@ -1,6 +1,9 @@
 /* 单元测试：bigdecimal 全 API（生命周期/上下文、分类、构造与转换、
  * 四则/sqrt、比较、分解合成、舍入模式、错误路径与边界）。 */
 #include "nex/bigdecimal/nex_bigdecimal.h"
+#ifdef _MSC_VER
+#include <crtdbg.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -752,6 +755,12 @@ static void test_min_ctx(void) {
 /* ------------------------------------------------------------------ */
 
 int main(void) {
+#ifdef _MSC_VER
+    /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_CRT_DF
+            | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
     test_lifecycle();
     test_classify();
     test_str_roundtrip();

@@ -1,5 +1,8 @@
 /* 单元测试：bigcomplex_decimal 全 API（与 float 版平行的十进制复数）。 */
 #include "nex/bigcomplex/decimal/nex_bigcomplex_decimal.h"
+#ifdef _MSC_VER
+#include <crtdbg.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -325,6 +328,12 @@ static void test_special_eq(void) {
 }
 
 int main(void) {
+#ifdef _MSC_VER
+    /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_CRT_DF
+            | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
     bigdecimal_ctx_ty ctx = bigdecimal_ctx_decimal64();
     g_ctx = &ctx;
 
