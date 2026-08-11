@@ -19,15 +19,32 @@ before writing code.
 ## Development workflow
 
 ```
-feature/xxx ──PR──▶ dev ──release──▶ main
+feature/xxx ──PR──▶ dev ──PR──▶ main
 ```
 
+- **Direct pushes to `main` and `dev` are forbidden** — every change goes
+  through a feature branch and a pull request (enforced by GitHub branch
+  protection; see the checklist below).
 - **Branch from `dev`**, never from `main`. `dev` is the integration branch
   and must always stay releasable (CI runs on every push and PR).
-- **Merge `dev` → `main` only at release points**, then tag (`v0.x.y`) and
-  publish a GitHub Release.
-- Branch naming: `feature/<name>`, `fix/<name>`, `doc/<name>`, `perf/<name>`.
-- Open a PR targeting `dev`; the CI matrix (Linux/macOS/Windows) must pass.
+- **Merge `dev` → `main` only at release points** (also via PR), then tag
+  (`v0.x.y`) and publish a GitHub Release.
+- Branch naming: `feature/<name>`, `fix/<name>`, `hotfix/<name>`
+  (release hotfix, PRs to `main` and `dev`), `doc/<name>`, `perf/<name>`.
+- Merge strategy: squash-merge feature → `dev`; merge-commit `dev` → `main`.
+
+### Branch protection (GitHub settings)
+
+Apply to **both `main` and `dev`** (Settings → Branches → Add rule):
+
+- ☐ Require a pull request before merging
+- ☐ Require status checks to pass before merging (select the CI check)
+- ☐ Require branches to be up to date (recommended for `dev`)
+- ☐ Include administrators
+- ☐ Keep "Allow force pushes" and "Allow deletions" unchecked
+
+Set the repository **default branch to `dev`** so new PRs target it by
+default.
 
 ## Building and testing
 
