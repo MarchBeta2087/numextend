@@ -43,3 +43,8 @@ add_subdirectory(tests)
 add_executable(demo demo/demo.c)
 target_link_libraries(demo PRIVATE nex)
 target_include_directories(demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# 性能基准（可选目标）
+add_executable(bench bench/bench.c)
+target_link_libraries(bench PRIVATE nex)
+target_include_directories(bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
