@@ -236,6 +236,7 @@ for (size_t i = 0U; i < buf_len; i++) { ... }
 | `limb` | limb | 大整数存储单元 | `limbs` |
 | `nex` | Numextend | Numextend 库 | `nex_bigint_bin.h` |
 | `bin` | binary | 二进制子模块缩写 | `bigint_bin_*` |
+| `bitrev` | bit reversal | 位反转置换 | `ntt_bitrev` |
 | `conv` | conversion | 类型转换单元 | `nex_bigint_conv.h` |
 | `ctx` | context | 精度上下文 | `bigfloat_ctx_ty` |
 | `exp` | exponent | 指数 | `exp_bits` |
@@ -259,7 +260,9 @@ for (size_t i = 0U; i < buf_len; i++) { ... }
 | `cpx` | complex | 复数实例惯用名 | `bigcomplex_float_init(cpx)` |
 | `crt` | Chinese remainder theorem | 中国剩余定理 | `BIGINT_MUL_MULTI_MODULI_CRT_NTT_E` |
 | `den` | denominator | 分母 | `bigfrac_ty.den` |
+| `dif` | decimation in frequency | 频域抽取（DIF 蝶形，正变换） | 注释用语 |
 | `div` | divide | 除法 | `bigint_bin_div_rem` |
+| `dit` | decimation in time | 时域抽取（DIT 蝶形，逆变换） | 注释用语 |
 | `dst` | destination | 输出/目标参数惯用名 | `bigint_bin_add(dst, ...)` |
 | `eq` | equal | 相等判断 | `bigfloat_eq` |
 | `err` | error | 错误码枚举中段 | `BIGINT_ERR_OOM_E` |
@@ -272,6 +275,7 @@ for (size_t i = 0U; i < buf_len; i++) { ... }
 | `mul` | multiply | 乘法 | `bigint_bin_mul` |
 | `neg` | negate | 取负 | `bigint_bin_neg` |
 | `ntt` | number theoretic transform | 数论变换 | `BIGINT_MUL_MULTI_MODULI_CRT_NTT_E` |
+| `ntt_mod` | NTT modulus | NTT 模数结构体类型前缀 | `ntt_mod_ty` |
 | `num` | numerator | 分子 | `bigfrac_ty.num` |
 | `param` | parameter | 参数 | `bigint_mul_params_ty` |
 | `pow` | power | 幂 | `bigint_bin_pow` |
@@ -282,6 +286,7 @@ for (size_t i = 0U; i < buf_len; i++) { ... }
 | `str` | string | 字符串 | `bigint_bin_from_str` |
 | `sub` | subtract | 减法 | `bigint_bin_sub` |
 | `val` | value | 一元/就地操作数惯用名 | `bigint_bin_neg(val)` |
+| `w` | root of unity | 单位根（NTT 模数结构体字段） | `ntt_mod_ty.w` |
 
 （新增条目请在此追加，保持按字典序排列。）
 
@@ -390,3 +395,4 @@ void bigint_dec_free(bigint_dec_ty *bd)
 | v1.2 | 2026-08-05 | 附录 A 并入设计文档（`docs/design.md`）登记的缩写：`bin`/`conv`/`ctx`/`exp`/`frac`/`inf`/`nan`/`mant`/`popcount`/`re`/`im`/`shl`/`shr`/`u64`/`i64`/`f64` |
 | v1.3 | 2026-08-05 | 附录 A 补登 30 条：`abs`/`arg`/`bd`/`bigcomplex`/`bigdecimal`/`bigfloat`/`buf`/`cmp`/`conj`/`cpx`/`den`/`div`/`dst`/`eq`/`err`/`init`/`inv`/`lhs`/`rhs`/`mod`/`mul`/`neg`/`num`/`pow`/`quot`/`rem`/`sqrt`/`src`/`str`/`sub`/`val` |
 | v1.4 | 2026-08-10 | 附录 A 补登 6 条：`algo`/`crt`/`ex`/`fft`/`ntt`/`param`（配合设计文档 v0.2 乘法方法选择机制） |
+| v1.5 | 2026-08-12 | 附录 A 补登 5 条：`bitrev`/`dif`/`dit`/`ntt_mod`/`w`（配合设计文档 v0.7 NTT 设计细化） |
