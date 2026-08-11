@@ -48,3 +48,8 @@ target_include_directories(demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(bench bench/bench.c)
 target_link_libraries(bench PRIVATE nex)
 target_include_directories(bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# 数学库：Linux/macOS 需显式 -lm（库内 floor/sqrt 等；Windows/mingw 的 libm 在 libc 内）
+if(NOT WIN32)
+    target_link_libraries(nex PUBLIC m)
+endif()

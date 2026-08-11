@@ -1,0 +1,18 @@
+# 统一行尾：源文件提交/检出均 LF；Windows 批处理保留 CRLF
+* text=auto
+
+*.c    text eol=lf
+*.h    text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.sh   text eol=lf
+*.txt  text eol=lf
+CMakeLists.txt text eol=lf
+
+*.bat  text eol=crlf
+*.exe  binary
+*.a    binary
+*.lib  binary
+*.dll  binary
