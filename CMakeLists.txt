@@ -38,3 +38,8 @@ endif()
 
 enable_testing()
 add_subdirectory(tests)
+
+# 演示程序（可选，仅构建不测试）
+add_executable(demo demo/demo.c)
+target_link_libraries(demo PRIVATE nex)
+target_include_directories(demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
