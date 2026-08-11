@@ -23,6 +23,7 @@ add_library(nex STATIC
     nex/bigdecimal/nex_bigdecimal_str.c
     nex/bigcomplex/float/nex_bigcomplex_float.c
     nex/bigcomplex/decimal/nex_bigcomplex_decimal.c
+    nex/convert/nex_convert.c
 )
 
 # 根相对 include（"nex/bigint/nex_bigint_common.h"）以仓库根为基准

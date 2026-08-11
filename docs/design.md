@@ -1031,6 +1031,7 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | `re` / `im` | real / imag | 复数实部 / 虚部 | `bigcomplex_float_ty.re` |
 | `inf` / `nan` | infinity / NaN | 无穷 / 非数 | `BIGFLOAT_POS_INF_E` |
 | `conv` | conversion | 类型转换单元 | `nex_bigint_conv.h` |
+| `convert` | cross-type conversion | 跨类型转换单元（§10 矩阵） | `nex_convert_*` |
 | `u64` / `i64` / `f64` | uint64 / int64 / float64 | 定宽基本类型后缀 | `bigint_bin_from_u64` |
 | `shl` / `shr` | shift left / right | 移位 | `bigint_bin_shl` |
 | `popcount` | population count | 置位计数 | `bigint_bin_popcount` |
@@ -1080,3 +1081,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | v0.3 | 2026-08-11 | 新增公开 API `bigint_bin_gcd`（二进制 GCD，`gcd(0, 0) = 0`，结果恒非负），供 bigfrac 约分使用 |
 | v0.4 | 2026-08-11 | §8 bigdecimal 模块落地：规范化的“无尾随零”语义（`12 × 10^−1`）、对称指数范围 ±(10^exp_digits−1)、精确字符串 I/O（定点/科学计数两种格式）、十进制逐位试商整数开方；§7.3 澄清预设指数范围与 IEEE 的差异 |
 | v0.5 | 2026-08-11 | §9 bigcomplex 落地（float / decimal 两版）：分量组合语义（乘法朴素四乘二加、除法共轭法、abs 经 sqrt(re²+im²)）、任一分量 NaN → 整体 (NaN, NaN)（§9.3）、"a±bi" 字面量解析与输出、arg 返回 UNSUPPORTED（依赖 atan，v1 未实现） |
+| v0.6 | 2026-08-11 | §10 转换矩阵落地：新增专用转换单元 `nex/convert/`（nex_convert_*，沿袭 nex_bigint_conv 的跨模块胶水层先例）。精确互转（bigint↔bigfrac、浮点→bigfrac）、逆向精确转换（浮点→整数仅接受整数值，否则 INVALID 不截断）、有损互转（显式 ctx、经精确有理数中间值带保护位除法一次舍入，float↔decimal 走 mant×5^k/10^k 精确表示）；复数→实数（im 为 ±0 取 re）。附录 A 注册 `convert` 缩写 |

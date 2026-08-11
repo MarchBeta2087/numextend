@@ -67,6 +67,16 @@ target_link_libraries(bigcomplex_float_golden_driver PRIVATE nex)
 add_executable(bigcomplex_decimal_golden_driver golden_bigcomplex_decimal_driver.c)
 target_link_libraries(bigcomplex_decimal_golden_driver PRIVATE nex)
 
+add_executable(test_convert test_convert.c)
+target_link_libraries(test_convert PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_convert PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME convert_unit COMMAND test_convert)
+
+add_executable(convert_golden_driver golden_convert_driver.c)
+target_link_libraries(convert_golden_driver PRIVATE nex)
+
 # Python 可用时注册黄金对拍；脚本自行定位驱动可执行文件
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
@@ -99,4 +109,8 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/golden_bigcomplex_decimal.py
                 $<TARGET_FILE:bigcomplex_decimal_golden_driver>)
+    add_test(NAME convert_golden
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/golden_convert.py
+                $<TARGET_FILE:convert_golden_driver>)
 endif()
