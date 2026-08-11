@@ -17,6 +17,12 @@ import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
+
+# CI/控制台编码容错：非 ASCII 输出以占位符代替，避免 cp1252 等
+# 编码环境下 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
+
 import golden_bigdecimal as gbd
 
 DRIVER = os.environ.get(
