@@ -19,6 +19,8 @@ add_library(nex STATIC
     nex/bigfrac/nex_bigfrac.c
     nex/bigfloat/nex_bigfloat.c
     nex/bigfloat/nex_bigfloat_str.c
+    nex/bigdecimal/nex_bigdecimal.c
+    nex/bigdecimal/nex_bigdecimal_str.c
 )
 
 # 根相对 include（"nex/bigint/nex_bigint_common.h"）以仓库根为基准

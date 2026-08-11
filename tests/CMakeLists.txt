@@ -37,6 +37,16 @@ add_test(NAME bigfloat_unit COMMAND test_bigfloat)
 add_executable(bigfloat_golden_driver golden_bigfloat_driver.c)
 target_link_libraries(bigfloat_golden_driver PRIVATE nex)
 
+add_executable(test_bigdecimal test_bigdecimal.c)
+target_link_libraries(test_bigdecimal PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_bigdecimal PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigdecimal_unit COMMAND test_bigdecimal)
+
+add_executable(bigdecimal_golden_driver golden_bigdecimal_driver.c)
+target_link_libraries(bigdecimal_golden_driver PRIVATE nex)
+
 # Python 可用时注册黄金对拍；脚本自行定位驱动可执行文件
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
@@ -57,4 +67,8 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/golden_bigfloat.py
                 $<TARGET_FILE:bigfloat_golden_driver>)
+    add_test(NAME bigdecimal_golden
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/golden_bigdecimal.py
+                $<TARGET_FILE:bigdecimal_golden_driver>)
 endif()
