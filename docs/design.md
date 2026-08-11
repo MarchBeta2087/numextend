@@ -1079,3 +1079,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | v0.2 | 2026-08-10 | 新增乘法方法选择机制（`bigint_mul_method_ty` / `bigint_bin_mul_ex` / `bigint_dec_mul_ex`）；`bigint_err_ty` 新增 `BIGINT_ERR_UNSUPPORTED_E`；补变换类乘法分节约定（FFT 默认 4×8 bit，NTT 按模数推导） |
 | v0.3 | 2026-08-11 | 新增公开 API `bigint_bin_gcd`（二进制 GCD，`gcd(0, 0) = 0`，结果恒非负），供 bigfrac 约分使用 |
 | v0.4 | 2026-08-11 | §8 bigdecimal 模块落地：规范化的“无尾随零”语义（`12 × 10^−1`）、对称指数范围 ±(10^exp_digits−1)、精确字符串 I/O（定点/科学计数两种格式）、十进制逐位试商整数开方；§7.3 澄清预设指数范围与 IEEE 的差异 |
+| v0.5 | 2026-08-11 | §9 bigcomplex 落地（float / decimal 两版）：分量组合语义（乘法朴素四乘二加、除法共轭法、abs 经 sqrt(re²+im²)）、任一分量 NaN → 整体 (NaN, NaN)（§9.3）、"a±bi" 字面量解析与输出、arg 返回 UNSUPPORTED（依赖 atan，v1 未实现） |

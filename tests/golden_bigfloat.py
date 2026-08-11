@@ -42,6 +42,7 @@ class Ctx:
     def __init__(self, mant_bits, exp_bits, mode):
         self.p = mant_bits
         self.emin = -(1 << (exp_bits - 1))
+        self.exp_bits = exp_bits
         self.emax = (1 << (exp_bits - 1)) - 1
         self.mode = mode
 
