@@ -1,0 +1,25 @@
+# 构建目录
+/build/
+
+# 编译产物
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.obj
+*.lib
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.suo
+*.user
+
+# 测试临时文件
+__pycache__/
+*.pyc
+
+# 系统文件
+.DS_Store
+Thumbs.db
