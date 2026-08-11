@@ -13,6 +13,11 @@ import random
 import subprocess
 import sys
 
+# CI/控制台编码容错：非 ASCII 输出以占位符代替，避免 cp1252 等
+# 编码环境下 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
+
 # Python 3.11+ 默认将 int 转十进制字符串的长度限制在 4300 位以内，
 # 这里解除限制以支持 pow 等用例中的大数输出（兼容 3.10 及更早版本）。
 try:

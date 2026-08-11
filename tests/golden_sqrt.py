@@ -27,6 +27,12 @@ from fractions import Fraction
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 
+# CI/控制台编码容错：非 ASCII 输出以占位符代替，避免 cp1252 等
+# 编码环境下 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
+
+
 RAND_SEED = int(os.environ.get("NEX_GOLDEN_SEED", "20260812"))
 COUNT = int(os.environ.get("NEX_GOLDEN_SQRT_COUNT", "300"))
 
@@ -258,7 +264,7 @@ def main():
     if fails:
         print("GOLDEN FAIL: %d mismatches" % fails)
         sys.exit(1)
-    print("GOLDEN OK (bf %d + bd %d sqrt cases, 独立边界比较法)"
+    print("GOLDEN OK (bf %d + bd %d sqrt cases, independent boundary-comparison)"
           % (len(bf_expect), len(bd_expect)))
 
 

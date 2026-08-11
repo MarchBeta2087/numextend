@@ -1,5 +1,7 @@
 # Numextend
 
+[![CI](https://github.com/MarchBeta2087/numextend/actions/workflows/ci.yml/badge.svg)](https://github.com/MarchBeta2087/numextend/actions/workflows/ci.yml)
+
 任意精度数值计算库（C99，零依赖），覆盖整数、有理数、二进制/十进制浮点与复数，
 带类型间精确/有损转换矩阵。设计文档见 [`docs/design.md`](docs/design.md)（§4–§10
 为七类数值语义与转换矩阵规范）。
@@ -50,3 +52,9 @@ double/float 逐位对照）+ tie 舍入边界构造 + OOM 注入（12 运算 ×
 ## 许可
 
 见 [LICENSE](LICENSE)。
+
+## 贡献
+
+欢迎贡献！请先阅读 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)——它规定了
+分支流程（feature → dev → main）与"完成"的定义（单元测试、黄金对拍、边界/
+鲁棒测试、文档同步），PR/Issue 请使用仓库内模板。
