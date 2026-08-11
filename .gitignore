@@ -1,6 +1,7 @@
 # 构建目录
 /build/
 /build-dbg/
+/build-cov/
 /build-asan/
 
 # 编译产物
