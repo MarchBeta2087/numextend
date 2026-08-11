@@ -48,6 +48,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME rounding_tie COMMAND test_rounding_tie)
 
+add_executable(test_oom test_oom.c)
+target_link_libraries(test_oom PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_oom PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME oom_injection COMMAND test_oom)
+
 add_executable(bigfloat_golden_driver golden_bigfloat_driver.c)
 target_link_libraries(bigfloat_golden_driver PRIVATE nex)
 
