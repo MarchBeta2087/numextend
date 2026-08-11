@@ -134,6 +134,12 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/golden_convert.py
                 $<TARGET_FILE:convert_golden_driver>)
+    # sqrt 独立参考（精确边界比较法，覆盖五种舍入模式，弥补同构复刻盲区）
+    add_test(NAME sqrt_golden
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/golden_sqrt.py
+                $<TARGET_FILE:bigfloat_golden_driver>
+                $<TARGET_FILE:bigdecimal_golden_driver>)
     # 多种子常规化：每种黄金对拍以额外种子再跑两遍（NEX_GOLDEN_SEED），
     # 捕捉种子相关的不稳定用例（设计 §12 随机验证的常规执行）
     foreach(seed IN ITEMS 1 2)
