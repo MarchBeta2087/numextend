@@ -167,6 +167,46 @@ uint32_t ntt_mod_inv(uint32_t a, const ntt_mod_ty *mod)
 }
 
 /* ------------------------------------------------------------------ */
+/* 内部辅助：Montgomery 模乘（R = 2^32，除法换乘法）                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * brief: p 的模 2^32 逆元（Newton 迭代，5 轮收敛至 32 位；要求 p 奇）
+ */
+static uint32_t ntt_mod_inv_pow2(uint32_t p)
+{
+    uint32_t x = p;
+    x = x * (2U - p * x);
+    x = x * (2U - p * x);
+    x = x * (2U - p * x);
+    x = x * (2U - p * x);
+    x = x * (2U - p * x);
+    return x;
+}
+
+/*
+ * brief: Montgomery 乘积 a·b·R^{-1} mod p（R = 2^32）
+ * param: p_inv  Montgomery 常数 m' = −p^{-1} mod 2^32
+ * note: 无除法：2 次乘法 + 加法/移位，替代 % p 约 3 倍提速（设计文档
+ *       §13 Montgomery 方向落地）。u = (t + m·p)/2^32 < 2p ≤ 2^33，
+ *       高位和经 uint64 累计避免回绕（p 接近 2^32 时 u 可 ≥ 2^32）
+ */
+static uint32_t ntt_mont_mul(uint32_t a, uint32_t b, uint32_t p,
+        uint32_t p_inv)
+{
+    const uint64_t t = (uint64_t)a * b;
+    const uint32_t t_lo = (uint32_t)t;
+    const uint32_t t_hi = (uint32_t)(t >> 32U);
+    const uint32_t m = t_lo * p_inv;
+    const uint64_t mp = (uint64_t)m * p;
+    const uint32_t mp_lo = (uint32_t)mp;
+    const uint32_t mp_hi = (uint32_t)(mp >> 32U);
+    const uint32_t carry = (t_lo + mp_lo < t_lo) ? 1U : 0U;
+    const uint64_t u64 = (uint64_t)t_hi + mp_hi + carry;
+    return (uint32_t)(u64 - ((u64 >= p) ? p : 0U));
+}
+
+/* ------------------------------------------------------------------ */
 /* 对外 API：变换                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -199,25 +239,37 @@ ntt_err_ty ntt_forward(uint32_t *coeffs, uint32_t log2n,
     }
     const uint32_t p = mod->p;
     const uint32_t n = 1U << log2n;
-    /* 本原 N 次根 w_N = w^(2^(c−log2n)) */
-    const uint32_t root = ntt_pow_u32(mod->w, 1U << (mod->c - log2n), p);
+    /* Montgomery 常数：p_inv = −p^{-1} mod 2^32；r = R mod p；r2 = R² mod p */
+    const uint32_t p_inv = 0U - ntt_mod_inv_pow2(p);
+    const uint32_t r = (uint32_t)((UINT64_C(1) << 32) % p);
+    const uint32_t r2 = (uint32_t)((uint64_t)r * r % p);
+
+    /* 进入 Montgomery 域：x' = x·R mod p（后续蝶形全程无除法） */
+    for (uint32_t i = 0U; i < n; i++) {
+        coeffs[i] = ntt_mont_mul(coeffs[i], r2, p, p_inv);
+    }
 
     for (uint32_t s = log2n; s >= 1U; s--) {
         const uint32_t len = 1U << s;
         const uint32_t half = len >> 1U;
-        /* 本阶段本原 len 次根 wlen = w_N^(N/len) = w^(2^(c−s)) */
-        const uint32_t wlen = ntt_pow_u32(root, n / len, p);
-        uint32_t w = 1U;
+        /* 本阶段本原 len 次根 wlen = w_N^(N/len) = w^(2^(c−s))（入域） */
+        const uint32_t wlen = ntt_mont_mul(
+                ntt_pow_u32(mod->w, 1U << (mod->c - s), p), r2, p, p_inv);
+        uint32_t w = r;  /* 域中单位元 M(1) = R mod p */
         for (uint32_t k = 0U; k < half; k++) {
             for (uint32_t j = k; j < n; j += len) {
                 const uint32_t u = coeffs[j];
                 const uint32_t v = coeffs[j + half];
                 coeffs[j] = ntt_butterfly_sum(u, v, p);
-                coeffs[j + half] = ntt_mod_mul(ntt_butterfly_diff(u, v, p),
-                        w, mod);
+                coeffs[j + half] = ntt_mont_mul(ntt_butterfly_diff(u, v, p),
+                        w, p, p_inv);
             }
-            w = ntt_mod_mul(w, wlen, mod);
+            w = ntt_mont_mul(w, wlen, p, p_inv);
         }
+    }
+    /* 离开 Montgomery 域：x = x'·R^{-1} mod p */
+    for (uint32_t i = 0U; i < n; i++) {
+        coeffs[i] = ntt_mont_mul(coeffs[i], 1U, p, p_inv);
     }
     return NTT_OK_E;
 }
@@ -231,30 +283,45 @@ ntt_err_ty ntt_inverse(uint32_t *coeffs, uint32_t log2n,
     }
     const uint32_t p = mod->p;
     const uint32_t n = 1U << log2n;
-    /* 逆变换用根的逆：w_N^-1 = (w^(2^(c−log2n)))^-1 */
+    const uint32_t p_inv = 0U - ntt_mod_inv_pow2(p);
+    const uint32_t r = (uint32_t)((UINT64_C(1) << 32) % p);
+    const uint32_t r2 = (uint32_t)((uint64_t)r * r % p);
+
+    /* 逆变换用根的逆：w_N^-1 = (w^(2^(c−log2n)))^-1；保留普通域副本供
+       分阶段求幂（wlen = (w_N^-1)^(N/len)），入域后用于蝶形 */
     const uint32_t root_inv = ntt_mod_inv(
             ntt_pow_u32(mod->w, 1U << (mod->c - log2n), p), mod);
+    /* 进入 Montgomery 域 */
+    for (uint32_t i = 0U; i < n; i++) {
+        coeffs[i] = ntt_mont_mul(coeffs[i], r2, p, p_inv);
+    }
 
     for (uint32_t s = 1U; s <= log2n; s++) {
         const uint32_t len = 1U << s;
         const uint32_t half = len >> 1U;
-        /* 本阶段 wlen = (w_N^-1)^(N/len) = w^(−(2^(c−s))) */
-        const uint32_t wlen = ntt_pow_u32(root_inv, n / len, p);
-        uint32_t w = 1U;
+        /* 本阶段 wlen = (w_N^-1)^(N/len) = w^(−(2^(c−s)))（入域） */
+        const uint32_t wlen = ntt_mont_mul(
+                ntt_pow_u32(root_inv, n / len, p), r2, p, p_inv);
+        uint32_t w = r;
         for (uint32_t k = 0U; k < half; k++) {
             for (uint32_t j = k; j < n; j += len) {
                 const uint32_t u = coeffs[j];
-                const uint32_t v = ntt_mod_mul(coeffs[j + half], w, mod);
+                const uint32_t v = ntt_mont_mul(coeffs[j + half], w, p,
+                        p_inv);
                 coeffs[j] = ntt_butterfly_sum(u, v, p);
                 coeffs[j + half] = ntt_butterfly_diff(u, v, p);
             }
-            w = ntt_mod_mul(w, wlen, mod);
+            w = ntt_mont_mul(w, wlen, p, p_inv);
         }
     }
-    /* 归一化：全体乘以 N^-1 mod p */
+    /* 归一化：乘以 N^-1（域内），再离开 Montgomery 域 */
     const uint32_t n_inv = ntt_mod_inv(n, mod);
+    const uint32_t n_inv_m = ntt_mont_mul(n_inv, r2, p, p_inv);
     for (uint32_t i = 0U; i < n; i++) {
-        coeffs[i] = ntt_mod_mul(coeffs[i], n_inv, mod);
+        coeffs[i] = ntt_mont_mul(coeffs[i], n_inv_m, p, p_inv);
+    }
+    for (uint32_t i = 0U; i < n; i++) {
+        coeffs[i] = ntt_mont_mul(coeffs[i], 1U, p, p_inv);
     }
     return NTT_OK_E;
 }

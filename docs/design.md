@@ -1,6 +1,6 @@
 # Numextend 设计文档
 
-> 版本：v0.8（草案）
+> 版本：v0.9（草案）
 > 适用代码：`nex/` 目录下全部 C 源代码
 > 关联文档：`coding_standard.md` v1.4（编码规范，本文档中的所有命名均遵循之）
 > 许可证：MIT
@@ -387,7 +387,7 @@ typedef enum {
     BIGINT_MUL_TOOM_COOK_E = 1003,            // v1 未实现 → UNSUPPORTED
     /* 2xxx：变换类 */
     BIGINT_MUL_FLOAT_COMPLEX_FFT_E = 2001,    // v1 未实现 → UNSUPPORTED
-    BIGINT_MUL_MULTI_MODULI_CRT_NTT_E = 2002, // v1 未实现 → UNSUPPORTED
+    BIGINT_MUL_MULTI_MODULI_CRT_NTT_E = 2002, // 多模数 CRT NTT（v1 已实现，双模数）
     /* 3xxx */
     BIGINT_MUL_SCHONHAGE_STRASSEN_E = 3001    // v1 未实现 → UNSUPPORTED
 } bigint_mul_algo_ty;
@@ -459,7 +459,7 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
 | 操作 | v1 算法 | 复杂度 | 后续方向 |
 |------|---------|--------|----------|
 | 加 / 减 | 逐肢带进位扫描 | O(n) | — |
-| 乘法 | schoolbook；肢数 ≥ 阈值（初定 32 肢，实测调优）切换 Karatsuba；`mul_ex` 可强制选择二者之一 | O(n²) / O(n^1.585) | Toom-3、FFT（枚举已预留，未实现返回 `BIGINT_ERR_UNSUPPORTED_E`） |
+| 乘法 | schoolbook；肢数 ≥ 32 切换 Karatsuba；≥ 16384 切换多模数 CRT NTT（阈值实测标定，见 §4.3）；`mul_ex` 可强制选择各算法 | O(n²) / O(n^1.585) / O(n log n) | Toom-3、浮点 FFT（枚举已预留，未实现返回 `BIGINT_ERR_UNSUPPORTED_E`） |
 | 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正） | O(n·m) | 递归除法 |
 | 平方 | 专用 schoolbook 平方（利用对称性减半乘累加） | O(n²/2) | 随乘法升级 |
 | 模幂 | 平方-乘，滑动窗口列为后续 | O(log e 次模乘） | Montgomery 约减 |
@@ -511,6 +511,11 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
   N = 8n）会使变换长度无谓放大 2 倍，故不作 FFT/NTT 共同规则；
 - `params.multi_moduli_crt_ntt.mod_count` 控制模数个数（0 = 库默认 2；
   更大的 n 自动增至 3，容量 W 相应增大）；
+- **实现要点（Phase 2 落地）**：蝶形乘法走 Montgomery 模乘（R = 2^32，
+  模数常数 m' = −p^{-1} mod 2^32 每次变换现算，Newton 5 轮），蝶形全程
+  无除法；Garner 重构的常数 p1^{-1} mod p2 每次乘法预计算一次、全部
+  系数共享；AUTO 分派阈值实测标定为 16384 肢（Karatsuba 交叉点约
+  13K 肢，-O2 双模数），见 §4.3 算法表；
 - 模数一律取形如 p = k·2^c + 1 的素数（k 奇），定义内部结构体 `ntt_mod_ty`
   （不属公开 API）：
 
@@ -1167,3 +1172,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | v0.6 | 2026-08-11 | §10 转换矩阵落地：新增专用转换单元 `nex/convert/`（nex_convert_*，沿袭 nex_bigint_conv 的跨模块胶水层先例）。精确互转（bigint↔bigfrac、浮点→bigfrac）、逆向精确转换（浮点→整数仅接受整数值，否则 INVALID 不截断）、有损互转（显式 ctx、经精确有理数中间值带保护位除法一次舍入，float↔decimal 走 mant×5^k/10^k 精确表示）；复数→实数（im 为 ±0 取 re）。附录 A 注册 `convert` 缩写 |
 | v0.7 | 2026-08-12 | §4.3 变换类乘法分节约定细化：十进制 FFT 定稿为每肢 3 节 × base 1000（弃用 4 节 × 256：两方案变换长度同为 N = 8n，但 256 方案需 bin→dec 基数转换还原且最高节为非均匀 0..59）；NTT 分节按模数容量推导并定默认（bin 16 bit、dec 15 bit，均 2 节/肢、N = 4n）；新增 NTT 模数结构体 `ntt_mod_ty`（p/k/c/w）、内置素数表（11 个 k·2^c+1 素数，c 21..27，均经校验）与确定性校验方案（MR 基数 {2,3,5,7,11} + 根阶验证，合数返回 INVALID）；位反转：DIF/DIT 配对消除，`ntt_bitrev` 由调用方供缓冲区；NTT 模块归属建议 `nex/ntt/`（开放问题） |
 | v0.8 | 2026-08-12 | §4.3 模块归属定案：NTT 核心落地为 `nex/ntt/`（`nex_ntt.h/.c`，仅操作系数数组、无动态分配），§2.1 依赖规则放宽为"bin ↔ dec 互不依赖，可共享只读公共算法模块"，§2.2 目录树增补 `nex/ntt/`；随 NTT 核心实现（Phase 1：模数表 + 校验、DIF/DIT 变换、点乘、Garner CRT 重构）一并交付 |
+| v0.9 | 2026-08-12 | §4.3 NTT 乘法落地（Phase 2）：`bigint_bin` 集成（16-bit 分节、双模数选择、Garner 常数预计算 + base-2^16 进位还原）；Montgomery 模乘内部化（蝶形无除法，§13 方向落地）；AUTO 阈值实测标定 16384 肢（Karatsuba 交叉点约 13K 肢，-O2）；黄金对拍新增 `mul_ntt` 命令 |

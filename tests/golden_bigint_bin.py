@@ -87,6 +87,17 @@ def build_cases(rng):
         for op in ("add", "sub", "mul", "and", "or", "xor"):
             cases.append((op, a, b))
         cases.append(("cmp", a, b))
+    # mul_ntt：强制多模数 CRT NTT 乘法（设计文档 §4.3）。中小尺寸覆盖
+    # 强制路径（N ≤ 2^10），大尺寸触发 N=2^13 变换；另含零/一/符号边界
+    for _ in range(COUNT // 8):
+        a = rand_big(rng, rng.choice([500, 800, 1500, 3000, 4000]))
+        b = rand_big(rng, rng.choice([500, 800, 1500, 3000, 4000]))
+        cases.append(("mul_ntt", a, b))
+    for d1, d2 in [(12000, 12000), (20000, 16000), (20000, 20000)]:
+        cases.append(("mul_ntt", rand_big(rng, d1), rand_big(rng, d2)))
+    for a, b in [(0, 0), (1, 1), (-1, 1), (1, -1), (-1, -1),
+                 (0, 12345), (12345, 0), (10**30, 10**30)]:
+        cases.append(("mul_ntt", a, b))
     # div：除数非零
     for _ in range(COUNT):
         a = rand_special(rng)
@@ -120,13 +131,13 @@ def build_cases(rng):
 
 def expected(op, args):
     """返回 (ok, 结果字符串) 或 (False, 错误标签)。"""
-    if op in ("add", "sub", "mul", "and", "or", "xor"):
+    if op in ("add", "sub", "mul", "mul_ntt", "and", "or", "xor"):
         a, b = args
         if op == "add":
             r = a + b
         elif op == "sub":
             r = a - b
-        elif op == "mul":
+        elif op in ("mul", "mul_ntt"):
             r = a * b
         elif op == "and":
             r = a & b
