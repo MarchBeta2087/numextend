@@ -6,11 +6,13 @@
  *
  * 算法分派：
  *   - AUTO：按肢数阈值自动选择（< 32 肢 schoolbook；32..NTT_CUTOFF 切
- *     Karatsuba；≥ NTT_CUTOFF 且长度和 ≤ 2^26 切多模数 CRT NTT）；
+ *     Karatsuba；≥ NTT_CUTOFF 且长度和 ≤ 2^26 切多模数 CRT NTT；浮点 FFT
+ *     实测仅在 ~512² 肢窄带占优，不参与 AUTO，见 §4.3）；
  *   - SCHOOLBOOK / KARATSUBA：强制对应算法（params 同前）；
+ *   - FLOAT_COMPLEX_FFT：强制浮点 FFT（chunk_bits 0/8/16，其余 INVALID）；
  *   - MULTI_MODULI_CRT_NTT：强制多模数 CRT NTT（mod_count 0 或 2，
  *     其余 UNSUPPORTED）；
- *   - 其余已登记算法（Toom-Cook、FFT、SS）当前版本未实现 →
+ *   - 其余已登记算法（Toom-Cook、SS）当前版本未实现 →
  *     BIGINT_ERR_UNSUPPORTED_E；未知算法标签 → BIGINT_ERR_INVALID_E。
  *
  * 规范化不变式与别名约定同头文件。本文件所有内部函数仅处理幅值，
@@ -18,14 +20,21 @@
  */
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
+#include "nex/fft/nex_fft.h"
 #include "nex/nex_alloc.h"
 #include "nex/ntt/nex_ntt.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* 自适应阈值：两操作数肢数均达到该值启用 Karatsuba；也作 Karatsuba 递归阈值 */
 #define NEX_MUL_AUTO_CUTOFF 32U
+
+/* FFT 乘法（设计文档 §4.3）：仅强制方法（mul_ex）；实测标量 double 下
+ * 仅在 ~512² 肢窄带胜过 Karatsuba（~10%），AUTO 不采用（见 §4.3 记录） */
+/* 16-bit 节的安全规模上限（长度和）：舍入误差保守界 < 0.5（见 mul_fft） */
+#define NEX_MUL_FFT_B16_MAX_SUM 1024U
 
 /* NTT 乘法（设计文档 §4.3）：AUTO 切换阈值，实测标定——Karatsuba 交叉点
  * 约 13K 肢（-O2，双 30-bit 模数 + Montgomery 模乘），取 2^14 留余量 */
@@ -542,6 +551,127 @@ static bigint_err_ty mul_ntt(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
 }
 
 /* ------------------------------------------------------------------ */
+/* 内部辅助：浮点复数 FFT 乘法（设计文档 §4.3）                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * brief: 幅值拆 chunk_bits 位节并零填充至长度 n（交错 double，虚部恒 0）
+ */
+static void mul_fft_pack(double *out, size_t n, const bigint_bin_ty *v,
+        uint32_t chunk_bits)
+{
+    const uint32_t per_limb = 32U / chunk_bits;
+    const uint32_t mask = (1U << chunk_bits) - 1U;
+    for (size_t i = 0U; i < 2U * n; i++) {
+        out[i] = 0.0;
+    }
+    for (size_t i = 0U; i < v->len; i++) {
+        uint32_t limb = v->limbs[i];
+        for (uint32_t c = 0U; c < per_limb; c++) {
+            out[2U * (per_limb * i + c)] = (double)(limb & mask);
+            limb >>= chunk_bits;
+        }
+    }
+}
+
+/*
+ * brief: 幅值乘 dst = |lhs| × |rhs|（浮点复数 FFT）
+ * param: chunk_bits  0 = 自动（S ≤ 2^10 用 16 bit，否则 8 bit）；
+ *                    8 / 16 强制
+ * note: 舍入安全界（Higham FFT 误差界）：|error| ≈ 2·ε·(1+6·log2N)·C，
+ *       C = L·(2^b−1)²。8-bit 节 N 可达 ~2^34 点；16-bit 节限 S ≤ 2^10
+ *       （保守界，测试逐边界验证）。系数 < 2^53 故 (x+0.5) 截断即精确
+ *       舍入；base-2^b 进位后按 32/b 个节拼一个肢。dst 与 src 不别名
+ */
+static bigint_err_ty mul_fft(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
+        const bigint_bin_ty *rhs, uint32_t chunk_bits)
+{
+    const size_t s = lhs->len + rhs->len;
+    if (s == 0U) {
+        dst->len = 0U;
+        mul_normalize(dst);
+        return BIGINT_OK_E;
+    }
+    if (chunk_bits == 0U) {
+        chunk_bits = (s <= NEX_MUL_FFT_B16_MAX_SUM) ? 16U : 8U;
+    }
+    const uint32_t per_limb = 32U / chunk_bits;
+    const size_t l = per_limb * lhs->len;
+    const size_t m = per_limb * rhs->len;
+    uint32_t log2n = 0U;
+    while ((log2n < 31U) && (((size_t)1U << log2n) < (l + m - 1U))) {
+        log2n++;
+    }
+    if (log2n > 30U) {
+        return BIGINT_ERR_UNSUPPORTED_E;
+    }
+    const uint32_t n = 1U << log2n;
+
+    double *a = (double *)malloc(2U * n * sizeof(double));
+    double *b = (double *)malloc(2U * n * sizeof(double));
+    if ((a == NULL) || (b == NULL)) {
+        free(a);
+        free(b);
+        return BIGINT_ERR_OOM_E;
+    }
+
+    bigint_err_ty err = mul_ensure_cap(dst, s);
+    if (err != BIGINT_OK_E) {
+        free(a);
+        free(b);
+        return err;
+    }
+
+    mul_fft_pack(a, n, lhs, chunk_bits);
+    mul_fft_pack(b, n, rhs, chunk_bits);
+    fft_err_ty ferr = fft_forward(a, log2n);
+    if (ferr == FFT_OK_E) {
+        ferr = fft_forward(b, log2n);
+    }
+    if (ferr == FFT_OK_E) {
+        ferr = fft_pointwise_mul(a, a, b, n);
+    }
+    if (ferr == FFT_OK_E) {
+        ferr = fft_inverse(a, log2n);
+    }
+    if (ferr != FFT_OK_E) {
+        free(a);
+        free(b);
+        return BIGINT_ERR_INVALID_E;  /* 参数已预校验，理论不可达 */
+    }
+
+    /* 精确舍入 + base-2^b 进位，直接落输出肢 */
+    const uint32_t digits_total = (uint32_t)(l + m);
+    const uint32_t mask = (1U << chunk_bits) - 1U;
+    uint64_t carry = 0U;
+    for (uint32_t k = 0U; k < digits_total; k++) {
+        uint64_t coeff;
+        if (k < (uint32_t)(l + m - 1U)) {
+            coeff = (uint64_t)(long long)(a[2U * k] + 0.5);
+        } else {
+            coeff = 0U;  /* 末位仅承接进位 */
+        }
+        const uint64_t acc = coeff + carry;
+        const uint32_t digit = (uint32_t)(acc & mask);
+        carry = acc >> chunk_bits;
+        const uint32_t limb_idx = k / per_limb;
+        const uint32_t shift = chunk_bits * (k % per_limb);
+        if (shift == 0U) {
+            dst->limbs[limb_idx] = digit;
+        } else {
+            dst->limbs[limb_idx] |= digit << shift;
+        }
+    }
+    dst->len = s;
+    mul_normalize(dst);
+    dst->sign = BIGINT_SIGN_POS_E;
+
+    free(a);
+    free(b);
+    return BIGINT_OK_E;
+}
+
+/* ------------------------------------------------------------------ */
 /* 方法分派与符号处理                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -588,6 +718,14 @@ static bigint_err_ty mul_dispatch(bigint_bin_ty *dst,
         }
         return mul_karatsuba(dst, lhs, rhs, cutoff);
     }
+    case BIGINT_MUL_FLOAT_COMPLEX_FFT_E: {
+        const uint32_t chunk_bits = (method != NULL)
+                ? method->params.float_complex_fft.chunk_bits : 0U;
+        if ((chunk_bits != 0U) && (chunk_bits != 8U) && (chunk_bits != 16U)) {
+            return BIGINT_ERR_INVALID_E;
+        }
+        return mul_fft(dst, lhs, rhs, chunk_bits);
+    }
     case BIGINT_MUL_MULTI_MODULI_CRT_NTT_E: {
         const uint32_t mod_count = (method != NULL)
                 ? method->params.multi_moduli_crt_ntt.mod_count : 0U;
@@ -597,7 +735,6 @@ static bigint_err_ty mul_dispatch(bigint_bin_ty *dst,
         return mul_ntt(dst, lhs, rhs);
     }
     case BIGINT_MUL_TOOM_COOK_E:
-    case BIGINT_MUL_FLOAT_COMPLEX_FFT_E:
     case BIGINT_MUL_SCHONHAGE_STRASSEN_E:
         return BIGINT_ERR_UNSUPPORTED_E;
     default:

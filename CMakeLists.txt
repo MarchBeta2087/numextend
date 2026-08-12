@@ -16,6 +16,7 @@ add_library(nex STATIC
     nex/bigint/dec/nex_bigint_dec_mul.c
     nex/bigint/dec/nex_bigint_dec_div.c
     nex/bigint/nex_bigint_conv.c
+    nex/fft/nex_fft.c
     nex/ntt/nex_ntt.c
     nex/bigfrac/nex_bigfrac.c
     nex/bigfloat/nex_bigfloat.c
