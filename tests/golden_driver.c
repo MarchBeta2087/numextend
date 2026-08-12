@@ -5,6 +5,7 @@
  *   sub a b            → R a-b
  *   mul a b            → R a*b
  *   mul_ntt a b        → R a*b（强制多模数 CRT NTT，设计文档 §4.3）
+ *   mul_fft a b        → R a*b（强制浮点复数 FFT，设计文档 §4.3）
  *   div a b            → R q r        （截断除法）
  *   pow a e            → R a^e
  *   pow_mod b e m      → R b^e mod m
@@ -315,6 +316,7 @@ int main(void) {
 
         if (strcmp(op, "add") == 0 || strcmp(op, "sub") == 0
                 || strcmp(op, "mul") == 0 || strcmp(op, "mul_ntt") == 0
+                || strcmp(op, "mul_fft") == 0
                 || strcmp(op, "and") == 0 || strcmp(op, "or") == 0
                 || strcmp(op, "xor") == 0 || strcmp(op, "cmp") == 0) {
             if (a_str == NULL || b_str == NULL) {
@@ -333,6 +335,13 @@ int main(void) {
                         bigint_mul_method_ty m;
                         m.algo = BIGINT_MUL_MULTI_MODULI_CRT_NTT_E;
                         m.params.multi_moduli_crt_ntt.mod_count = 0;
+                        rc = bigint_bin_mul_ex(&z, &x, &y, &m);
+                    }
+                    else if (strcmp(op, "mul_fft") == 0) {
+                        /* 强制浮点复数 FFT（设计文档 §4.3，节位宽自动） */
+                        bigint_mul_method_ty m;
+                        m.algo = BIGINT_MUL_FLOAT_COMPLEX_FFT_E;
+                        m.params.float_complex_fft.chunk_bits = 0;
                         rc = bigint_bin_mul_ex(&z, &x, &y, &m);
                     }
                     else if (strcmp(op, "and") == 0) rc = bigint_bin_bit_and(&z, &x, &y);

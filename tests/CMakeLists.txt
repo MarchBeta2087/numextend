@@ -112,6 +112,20 @@ if(NOT MSVC)
 endif()
 add_test(NAME ntt_mul_unit COMMAND test_ntt_mul)
 
+add_executable(test_fft test_fft.c)
+target_link_libraries(test_fft PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_fft PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME fft_unit COMMAND test_fft)
+
+add_executable(test_fft_mul test_fft_mul.c)
+target_link_libraries(test_fft_mul PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_fft_mul PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME fft_mul_unit COMMAND test_fft_mul)
+
 # Python 可用时注册黄金对拍；脚本自行定位驱动可执行文件
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
