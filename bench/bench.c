@@ -15,6 +15,7 @@
  */
 #include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/bigint/dec/nex_bigint_dec.h"
+#include "nex/bigint/nex_bigint_conv.h"
 #include "nex/bigfrac/nex_bigfrac.h"
 #include "nex/bigfloat/nex_bigfloat.h"
 #include "nex/bigdecimal/nex_bigdecimal.h"
@@ -124,6 +125,29 @@ static void rnd_bin_limbs(bigint_bin_ty *v, size_t len) {
 }
 
 /* NTT 乘法：2^15 肢（≈ 32 万 bit，超过 AUTO 阈值 2^14，触发 NTT） */
+/* bin↔dec 分治互转（10 万位十进制 ≈ 10384 bin 肢，超过分治阈值） */
+static void bench_bin_conv(void) {
+    bigint_bin_ty a;
+    bigint_dec_ty d;
+    rnd_bin_limbs(&a, 10384U);
+    bigint_dec_init(&d);
+    double ts[64];
+    for (int r = 0; r < g_repeats; r++) {
+        const double t0 = now_ms();
+        bigint_conv_bin_to_dec(&d, &a);
+        ts[r] = now_ms() - t0;
+    }
+    report("bigint bin→dec 十万位", ts);
+    for (int r = 0; r < g_repeats; r++) {
+        const double t0 = now_ms();
+        bigint_conv_dec_to_bin(&a, &d);
+        ts[r] = now_ms() - t0;
+    }
+    report("bigint dec→bin 十万位", ts);
+    bigint_dec_free(&d);
+    bigint_bin_free(&a);
+}
+
 static void bench_bin_mul_ntt(void) {
     bigint_bin_ty a, b, c;
     bigint_mul_method_ty m;
@@ -315,6 +339,7 @@ int main(int argc, char **argv) {
 
     bench_bin_mul();
     bench_bin_mul_ntt();
+    bench_bin_conv();
     bench_bin_div();
     bench_dec_mul();
     bench_frac_add();

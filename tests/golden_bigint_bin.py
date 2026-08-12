@@ -130,6 +130,15 @@ def build_cases(rng):
         n = rng.randrange(0, 400)
         cases.append(("shl", a, n))
         cases.append(("shr", a, n))
+    # c_b2d / c_d2b：bin↔dec 互转（设计文档 §4.2.6）。大数触发分治路径
+    # （dec > 64 肢 ≈ 577 位、bin > 64 肢 ≈ 617 位），另含零/一/边界
+    for _ in range(COUNT // 8):
+        v = rand_big(rng, rng.choice([600, 1000, 2000, 5000]))
+        cases.append(("c_b2d", v))
+        cases.append(("c_d2b", v))
+    for v in [0, 1, -1, 10**600, 2**2000, -(10**800) + 7]:
+        cases.append(("c_b2d", v))
+        cases.append(("c_d2b", v))
     return cases
 
 
@@ -151,6 +160,10 @@ def expected(op, args):
         else:
             r = a ^ b
         return True, str(r)
+    if op == "c_b2d" or op == "c_d2b":
+        # 互转往返：c_b2d 输出十进制、c_d2b 输出二进制（均为源值的精确表示）
+        (a,) = args
+        return True, str(a)
     if op == "cmp":
         a, b = args
         r = 0 if a == b else (1 if a > b else -1)

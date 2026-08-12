@@ -16,7 +16,8 @@
  * param: dst 目标对象（已初始化）
  * param: src 源对象
  * return: 成功返回 BIGINT_OK_E；内存不足返回 BIGINT_ERR_OOM_E（dst 不变）
- * note: 反复除以 10^9（bin 幅值上的单肢除法，余数即十进制肢），O(n^2)
+ * note: 分治（2 的幂切半 + 平方链表），小规模回退朴素反复除 10^9；
+ *       大输入 O(n^1.585)（设计文档 §13 #10）
  */
 bigint_err_ty bigint_conv_bin_to_dec(bigint_dec_ty *dst,
         const bigint_bin_ty *src);
@@ -26,7 +27,8 @@ bigint_err_ty bigint_conv_bin_to_dec(bigint_dec_ty *dst,
  * param: dst 目标对象（已初始化）
  * param: src 源对象
  * return: 成功返回 BIGINT_OK_E；内存不足返回 BIGINT_ERR_OOM_E（dst 不变）
- * note: 自高肢向低肢逐肢 "乘 10^9 加当前肢" 累加，O(n^2)
+ * note: 分治（对称于 bin→dec），小规模回退朴素逐肢乘 10^9；
+ *       大输入 O(n^1.585)（设计文档 §13 #10）
  */
 bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst,
         const bigint_dec_ty *src);

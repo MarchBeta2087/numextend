@@ -126,6 +126,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME fft_mul_unit COMMAND test_fft_mul)
 
+add_executable(test_bigint_conv test_bigint_conv.c)
+target_link_libraries(test_bigint_conv PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_bigint_conv PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigint_conv_unit COMMAND test_bigint_conv)
+
 # Python 可用时注册黄金对拍；脚本自行定位驱动可执行文件
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
