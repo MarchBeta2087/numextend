@@ -5,11 +5,12 @@
  * 以及带方法选择的分派入口 bigint_bin_mul_ex / bigint_bin_mul。
  *
  * 算法分派：
- *   - AUTO：按肢数阈值自动选择（初定 32 肢，两操作数均 ≥ 32 肢时切 Karatsuba）；
- *   - SCHOOLBOOK：强制朴素 O(n^2)；
- *   - KARATSUBA：强制 Karatsuba，params.karatsuba.cutoff 为递归切回 schoolbook
- *     的阈值（0 = 库默认 32）；
- *   - 其余已登记算法（Toom-Cook、FFT、NTT、SS）当前版本未实现 →
+ *   - AUTO：按肢数阈值自动选择（< 32 肢 schoolbook；32..NTT_CUTOFF 切
+ *     Karatsuba；≥ NTT_CUTOFF 且长度和 ≤ 2^26 切多模数 CRT NTT）；
+ *   - SCHOOLBOOK / KARATSUBA：强制对应算法（params 同前）；
+ *   - MULTI_MODULI_CRT_NTT：强制多模数 CRT NTT（mod_count 0 或 2，
+ *     其余 UNSUPPORTED）；
+ *   - 其余已登记算法（Toom-Cook、FFT、SS）当前版本未实现 →
  *     BIGINT_ERR_UNSUPPORTED_E；未知算法标签 → BIGINT_ERR_INVALID_E。
  *
  * 规范化不变式与别名约定同头文件。本文件所有内部函数仅处理幅值，
@@ -18,12 +19,19 @@
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/nex_alloc.h"
+#include "nex/ntt/nex_ntt.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 /* 自适应阈值：两操作数肢数均达到该值启用 Karatsuba；也作 Karatsuba 递归阈值 */
 #define NEX_MUL_AUTO_CUTOFF 32U
+
+/* NTT 乘法（设计文档 §4.3）：AUTO 切换阈值，实测标定——Karatsuba 交叉点
+ * 约 13K 肢（-O2，双 30-bit 模数 + Montgomery 模乘），取 2^14 留余量 */
+#define NEX_MUL_NTT_CUTOFF 16384U
+/* 长度和上限：保证 log2n ≤ 27（内置模数最大 c）；系数上界亦自动满足（见 mul_ntt） */
+#define NEX_MUL_NTT_MAX_SUM (1U << 26U)
 
 /* ------------------------------------------------------------------ */
 /* 内部辅助：容量与规范化（算法文件自包含，不依赖 bin.c 的 static 函数）      */
@@ -366,6 +374,174 @@ static bigint_err_ty mul_karatsuba(bigint_bin_ty *dst,
 }
 
 /* ------------------------------------------------------------------ */
+/* 内部辅助：多模数 CRT NTT 乘法（设计文档 §4.3）                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * brief: NTT 长度对数 log2n = ceil(log2(2s−1))，s = 两操作数肢数和
+ * note: 16-bit 分节（2 节/肢）下卷积长度 = 2(n+m) − 1 = 2s−1
+ */
+static uint32_t mul_ntt_log2n(size_t s)
+{
+    uint32_t log2n = 0U;
+    while (((size_t)1U << log2n) < (2U * s - 1U)) {
+        log2n++;
+    }
+    return log2n;
+}
+
+/*
+ * brief: 选取两个 c ≥ log2n 的内置模数（设计文档 §4.3：每个模数 2^c ≥ N）
+ * return: 找到返回 BIGINT_OK_E；内置表不足以覆盖变换长度返回
+ *         BIGINT_ERR_UNSUPPORTED_E
+ */
+static bigint_err_ty mul_ntt_pick_mods(uint32_t log2n,
+        const ntt_mod_ty *mods[2])
+{
+    size_t found = 0U;
+    const size_t count = ntt_mod_count();
+    for (size_t i = 0U; i < count; i++) {
+        const ntt_mod_ty *mod = ntt_mod_get(i);
+        if (mod->c >= log2n) {
+            mods[found] = mod;
+            found++;
+            if (found == 2U) {
+                return BIGINT_OK_E;
+            }
+        }
+    }
+    return BIGINT_ERR_UNSUPPORTED_E;
+}
+
+/*
+ * brief: 幅值拆 16-bit 节并零填充至长度 n（2 节/肢，设计文档 §4.3 默认分节）
+ */
+static void mul_ntt_pack(uint32_t *out, size_t n, const bigint_bin_ty *v)
+{
+    for (size_t i = 0U; i < n; i++) {
+        out[i] = 0U;
+    }
+    for (size_t i = 0U; i < v->len; i++) {
+        const uint32_t limb = v->limbs[i];
+        out[2U * i] = limb & 0xFFFFU;
+        out[2U * i + 1U] = limb >> 16U;
+    }
+}
+
+/*
+ * brief: 幅值乘 dst = |lhs| × |rhs|（多模数 CRT NTT）
+ * note: 双 30-bit 模数 + Garner 重构；要求 s = len(lhs)+len(rhs) ≤ 2^26
+ *       （log2n ≤ 27）。系数上界 C ≤ 2·min(n,m)·(2^16−1)² ≤ 2^58 < Πp
+ *       （内置最小两模数之积 ≈ 2^59.8），CRT 重构唯一且全程 uint64 无回绕。
+ *       dst 与 src 不别名（调用方保证）；零操作数自然退化为零结果
+ */
+static bigint_err_ty mul_ntt(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
+        const bigint_bin_ty *rhs)
+{
+    const size_t s = lhs->len + rhs->len;
+    if (s == 0U) {
+        /* 零 × 零：规范化为零 */
+        dst->len = 0U;
+        mul_normalize(dst);
+        return BIGINT_OK_E;
+    }
+    if (s > NEX_MUL_NTT_MAX_SUM) {
+        return BIGINT_ERR_UNSUPPORTED_E;
+    }
+    const uint32_t log2n = mul_ntt_log2n(s);
+    const uint32_t n = 1U << log2n;
+
+    const ntt_mod_ty *mods[2];
+    if (mul_ntt_pick_mods(log2n, mods) != BIGINT_OK_E) {
+        return BIGINT_ERR_UNSUPPORTED_E;
+    }
+
+    uint32_t *a = (uint32_t *)malloc(n * sizeof(uint32_t));
+    uint32_t *b = (uint32_t *)malloc(n * sizeof(uint32_t));
+    uint32_t *c1 = (uint32_t *)malloc(n * sizeof(uint32_t));
+    if ((a == NULL) || (b == NULL) || (c1 == NULL)) {
+        free(a);
+        free(b);
+        free(c1);
+        return BIGINT_ERR_OOM_E;
+    }
+
+    bigint_err_ty err = mul_ensure_cap(dst, s);
+    if (err != BIGINT_OK_E) {
+        free(a);
+        free(b);
+        free(c1);
+        return err;
+    }
+
+    ntt_err_ty nerr = NTT_OK_E;
+    for (uint32_t m = 0U; m < 2U; m++) {
+        const ntt_mod_ty *mod = mods[m];
+        mul_ntt_pack(a, n, lhs);
+        mul_ntt_pack(b, n, rhs);
+        nerr = ntt_forward(a, log2n, mod);
+        if (nerr == NTT_OK_E) {
+            nerr = ntt_forward(b, log2n, mod);
+        }
+        if (nerr == NTT_OK_E) {
+            nerr = ntt_pointwise_mul(a, a, b, n, mod);
+        }
+        if (nerr == NTT_OK_E) {
+            nerr = ntt_inverse(a, log2n, mod);
+        }
+        if (nerr != NTT_OK_E) {
+            break;
+        }
+        if (m == 0U) {
+            memcpy(c1, a, n * sizeof(uint32_t));
+        } else {
+            /* Garner 重构（预计算 p1^{-1} mod p2，一次逆元全系数共享）
+               + base-2^16 进位，直接落输出肢 */
+            const uint32_t p2 = mods[1]->p;
+            const uint32_t p1_inv = ntt_mod_inv(
+                    (uint32_t)((uint64_t)mods[0]->p % p2), mods[1]);
+            uint64_t carry = 0U;
+            for (uint32_t k = 0U; k < 2U * s; k++) {
+                uint64_t coeff;
+                if (k < 2U * s - 1U) {
+                    /* v = r1 + p1·t2，t2 = (r2 − r1)·p1^{-1} mod p2；
+                       v < p1·p2 < 2^64，uint64 无回绕 */
+                    const uint32_t r1 = c1[k];
+                    const uint32_t r2 = a[k];
+                    const uint32_t r1_mod = (uint32_t)((uint64_t)r1 % p2);
+                    const uint32_t diff = (r2 >= r1_mod)
+                            ? (r2 - r1_mod) : (r2 + p2 - r1_mod);
+                    const uint32_t t2 = ntt_mod_mul(diff, p1_inv, mods[1]);
+                    coeff = (uint64_t)r1 + (uint64_t)mods[0]->p * t2;
+                } else {
+                    coeff = 0U;  /* 末位仅承接进位 */
+                }
+                const uint64_t acc = coeff + carry;
+                const uint32_t digit = (uint32_t)(acc & 0xFFFFU);
+                carry = acc >> 16U;
+                if ((k & 1U) == 0U) {
+                    dst->limbs[k >> 1U] = digit;
+                } else {
+                    dst->limbs[k >> 1U] |= digit << 16U;
+                }
+            }
+            dst->len = s;
+            mul_normalize(dst);
+            dst->sign = BIGINT_SIGN_POS_E;
+        }
+    }
+
+    free(a);
+    free(b);
+    free(c1);
+    if (nerr != NTT_OK_E) {
+        /* 模数与 log2n 已预校验，此路径理论不可达；防御性映射 */
+        return BIGINT_ERR_INVALID_E;
+    }
+    return BIGINT_OK_E;
+}
+
+/* ------------------------------------------------------------------ */
 /* 方法分派与符号处理                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -392,6 +568,11 @@ static bigint_err_ty mul_dispatch(bigint_bin_ty *dst,
             ? method->algo : BIGINT_MUL_AUTO_E;
     switch (algo) {
     case BIGINT_MUL_AUTO_E: {
+        const size_t min_len = (lhs->len < rhs->len) ? lhs->len : rhs->len;
+        if ((min_len >= NEX_MUL_NTT_CUTOFF)
+                && (lhs->len + rhs->len <= NEX_MUL_NTT_MAX_SUM)) {
+            return mul_ntt(dst, lhs, rhs);
+        }
         const size_t use_ka = ((lhs->len >= NEX_MUL_AUTO_CUTOFF)
                 && (rhs->len >= NEX_MUL_AUTO_CUTOFF)) ? 1U : 0U;
         return (use_ka != 0U) ? mul_karatsuba(dst, lhs, rhs,
@@ -407,9 +588,16 @@ static bigint_err_ty mul_dispatch(bigint_bin_ty *dst,
         }
         return mul_karatsuba(dst, lhs, rhs, cutoff);
     }
+    case BIGINT_MUL_MULTI_MODULI_CRT_NTT_E: {
+        const uint32_t mod_count = (method != NULL)
+                ? method->params.multi_moduli_crt_ntt.mod_count : 0U;
+        if ((mod_count != 0U) && (mod_count != 2U)) {
+            return BIGINT_ERR_UNSUPPORTED_E;  /* v1 仅支持默认双模数 */
+        }
+        return mul_ntt(dst, lhs, rhs);
+    }
     case BIGINT_MUL_TOOM_COOK_E:
     case BIGINT_MUL_FLOAT_COMPLEX_FFT_E:
-    case BIGINT_MUL_MULTI_MODULI_CRT_NTT_E:
     case BIGINT_MUL_SCHONHAGE_STRASSEN_E:
         return BIGINT_ERR_UNSUPPORTED_E;
     default:

@@ -105,6 +105,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME ntt_unit COMMAND test_ntt)
 
+add_executable(test_ntt_mul test_ntt_mul.c)
+target_link_libraries(test_ntt_mul PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_ntt_mul PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME ntt_mul_unit COMMAND test_ntt_mul)
+
 # Python 可用时注册黄金对拍；脚本自行定位驱动可执行文件
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
