@@ -1289,6 +1289,175 @@ cleanup:
     return err;
 }
 
+#ifdef NEX_POW_MOD_MONT
+/* ------------------------------------------------------------------ */
+/* Montgomery 模幂（REDC 无除法，大模数模幂加速）                       */
+/* ------------------------------------------------------------------ */
+
+/* m' = −m⁻¹ mod 2^32（Newton 迭代 5 次）；m0 必为奇数 */
+static uint32_t mon_m_inv(uint32_t m0)
+{
+    uint32_t x = 1U;
+    for (int i = 0; i < 5; i++) {
+        x *= 2U - m0 * x;   /* mod 2^32 自动 */
+    }
+    return 0U - x;
+}
+
+/*
+ * brief: REDC：t·R⁻¹ mod m（R = B^n）；t 为 2n 肢且 t < m·R
+ * note: 逐肢 u_i = w[i]·m' mod B，w += u_i·m·B^i 使 w 为 B^n 的倍数；
+ *       右移 n 肢后减一次 m 即得 [0, m) 内结果
+ */
+static bigint_err_ty mon_red(bigint_bin_ty *out, const bigint_bin_ty *t,
+        const bigint_bin_ty *m, uint32_t m_inv, size_t n)
+{
+    const size_t w_len = 2U * n + 1U;
+    uint32_t *w = (uint32_t *)nex_malloc(w_len * sizeof(uint32_t));
+    if (w == NULL) {
+        return BIGINT_ERR_OOM_E;
+    }
+    memset(w, 0, w_len * sizeof(uint32_t));
+    memcpy(w, t->limbs, t->len * sizeof(uint32_t));
+    for (size_t i = 0U; i < n; i++) {
+        const uint32_t u = (uint32_t)((uint64_t)w[i] * m_inv);
+        if (u != 0U) {
+            uint64_t carry = 0U;
+            for (size_t j = 0U; j < m->len; j++) {
+                const uint64_t cur = (uint64_t)u * m->limbs[j]
+                        + carry + w[i + j];
+                w[i + j] = (uint32_t)cur;
+                carry = cur >> 32U;
+            }
+            size_t k = i + m->len;
+            while ((carry > 0U) && (k < w_len)) {
+                const uint64_t cur = (uint64_t)w[k] + carry;
+                w[k] = (uint32_t)cur;
+                carry = cur >> 32U;
+                k++;
+            }
+        }
+    }
+    bigint_err_ty err = div_ensure_cap(out, n);
+    if (err != BIGINT_OK_E) {
+        free(w);
+        return err;
+    }
+    memcpy(out->limbs, w + n, n * sizeof(uint32_t));
+    out->len = n;
+    out->sign = BIGINT_SIGN_POS_E;
+    div_normalize(out);
+    free(w);
+    if (bigint_bin_cmp_abs(out, m) >= 0) {
+        bigint_bin_ty sub;
+        (void)bigint_bin_init(&sub);
+        err = bigint_bin_sub(&sub, out, m);
+        if (err == BIGINT_OK_E) {
+            err = bigint_bin_copy(out, &sub);
+        }
+        bigint_bin_free(&sub);
+        if (err != BIGINT_OK_E) {
+            return err;
+        }
+    }
+    return BIGINT_OK_E;
+}
+
+/* Montgomery 乘法：a·b·R⁻¹ mod m（a, b < m） */
+static bigint_err_ty mon_mul(bigint_bin_ty *out, const bigint_bin_ty *a,
+        const bigint_bin_ty *b, const bigint_bin_ty *m, uint32_t m_inv,
+        size_t n)
+{
+    bigint_bin_ty t;
+    bigint_err_ty err = bigint_bin_init(&t);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    err = bigint_bin_mul(&t, a, b);
+    if (err == BIGINT_OK_E) {
+        err = mon_red(out, &t, m, m_inv, n);
+    }
+    bigint_bin_free(&t);
+    return err;
+}
+
+/*
+ * brief: Montgomery 模幂（模数为奇数时使用；结果与
+ *        bigint_bin_pow_mod 同语义）：平方-乘在 Montgomery 域
+ */
+static bigint_err_ty pow_mod_montgomery(bigint_bin_ty *dst,
+        const bigint_bin_ty *base, const bigint_bin_ty *exp,
+        const bigint_bin_ty *mod)
+{
+    const size_t n = mod->len;
+    const uint32_t m_inv = mon_m_inv(mod->limbs[0]);
+
+    bigint_bin_ty one;
+    bigint_bin_ty r2;
+    bigint_bin_ty b2n;
+    bigint_bin_ty base_m;
+    bigint_bin_ty result_m;
+    bigint_bin_ty tmp;
+    bigint_err_ty err = bigint_bin_init(&one);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&r2);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&b2n);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&base_m);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&result_m);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&tmp);
+    if (err != BIGINT_OK_E) {
+        bigint_bin_free(&tmp);
+        bigint_bin_free(&result_m);
+        bigint_bin_free(&base_m);
+        bigint_bin_free(&b2n);
+        bigint_bin_free(&r2);
+        bigint_bin_free(&one);
+        return err;
+    }
+    err = bigint_bin_from_u64(&one, 1U);
+    /* R² mod m = B^(2n) mod m；转换：x→x·R = mon_mul(x, r2) */
+    if (err == BIGINT_OK_E) err = bigint_bin_shl(&b2n, &one, 64U * n);
+    if (err == BIGINT_OK_E) err = abs_mod(&r2, &b2n, mod);
+    if (err == BIGINT_OK_E) err = mon_mul(&result_m, &one, &r2, mod, m_inv, n);
+    if (err == BIGINT_OK_E) err = abs_mod(&base_m, base, mod);
+    if (err == BIGINT_OK_E) err = mon_mul(&base_m, &base_m, &r2, mod, m_inv, n);
+
+    /* 逐位平方-乘（Montgomery 域） */
+    if ((err == BIGINT_OK_E) && (exp->len > 0U)) {
+        const size_t last = exp->len - 1U;
+        const unsigned last_bits = limb_bits(exp->limbs[last]);
+        for (size_t i = 0U; (err == BIGINT_OK_E) && (i < exp->len); i++) {
+            const uint32_t word = exp->limbs[i];
+            const unsigned bits = (i == last) ? last_bits : 32U;
+            for (unsigned k = 0U; (err == BIGINT_OK_E) && (k < bits); k++) {
+                if (((word >> k) & 1U) != 0U) {
+                    err = mon_mul(&tmp, &result_m, &base_m, mod, m_inv, n);
+                    if (err == BIGINT_OK_E) {
+                        err = bigint_bin_copy(&result_m, &tmp);
+                    }
+                }
+                if (!((i == last) && (k + 1U == bits))) {
+                    err = mon_mul(&tmp, &base_m, &base_m, mod, m_inv, n);
+                    if (err == BIGINT_OK_E) {
+                        err = bigint_bin_copy(&base_m, &tmp);
+                    }
+                }
+            }
+        }
+    }
+    /* 转回：result = result_m·R⁻¹ mod m */
+    if (err == BIGINT_OK_E) err = mon_red(dst, &result_m, mod, m_inv, n);
+
+    bigint_bin_free(&tmp);
+    bigint_bin_free(&result_m);
+    bigint_bin_free(&base_m);
+    bigint_bin_free(&b2n);
+    bigint_bin_free(&r2);
+    bigint_bin_free(&one);
+    return err;
+}
+
+#endif /* NEX_POW_MOD_MONT */
+
 /*
  * brief: 模幂 dst = base^exp mod mod，结果 ∈ [0, mod)
  * return: mod 为零返回 BIGINT_ERR_DIV_ZERO_E；exp 为负或 mod 为负返回
@@ -1309,6 +1478,17 @@ bigint_err_ty bigint_bin_pow_mod(bigint_bin_ty *dst, const bigint_bin_ty *base,
     if (exp->sign == BIGINT_SIGN_NEG_E) {
         return BIGINT_ERR_INVALID_E;
     }
+
+#ifdef NEX_POW_MOD_MONT
+    /* Montgomery 快速路径：模数为奇数（m' 存在） */
+    if ((mod->limbs[0] & 1U) != 0U) {
+        bigint_err_ty m_err = pow_mod_montgomery(dst, base, exp, mod);
+        if (m_err != BIGINT_ERR_OOM_E) {
+            return m_err;
+        }
+        /* OOM 时回退标准路径 */
+    }
+#endif
 
     bigint_bin_ty result;
     bigint_bin_ty factor;
