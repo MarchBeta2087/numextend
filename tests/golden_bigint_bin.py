@@ -211,13 +211,31 @@ def main():
         args = c[1:]
         lines.append(op + " " + " ".join(str(x) for x in args))
 
-    outs, drv_err = run_driver(lines)
-    if drv_err is not None:
-        print("FAIL cannot run driver:", drv_err)
-        return 1
-    if outs is None or len(outs) != len(cases):
+    # 分块处理：驱动崩溃时精确定位到出错用例（块内逐条重跑）
+    CHUNK = 100
+    outs = []
+    for start in range(0, len(lines), CHUNK):
+        chunk = lines[start:start + CHUNK]
+        chunk_out, drv_err = run_driver(chunk)
+        bad = drv_err is not None
+        if not bad and len(chunk_out) != len(chunk):
+            bad = True
+        if bad:
+            # 块内崩溃：逐条重跑定位首个出错用例
+            for i, line in enumerate(chunk):
+                one, e1 = run_driver([line])
+                if e1 is not None:
+                    print("FAIL case %d (cmd: %s...) driver: %s"
+                          % (start + i, line[:60], e1))
+                    return 1
+            print("FAIL chunk %d: crash not reproducible case-by-case"
+                  % (start // CHUNK))
+            return 1
+        outs.extend(chunk_out)
+
+    if len(outs) != len(cases):
         print("FAIL output line count %s != cases %d"
-              % ("N/A" if outs is None else len(outs), len(cases)))
+              % (len(outs), len(cases)))
         return 1
 
     mismatches = 0
