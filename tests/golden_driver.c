@@ -316,7 +316,7 @@ int main(void) {
 
         if (strcmp(op, "add") == 0 || strcmp(op, "sub") == 0
                 || strcmp(op, "mul") == 0 || strcmp(op, "mul_ntt") == 0
-                || strcmp(op, "mul_fft") == 0
+                || strcmp(op, "mul_fft") == 0 || strcmp(op, "gcd") == 0
                 || strcmp(op, "and") == 0 || strcmp(op, "or") == 0
                 || strcmp(op, "xor") == 0 || strcmp(op, "cmp") == 0) {
             if (a_str == NULL || b_str == NULL) {
@@ -330,6 +330,7 @@ int main(void) {
                     if (strcmp(op, "add") == 0) rc = bigint_bin_add(&z, &x, &y);
                     else if (strcmp(op, "sub") == 0) rc = bigint_bin_sub(&z, &x, &y);
                     else if (strcmp(op, "mul") == 0) rc = bigint_bin_mul(&z, &x, &y);
+                    else if (strcmp(op, "gcd") == 0) rc = bigint_bin_gcd(&z, &x, &y);
                     else if (strcmp(op, "mul_ntt") == 0) {
                         /* 强制多模数 CRT NTT（设计文档 §4.3，mod_count 默认） */
                         bigint_mul_method_ty m;

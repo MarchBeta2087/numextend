@@ -1,6 +1,6 @@
 # Numextend 设计文档
 
-> 版本：v0.13（草案）
+> 版本：v0.14（草案）
 > 适用代码：`nex/` 目录下全部 C 源代码
 > 关联文档：`coding_standard.md` v1.4（编码规范，本文档中的所有命名均遵循之）
 > 许可证：MIT
@@ -469,7 +469,7 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
 | 模幂 | 平方-乘，滑动窗口列为后续 | O(log e 次模乘） | Montgomery 约减 |
 | bin→dec | 分治（2 的幂切半 + 平方链表），小规模回退反复除 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
 | dec→bin | 分治（对称），小规模回退逐肢乘 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
-| gcd（供 bigfrac 使用，公开 API `bigint_bin_gcd`） | 二进制 GCD | O(n²) | Lehmer / 半 GCD |
+| gcd（供 bigfrac 使用，公开 API `bigint_bin_gcd`） | 大输入 Lehmer 矩阵约减 + 二进制 GCD 收尾；小输入纯二进制 GCD | O(n²)/32 常数改善，实测 4-6.5× | 半 GCD |
 
 实现要点：
 
@@ -1106,9 +1106,9 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 
 已识别的后续方向（均不改变 v1 语义，仅优化或扩展）：
 
-1. Toom-3 / 多模 NTT 乘法（分节约定、模数表与位反转策略见 §4.3；NTT
+1. Toom-3（已落地，v0.14）与多模 NTT 乘法（分节约定、模数表与位反转策略见 §4.3；NTT
    已实现）、递归除法、Newton 迭代除法与开方；
-2. Montgomery 模幂、Lehmer/半 gcd；
+2. Montgomery 模幂、半 gcd（Lehmer gcd 已落地，v0.14）；
 3. 64 位肢变体：核心已落地（`nex/bigint/bin64/`，v0.13）——加/减/乘
    （schoolbook + Karatsuba），等位长下约 2 倍提速；64×64→128 经编译
    器探测（GCC/Clang __int128 + MSVC 便携 4 乘，§13 #3 条件编译落地）；
@@ -1199,3 +1199,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | v0.11 | 2026-08-12 | §4.3 分治基数转换落地（§13 #10）：`bigint_conv_bin_to_dec` / `bigint_conv_dec_to_bin` 改为分治（2 的幂切半 + 平方链表，T(n) = 2T(n/2) + M(n)），阈值按方向独立实测标定（bin→dec 256 肢、dec→bin 2048 肢起分治胜出；8192 肢分别快 3.6 倍 / 2 倍）；修复分治基例未设 sign 导致低半丢失的缺陷；黄金对拍补齐 `c_b2d`/`c_d2b` 大数用例（此前无覆盖）；新增 `test_bigint_conv` 单元测试 |
 | v0.12 | 2026-08-12 | §4.3 十进制字符串 I/O 接入快速路径：`bigint_bin_from_str` / `bigint_bin_to_str`（base 10）改为"9 位分组直析 dec 肢 → 分治 dec→bin" / "分治 bin→dec → 逐肢格式化"（经转换单元跨支线，§2.1），替代 O(n²) 的 parse_digits / digits_generic（20 万位 from_str ~60ms）；测试补盲：新增 `test_bigint_str`（往返、9 位分组边界、10^k 邻域、部分消费与错误语义、大小查询），`test_oom` 增加 2 万位串的 from_str / to_str OOM 注入扫描（覆盖分治转换分配点），golden 的 `c_b2d`/`c_d2b` 补充 2 万位与 10^k 边界用例；修复零×单肢的拆节堆越界（ASan 定位，macOS CI 偶发崩溃根因） |
 | v0.13 | 2026-08-12 | §13 #3 64 位肢核心落地（`nex/bigint/bin64/`）：加/减/乘（schoolbook + Karatsuba），`nex_u128_mul` 经编译器探测（__int128 + 便携 4 乘回退），等位长 ~2× 提速，交叉验证 + u128 向量测试；§13 #10 decimal 快速乘法经实测否定（转 bin→NTT→转回全面落后 4-7 倍，不实现） |
+| v0.14 | 2026-08-12 | Toom-3 乘法落地（§4.2.4）：三点插值 + 带符号中间量，AUTO 阈值实测 512 肢（交叉点 ~600）；修复视图规范化 / 零减法符号 / 基例递归三个缺陷；Lehmer gcd 落地（§4.3/§13）：顶 64 位续分式矩阵（det ±1）+ 溢出护栏 + 回退完整除法，实测 4-6.5×（1024 肢 5.2ms vs 34ms）；golden 新增 gcd 命令外部验证；Toom-3 专项测试含 10^9216 历史缺陷复现 |
