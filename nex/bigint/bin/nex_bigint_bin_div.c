@@ -494,10 +494,20 @@ static void bz_mag_add_at(bigint_bin_ty *acc, size_t off,
 /* 幅值比较 */
 static int bz_mag_cmp(const bigint_bin_ty *lhs, const bigint_bin_ty *rhs)
 {
-    if (lhs->len != rhs->len) {
-        return (lhs->len < rhs->len) ? -1 : 1;
+    /* 视图可带前导零（长度 > 实际值）：先裁剪再比较（稀疏除数如 2^k±1 移位后
+     * 中间全零，视图顶肢常为 0，长度比较会误判方向） */
+    size_t l = lhs->len;
+    size_t r = rhs->len;
+    while ((l > 0U) && (lhs->limbs[l - 1U] == 0U)) {
+        l--;
     }
-    for (size_t idx = lhs->len; idx-- > 0U;) {
+    while ((r > 0U) && (rhs->limbs[r - 1U] == 0U)) {
+        r--;
+    }
+    if (l != r) {
+        return (l < r) ? -1 : 1;
+    }
+    for (size_t idx = l; idx-- > 0U;) {
         if (lhs->limbs[idx] != rhs->limbs[idx]) {
             return (lhs->limbs[idx] < rhs->limbs[idx]) ? -1 : 1;
         }
@@ -754,6 +764,13 @@ static bigint_err_ty bz_div_rem(bigint_bin_ty *quot, bigint_bin_ty *rem,
     bigint_bin_ty ri;
     (void)bigint_bin_init(&qi);
     (void)bigint_bin_init(&ri);
+    /* 预分配商 (t−1)n+1 肢（顶部块可 n+1 肢），块直写；qi 为 n+1 肢（罕见精确 B^n）时回退累加 */
+    err = div_ensure_cap(&q, (t - 1U) * n + 1U);
+    if (err == BIGINT_OK_E) {
+        memset(q.limbs, 0, ((t - 1U) * n + 1U) * sizeof(uint32_t));
+        q.len = 0U;
+        q.sign = BIGINT_SIGN_POS_E;
+    }
     /* 初始 z = [a_{t−1}, a_{t−2}]（各 n 肢，高块可为全零） */
     err = div_ensure_cap(&z, 2U * n);
     if (err == BIGINT_OK_E) {
@@ -775,12 +792,19 @@ static bigint_err_ty bz_div_rem(bigint_bin_ty *quot, bigint_bin_ty *rem,
         if (err != BIGINT_OK_E) {
             break;
         }
-        /* q += qi << (i·n) */
-        bigint_bin_ty qshift;
-        (void)bigint_bin_init(&qshift);
-        err = bz_mag_shl_limbs(&qshift, &qi, i * n);
-        if (err == BIGINT_OK_E) err = bz_mag_add(&q, &q, &qshift);
-        bigint_bin_free(&qshift);
+        /* 块直写 i·n = qi\uff08qi 超 n 肢时回退累加） */
+        if (qi.len > n) {
+            bigint_bin_ty qshift;
+            (void)bigint_bin_init(&qshift);
+            err = bz_mag_shl_limbs(&qshift, &qi, i * n);
+            if (err == BIGINT_OK_E) err = bz_mag_add(&q, &q, &qshift);
+            bigint_bin_free(&qshift);
+        } else {
+            memcpy(q.limbs + i * n, qi.limbs, qi.len * sizeof(uint32_t));
+            if (q.len < i * n + qi.len) {
+                q.len = i * n + qi.len;
+            }
+        }
         if (err != BIGINT_OK_E) {
             break;
         }
@@ -801,7 +825,19 @@ static bigint_err_ty bz_div_rem(bigint_bin_ty *quot, bigint_bin_ty *rem,
         zv.len = z.len;
         err = bz_d2n1n2(&qi, &ri, &zv, &bv, n);
     }
-    if (err == BIGINT_OK_E) err = bz_mag_add(&q, &q, &qi);
+    if (err == BIGINT_OK_E) {
+        if (qi.len > n) {
+            err = bz_mag_add(&q, &q, &qi);
+        } else {
+            memcpy(q.limbs, qi.limbs, qi.len * sizeof(uint32_t));
+            if (q.len < qi.len) {
+                q.len = qi.len;
+            }
+        }
+    }
+    if (err == BIGINT_OK_E) {
+        div_normalize(&q);
+    }
     /* 余数右移 sigma 还原 */
     if (err == BIGINT_OK_E) err = bigint_bin_shr(&ri, &ri, sigma);
 
@@ -875,8 +911,7 @@ bigint_err_ty bigint_bin_div_rem(bigint_bin_ty *quot, bigint_bin_ty *rem,
      * 2^k±1 移位后中间全零）存在未解决的递归边界缺陷（d2n1n2/d3n2 的前提
      * 链在退化除数下可被破坏）。为保正确性，暂不自动分派（保留代码供后续
      * 修复）；当前大输入一律走 Knuth D（mag_divmod）。 */
-    if (0
-            && (rhs->len >= NEX_DIV_BZ_DISPATCH) && (lhs->len >= 2U * rhs->len)) {
+    if ((rhs->len >= NEX_DIV_BZ_DISPATCH) && (lhs->len >= 2U * rhs->len)) {
         err = bz_div_rem(&tmp_quot, &tmp_rem, lhs, rhs);
         if (err != BIGINT_OK_E) {
             bigint_bin_free(&tmp_quot);
