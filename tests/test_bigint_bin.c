@@ -232,6 +232,11 @@ static void test_arith(void) {
         CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_OK_E);
         expect_str("auto", &r, "60");
         m.algo = BIGINT_MUL_TOOM_COOK_E;
+        m.params.toom_cook.k = 3;
+        m.params.toom_cook.cutoff = 0;
+        CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_OK_E);
+        expect_str("toom3", &r, "60");
+        m.params.toom_cook.k = 5;
         CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_ERR_UNSUPPORTED_E);
         m.algo = (bigint_mul_algo_ty)99;
         CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_ERR_INVALID_E);

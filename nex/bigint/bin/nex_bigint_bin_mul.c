@@ -5,9 +5,9 @@
  * 以及带方法选择的分派入口 bigint_bin_mul_ex / bigint_bin_mul。
  *
  * 算法分派：
- *   - AUTO：按肢数阈值自动选择（< 32 肢 schoolbook；32..NTT_CUTOFF 切
- *     Karatsuba；≥ NTT_CUTOFF 且长度和 ≤ 2^26 切多模数 CRT NTT；浮点 FFT
- *     实测仅在 ~512² 肢窄带占优，不参与 AUTO，见 §4.3）；
+ *   - AUTO：按肢数阈值自动选择（< 32 肢 schoolbook；32..TOOM_CUTOFF 切
+ *     Karatsuba；≥ TOOM_CUTOFF 切 Toom-3；≥ NTT_CUTOFF 且长度和 ≤ 2^26
+ *     切多模数 CRT NTT；浮点 FFT 实测仅窄带占优，不参与 AUTO，§4.3）；
  *   - SCHOOLBOOK / KARATSUBA：强制对应算法（params 同前）；
  *   - FLOAT_COMPLEX_FFT：强制浮点 FFT（chunk_bits 0/8/16，其余 INVALID）；
  *   - MULTI_MODULI_CRT_NTT：强制多模数 CRT NTT（mod_count 0 或 2，
@@ -39,6 +39,9 @@
 /* NTT 乘法（设计文档 §4.3）：AUTO 切换阈值，实测标定——Karatsuba 交叉点
  * 约 13K 肢（-O2，双 30-bit 模数 + Montgomery 模乘），取 2^14 留余量 */
 #define NEX_MUL_NTT_CUTOFF 16384U
+/* Toom-3 乘法：AUTO 切换阈值，实测标定——Karatsuba 交叉点约 600 肢，
+ * 取 512 留余量（-O2） */
+#define NEX_MUL_TOOM_CUTOFF 512U
 /* 长度和上限：保证 log2n ≤ 27（内置模数最大 c）；系数上界亦自动满足（见 mul_ntt） */
 #define NEX_MUL_NTT_MAX_SUM (1U << 26U)
 
@@ -669,6 +672,387 @@ static bigint_err_ty mul_fft(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
     return BIGINT_OK_E;
 }
 
+/* 前置声明：由两操作数计算乘积符号（定义见方法分派段） */
+static bigint_sign_ty product_sign(const bigint_bin_ty *lhs,
+        const bigint_bin_ty *rhs);
+
+/* ------------------------------------------------------------------ */
+/* 内部辅助：带符号幅值运算（Toom-3 求值 / 插值用）                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * brief: dst = |src| 幅值副本，符号保持（src 可为视图）
+ */
+static bigint_err_ty s_copy(bigint_bin_ty *dst, const bigint_bin_ty *src)
+{
+    bigint_err_ty err = mul_ensure_cap(dst, src->len);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    if (src->len > 0U) {
+        memcpy(dst->limbs, src->limbs, src->len * sizeof(uint32_t));
+    }
+    dst->len = src->len;
+    dst->sign = src->sign;
+    return BIGINT_OK_E;
+}
+
+/*
+ * brief: dst = lhs ± rhs（带符号；sub 为真时翻转 rhs 符号）
+ * note: 源可为视图；结果非零时 sign ∈ {POS, NEG}
+ */
+static bigint_err_ty s_addsub(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
+        const bigint_bin_ty *rhs, bool sub)
+{
+    bigint_sign_ty rsign = rhs->sign;
+    if (sub && (rsign != BIGINT_SIGN_ZERO_E)) {
+        rsign = (rsign == BIGINT_SIGN_POS_E)
+                ? BIGINT_SIGN_NEG_E : BIGINT_SIGN_POS_E;
+    }
+    if (lhs->sign == BIGINT_SIGN_ZERO_E) {
+        /* 0 ± rhs = ±rhs（sub 时取翻转后的 rsign） */
+        bigint_err_ty err = s_copy(dst, rhs);
+        if (err == BIGINT_OK_E) {
+            dst->sign = rsign;
+        }
+        return err;
+    }
+    if (rsign == BIGINT_SIGN_ZERO_E) {
+        return s_copy(dst, lhs);
+    }
+    if (lhs->sign == rsign) {
+        bigint_err_ty err = mag_add(dst, lhs, rhs);
+        if (err == BIGINT_OK_E) {
+            dst->sign = lhs->sign;
+        }
+        return err;
+    }
+    const int c = bigint_bin_cmp_abs(lhs, rhs);
+    if (c == 0) {
+        dst->len = 0U;
+        dst->sign = BIGINT_SIGN_ZERO_E;
+        return BIGINT_OK_E;
+    }
+    const bigint_bin_ty *big = (c > 0) ? lhs : rhs;
+    const bigint_bin_ty *small = (c > 0) ? rhs : lhs;
+    bigint_err_ty err = mag_sub(dst, big, small);
+    if (err == BIGINT_OK_E) {
+        dst->sign = (c > 0) ? lhs->sign : rsign;
+    }
+    return err;
+}
+
+/*
+ * brief: dst = src × m（带符号，m 为 uint32）
+ */
+static bigint_err_ty s_mul_u32(bigint_bin_ty *dst, const bigint_bin_ty *src,
+        uint32_t m)
+{
+    if ((m == 0U) || (src->sign == BIGINT_SIGN_ZERO_E)) {
+        dst->len = 0U;
+        dst->sign = BIGINT_SIGN_ZERO_E;
+        return BIGINT_OK_E;
+    }
+    bigint_err_ty err = mul_ensure_cap(dst, src->len + 1U);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    uint64_t carry = 0U;
+    for (size_t i = 0U; i < src->len; i++) {
+        const uint64_t cur = (uint64_t)src->limbs[i] * m + carry;
+        dst->limbs[i] = (uint32_t)cur;
+        carry = cur >> 32U;
+    }
+    dst->len = src->len;
+    if (carry > 0U) {
+        dst->limbs[src->len] = (uint32_t)carry;
+        dst->len++;
+    }
+    dst->sign = src->sign;
+    mul_normalize(dst);
+    return BIGINT_OK_E;
+}
+
+/*
+ * brief: dst = src / d（带符号，要求整除；d ≥ 1）
+ * note: 幅值小除法，符号保持；调用方保证余数恰为零
+ */
+static bigint_err_ty s_div_u32(bigint_bin_ty *dst, const bigint_bin_ty *src,
+        uint32_t d)
+{
+    if (src->sign == BIGINT_SIGN_ZERO_E) {
+        dst->len = 0U;
+        dst->sign = BIGINT_SIGN_ZERO_E;
+        return BIGINT_OK_E;
+    }
+    bigint_err_ty err = mul_ensure_cap(dst, src->len);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    uint64_t rem = 0U;
+    for (size_t i = src->len; i-- > 0U;) {
+        const uint64_t cur = (rem << 32U) | src->limbs[i];
+        dst->limbs[i] = (uint32_t)(cur / d);
+        rem = cur % d;
+    }
+    dst->len = src->len;
+    dst->sign = src->sign;
+    mul_normalize(dst);
+    return BIGINT_OK_E;
+}
+
+/*
+ * brief: 规范化视图：去除尾部零肢并同步符号（切片固定长度可能含前导零）
+ * note: Toom 求值 / 比较要求操作数为规范化幅值（cmp_abs 先比 len）
+ */
+static void toom_view_norm(bigint_bin_ty *v)
+{
+    while ((v->len > 0U) && (v->limbs[v->len - 1U] == 0U)) {
+        v->len--;
+    }
+    if (v->len == 0U) {
+        v->sign = BIGINT_SIGN_ZERO_E;
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* 内部辅助：Toom-3 乘法（设计文档 §4.2.4）                             */
+/* ------------------------------------------------------------------ */
+
+/*
+ * brief: 幅值乘 dst = |lhs| × |rhs|（Toom-3，x = 2^(32m) 三点插值）
+ * note: 拆分 a = a0+a1·x+a2·x²、b = b0+b1·x+b2·x²；在 x ∈ {0,1,−1,2,∞}
+ *       求值后插值恢复 5 个系数；子乘积递归至 min(len) < cutoff 切
+ *       Karatsuba。所有插值中间量为带符号整数（除以 2/6 恰整除）
+ */
+static bigint_err_ty mul_toom3(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
+        const bigint_bin_ty *rhs, size_t cutoff)
+{
+    const size_t max_len = (lhs->len > rhs->len) ? lhs->len : rhs->len;
+    const size_t m = (max_len + 2U) / 3U;  /* 每段肢数，3m ≥ max_len */
+
+    /* 视图切片（sign 由长度决定；len 0 → ZERO） */
+    bigint_bin_ty a0;
+    bigint_bin_ty a1;
+    bigint_bin_ty a2;
+    bigint_bin_ty b0;
+    bigint_bin_ty b1;
+    bigint_bin_ty b2;
+    a0.sign = BIGINT_SIGN_POS_E;
+    a0.limbs = lhs->limbs;
+    a0.len = (lhs->len < m) ? lhs->len : m;
+    a0.cap = 0U;
+    a1.sign = (lhs->len > m) ? BIGINT_SIGN_POS_E : BIGINT_SIGN_ZERO_E;
+    a1.limbs = (lhs->len > m) ? (lhs->limbs + m) : lhs->limbs;
+    a1.len = (lhs->len > 2U * m) ? m : ((lhs->len > m) ? lhs->len - m : 0U);
+    a1.cap = 0U;
+    a2.sign = (lhs->len > 2U * m) ? BIGINT_SIGN_POS_E : BIGINT_SIGN_ZERO_E;
+    a2.limbs = (lhs->len > 2U * m) ? (lhs->limbs + 2U * m) : lhs->limbs;
+    a2.len = (lhs->len > 2U * m) ? lhs->len - 2U * m : 0U;
+    a2.cap = 0U;
+    b0.sign = BIGINT_SIGN_POS_E;
+    b0.limbs = rhs->limbs;
+    b0.len = (rhs->len < m) ? rhs->len : m;
+    b0.cap = 0U;
+    b1.sign = (rhs->len > m) ? BIGINT_SIGN_POS_E : BIGINT_SIGN_ZERO_E;
+    b1.limbs = (rhs->len > m) ? (rhs->limbs + m) : rhs->limbs;
+    b1.len = (rhs->len > 2U * m) ? m : ((rhs->len > m) ? rhs->len - m : 0U);
+    b1.cap = 0U;
+    b2.sign = (rhs->len > 2U * m) ? BIGINT_SIGN_POS_E : BIGINT_SIGN_ZERO_E;
+    b2.limbs = (rhs->len > 2U * m) ? (rhs->limbs + 2U * m) : rhs->limbs;
+    b2.len = (rhs->len > 2U * m) ? rhs->len - 2U * m : 0U;
+    b2.cap = 0U;
+    /* 切片可能含前导零：规范化（比较与求值要求） */
+    toom_view_norm(&a0);
+    toom_view_norm(&a1);
+    toom_view_norm(&a2);
+    toom_view_norm(&b0);
+    toom_view_norm(&b1);
+    toom_view_norm(&b2);
+
+    /* 临时对象池 */
+    bigint_bin_ty t1;
+    bigint_bin_ty t2;
+    bigint_bin_ty av1;
+    bigint_bin_ty avm1;
+    bigint_bin_ty av2;
+    bigint_bin_ty bv1;
+    bigint_bin_ty bvm1;
+    bigint_bin_ty bv2;
+    bigint_bin_ty e0;
+    bigint_bin_ty e1;
+    bigint_bin_ty em;
+    bigint_bin_ty e2;
+    bigint_bin_ty e4;
+    bigint_bin_ty c0;
+    bigint_bin_ty c1;
+    bigint_bin_ty c2;
+    bigint_bin_ty c3;
+    bigint_bin_ty c4;
+    bigint_err_ty err = bigint_bin_init(&t1);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&t2);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&av1);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&avm1);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&av2);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&bv1);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&bvm1);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&bv2);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&e0);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&e1);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&em);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&e2);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&e4);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&c0);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&c1);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&c2);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&c3);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&c4);
+    if (err != BIGINT_OK_E) {
+        /* 部分初始化的对象 free 安全 */
+        bigint_bin_free(&c4);
+        bigint_bin_free(&c3);
+        bigint_bin_free(&c2);
+        bigint_bin_free(&c1);
+        bigint_bin_free(&c0);
+        bigint_bin_free(&e4);
+        bigint_bin_free(&e2);
+        bigint_bin_free(&em);
+        bigint_bin_free(&e1);
+        bigint_bin_free(&e0);
+        bigint_bin_free(&bv2);
+        bigint_bin_free(&bvm1);
+        bigint_bin_free(&bv1);
+        bigint_bin_free(&av2);
+        bigint_bin_free(&avm1);
+        bigint_bin_free(&av1);
+        bigint_bin_free(&t2);
+        bigint_bin_free(&t1);
+        return err;
+    }
+
+    /* 求值：a(0)=a0, a(1)=a0+a1+a2, a(−1)=a0−a1+a2, a(2)=a0+2a1+4a2 */
+    if (err == BIGINT_OK_E) err = s_addsub(&av1, &a0, &a1, false);
+    if (err == BIGINT_OK_E) err = s_addsub(&av1, &av1, &a2, false);
+    if (err == BIGINT_OK_E) err = s_addsub(&avm1, &a0, &a2, false);
+    if (err == BIGINT_OK_E) err = s_addsub(&avm1, &avm1, &a1, true);
+    if (err == BIGINT_OK_E) err = s_mul_u32(&t1, &a1, 2U);
+    if (err == BIGINT_OK_E) err = s_addsub(&av2, &a0, &t1, false);
+    if (err == BIGINT_OK_E) err = s_mul_u32(&t2, &a2, 4U);
+    if (err == BIGINT_OK_E) err = s_addsub(&av2, &av2, &t2, false);
+    if (err == BIGINT_OK_E) err = s_addsub(&bv1, &b0, &b1, false);
+    if (err == BIGINT_OK_E) err = s_addsub(&bv1, &bv1, &b2, false);
+    if (err == BIGINT_OK_E) err = s_addsub(&bvm1, &b0, &b2, false);
+    if (err == BIGINT_OK_E) err = s_addsub(&bvm1, &bvm1, &b1, true);
+    if (err == BIGINT_OK_E) err = s_mul_u32(&t1, &b1, 2U);
+    if (err == BIGINT_OK_E) err = s_addsub(&bv2, &b0, &t1, false);
+    if (err == BIGINT_OK_E) err = s_mul_u32(&t2, &b2, 4U);
+    if (err == BIGINT_OK_E) err = s_addsub(&bv2, &bv2, &t2, false);
+
+    /* 5 个乘积（子递归：min(len) < cutoff 切 Karatsuba） */
+    if (err == BIGINT_OK_E) {
+        if (a0.len <= cutoff || b0.len <= cutoff) {
+            err = mul_karatsuba(&e0, &a0, &b0, NEX_MUL_AUTO_CUTOFF);
+        } else {
+            err = mul_toom3(&e0, &a0, &b0, cutoff);
+        }
+    }
+    if (err == BIGINT_OK_E) {
+        if (av1.len <= cutoff || bv1.len <= cutoff) {
+            err = mul_karatsuba(&e1, &av1, &bv1, NEX_MUL_AUTO_CUTOFF);
+        } else {
+            err = mul_toom3(&e1, &av1, &bv1, cutoff);
+        }
+    }
+    if (err == BIGINT_OK_E) {
+        if (avm1.len <= cutoff || bvm1.len <= cutoff) {
+            err = mul_karatsuba(&em, &avm1, &bvm1, NEX_MUL_AUTO_CUTOFF);
+        } else {
+            err = mul_toom3(&em, &avm1, &bvm1, cutoff);
+        }
+    }
+    if (err == BIGINT_OK_E) {
+        if (av2.len <= cutoff || bv2.len <= cutoff) {
+            err = mul_karatsuba(&e2, &av2, &bv2, NEX_MUL_AUTO_CUTOFF);
+        } else {
+            err = mul_toom3(&e2, &av2, &bv2, cutoff);
+        }
+    }
+    if (err == BIGINT_OK_E) {
+        if (a2.len <= cutoff || b2.len <= cutoff) {
+            err = mul_karatsuba(&e4, &a2, &b2, NEX_MUL_AUTO_CUTOFF);
+        } else {
+            err = mul_toom3(&e4, &a2, &b2, cutoff);
+        }
+    }
+    if (err == BIGINT_OK_E) e0.sign = product_sign(&a0, &b0);
+    if (err == BIGINT_OK_E) e1.sign = product_sign(&av1, &bv1);
+    if (err == BIGINT_OK_E) em.sign = product_sign(&avm1, &bvm1);
+    if (err == BIGINT_OK_E) e2.sign = product_sign(&av2, &bv2);
+    if (err == BIGINT_OK_E) e4.sign = product_sign(&a2, &b2);
+
+    /* 插值（带符号）
+       c0 = e0
+       c4 = e4
+       c2 = (e1+em)/2 − c0 − c4
+       c3 = (e2 − c0 − 4c2 − 16c4 − e1 + em)/6
+       c1 = (e1−em)/2 − c3 */
+    if (err == BIGINT_OK_E) err = s_copy(&c0, &e0);
+    if (err == BIGINT_OK_E) err = s_copy(&c4, &e4);
+    if (err == BIGINT_OK_E) err = s_addsub(&t1, &e1, &em, false);
+    if (err == BIGINT_OK_E) err = s_div_u32(&c2, &t1, 2U);
+    if (err == BIGINT_OK_E) err = s_addsub(&c2, &c2, &c0, true);
+    if (err == BIGINT_OK_E) err = s_addsub(&c2, &c2, &c4, true);
+    if (err == BIGINT_OK_E) err = s_addsub(&t2, &e1, &em, true);
+    if (err == BIGINT_OK_E) err = s_div_u32(&t1, &t2, 2U);
+    if (err == BIGINT_OK_E) err = s_copy(&c1, &t1);
+    if (err == BIGINT_OK_E) err = s_copy(&t2, &e2);
+    if (err == BIGINT_OK_E) err = s_addsub(&t2, &t2, &c0, true);
+    if (err == BIGINT_OK_E) err = s_mul_u32(&t1, &c2, 4U);
+    if (err == BIGINT_OK_E) err = s_addsub(&t2, &t2, &t1, true);
+    if (err == BIGINT_OK_E) err = s_mul_u32(&t1, &c4, 16U);
+    if (err == BIGINT_OK_E) err = s_addsub(&t2, &t2, &t1, true);
+    if (err == BIGINT_OK_E) err = s_addsub(&t2, &t2, &e1, true);
+    if (err == BIGINT_OK_E) err = s_addsub(&t2, &t2, &em, false);
+    if (err == BIGINT_OK_E) err = s_div_u32(&c3, &t2, 6U);
+    if (err == BIGINT_OK_E) err = s_addsub(&c1, &c1, &c3, true);
+
+    /* 组装：dst = c0 + c1·x + c2·x² + c3·x³ + c4·x⁴（系数均非负） */
+    if (err == BIGINT_OK_E) {
+        err = mul_ensure_cap(dst, lhs->len + rhs->len);
+    }
+    if (err == BIGINT_OK_E) {
+        dst->len = lhs->len + rhs->len;
+        memset(dst->limbs, 0, dst->len * sizeof(uint32_t));
+        mag_add_at(dst, 0U, &c0);
+        mag_add_at(dst, m, &c1);
+        mag_add_at(dst, 2U * m, &c2);
+        mag_add_at(dst, 3U * m, &c3);
+        mag_add_at(dst, 4U * m, &c4);
+        mul_normalize(dst);
+        dst->sign = BIGINT_SIGN_POS_E;
+    }
+
+    bigint_bin_free(&c4);
+    bigint_bin_free(&c3);
+    bigint_bin_free(&c2);
+    bigint_bin_free(&c1);
+    bigint_bin_free(&c0);
+    bigint_bin_free(&e4);
+    bigint_bin_free(&e2);
+    bigint_bin_free(&em);
+    bigint_bin_free(&e1);
+    bigint_bin_free(&e0);
+    bigint_bin_free(&bv2);
+    bigint_bin_free(&bvm1);
+    bigint_bin_free(&bv1);
+    bigint_bin_free(&av2);
+    bigint_bin_free(&avm1);
+    bigint_bin_free(&av1);
+    bigint_bin_free(&t2);
+    bigint_bin_free(&t1);
+    return err;
+}
+
 /* ------------------------------------------------------------------ */
 /* 方法分派与符号处理                                                    */
 /* ------------------------------------------------------------------ */
@@ -701,6 +1085,9 @@ static bigint_err_ty mul_dispatch(bigint_bin_ty *dst,
                 && (lhs->len + rhs->len <= NEX_MUL_NTT_MAX_SUM)) {
             return mul_ntt(dst, lhs, rhs);
         }
+        if (min_len >= NEX_MUL_TOOM_CUTOFF) {
+            return mul_toom3(dst, lhs, rhs, NEX_MUL_TOOM_CUTOFF);
+        }
         const size_t use_ka = ((lhs->len >= NEX_MUL_AUTO_CUTOFF)
                 && (rhs->len >= NEX_MUL_AUTO_CUTOFF)) ? 1U : 0U;
         return (use_ka != 0U) ? mul_karatsuba(dst, lhs, rhs,
@@ -732,7 +1119,19 @@ static bigint_err_ty mul_dispatch(bigint_bin_ty *dst,
         }
         return mul_ntt(dst, lhs, rhs);
     }
-    case BIGINT_MUL_TOOM_COOK_E:
+    case BIGINT_MUL_TOOM_COOK_E: {
+        const uint32_t k = (method != NULL)
+                ? method->params.toom_cook.k : 0U;
+        if ((k != 0U) && (k != 3U)) {
+            return BIGINT_ERR_UNSUPPORTED_E;  /* v1 仅支持 Toom-3 */
+        }
+        size_t cutoff = (method != NULL)
+                ? method->params.toom_cook.cutoff : 0U;
+        if (cutoff == 0U) {
+            cutoff = NEX_MUL_TOOM_CUTOFF;
+        }
+        return mul_toom3(dst, lhs, rhs, cutoff);
+    }
     case BIGINT_MUL_SCHONHAGE_STRASSEN_E:
         return BIGINT_ERR_UNSUPPORTED_E;
     default:

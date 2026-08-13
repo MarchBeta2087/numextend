@@ -7,6 +7,7 @@
 driver_path 默认为 ./golden_driver；可通过环境变量 NEX_GOLDEN_DRIVER 覆盖。
 协议见 golden_driver.c 头部注释。全部通过打印 GOLDEN OK 并退出 0。
 """
+import math
 import os
 import random
 import subprocess
@@ -151,13 +152,28 @@ def build_cases(rng):
     for v in [10**19999 - 1, 10**19999 + 1, 2**10000]:
         cases.append(("c_b2d", v))
         cases.append(("c_d2b", v))
+    # gcd：Lehmer + 二进制 GCD（设计文档 §4.2.4）。大数触发 Lehmer 路径
+    # （> 32 bit），含互质 / 公因子 / 边界 / 零
+    for _ in range(COUNT // 16):
+        a = rand_big(rng, rng.choice([200, 1000, 3000]))
+        b = rand_big(rng, rng.choice([200, 1000, 3000]))
+        cases.append(("gcd", a, b))
+    for k in [2, 32, 64, 100, 300]:
+        g = rand_big(rng, k)
+        x = rand_big(rng, rng.choice([100, 1000, 3000]))
+        y = rand_big(rng, rng.choice([100, 1000, 3000]))
+        cases.append(("gcd", g * x, g * y))   # 公因子 g 必被约出
+    for a, b in [(0, 0), (0, 5), (5, 0), (1, 1), (1, 10**30),
+                 (2**100, 3 * 2**64), (2**200, 2**100),
+                 (-12, 18), (-12, -18)]:
+        cases.append(("gcd", a, b))
     return cases
 
 
 def expected(op, args):
     """返回 (ok, 结果字符串) 或 (False, 错误标签)。"""
-    if op in ("add", "sub", "mul", "mul_ntt", "mul_fft", "and", "or",
-              "xor"):
+    if op in ("add", "sub", "mul", "mul_ntt", "mul_fft", "gcd", "and",
+              "or", "xor"):
         a, b = args
         if op == "add":
             r = a + b
@@ -165,6 +181,8 @@ def expected(op, args):
             r = a - b
         elif op in ("mul", "mul_ntt", "mul_fft"):
             r = a * b
+        elif op == "gcd":
+            r = math.gcd(a, b)
         elif op == "and":
             r = a & b
         elif op == "or":

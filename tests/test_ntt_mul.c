@@ -185,11 +185,94 @@ static void test_method_errors(void)
     bigint_bin_free(&a);
 }
 
+/* ------------------------------------------------------------------ */
+/* Toom-3 专项（设计文档 §4.2.4；含稀疏值 / 10 的幂——值相关缺陷捕手）   */
+/* ------------------------------------------------------------------ */
+
+static void check_toom_match(const bigint_bin_ty *a, const bigint_bin_ty *b)
+{
+    bigint_bin_ty ref;
+    bigint_bin_ty got;
+    bigint_mul_method_ty m;
+    bigint_bin_init(&ref);
+    bigint_bin_init(&got);
+    m.algo = BIGINT_MUL_SCHOOLBOOK_E;
+    m.params.schoolbook.reserved = 0;
+    CHECK(bigint_bin_mul_ex(&ref, a, b, &m) == BIGINT_OK_E);
+    m.algo = BIGINT_MUL_TOOM_COOK_E;
+    m.params.toom_cook.k = 3;
+    m.params.toom_cook.cutoff = 0;
+    CHECK(bigint_bin_mul_ex(&got, a, b, &m) == BIGINT_OK_E);
+    if (bigint_bin_cmp(&ref, &got) != 0) {
+        printf("FAIL toom mismatch la=%u lb=%u\n",
+                (unsigned)a->len, (unsigned)b->len);
+        g_fail++;
+    }
+    bigint_bin_free(&got);
+    bigint_bin_free(&ref);
+}
+
+/* 构造 10^k（十进制幂，二进制低位稀疏——值相关缺陷高发区） */
+static void pow10_bin(bigint_bin_ty *v, size_t k)
+{
+    bigint_bin_ty ten;
+    bigint_bin_init(&ten);
+    bigint_bin_from_u64(&ten, 10U);
+    bigint_bin_from_u64(v, 1U);
+    for (size_t i = 0U; i < k; i++) {
+        bigint_bin_ty t;
+        bigint_bin_init(&t);
+        bigint_bin_mul(&t, v, &ten);
+        bigint_bin_move(v, &t);
+    }
+    bigint_bin_free(&ten);
+}
+
+static void test_toom3(void)
+{
+    /* 随机尺寸：覆盖 Toom 区间（256..16384）与递归边界 */
+    static const size_t lens[] = { 100U, 256U, 257U, 300U, 319U, 320U,
+            479U, 500U, 957U, 1000U, 2048U, 4096U, 8192U };
+    for (size_t i = 0U; i < sizeof(lens) / sizeof(lens[0]); i++) {
+        bigint_bin_ty a;
+        bigint_bin_ty b;
+        CHECK(rand_bin(&a, lens[i]) == BIGINT_OK_E);
+        CHECK(rand_bin(&b, (lens[i] + 5U) / 2U) == BIGINT_OK_E);
+        check_toom_match(&a, &b);
+        check_toom_match(&b, &a);
+        check_toom_match(&a, &a);  /* 平方 */
+        bigint_bin_free(&b);
+        bigint_bin_free(&a);
+    }
+    /* 稀疏值：10 的幂平方与相乘（低半全零，回归 avm1/零分支缺陷） */
+    for (size_t k = 1000U; k <= 9000U; k += 1000U) {
+        bigint_bin_ty a;
+        bigint_bin_ty b;
+        bigint_bin_init(&a);
+        bigint_bin_init(&b);
+        pow10_bin(&a, k);
+        pow10_bin(&b, k);
+        check_toom_match(&a, &b);   /* 10^k 平方 */
+        bigint_bin_free(&b);
+        bigint_bin_free(&a);
+    }
+    {
+        /* 10^9216（957 肢，低 288 肢全零）平方——历史缺陷精确复现用例 */
+        bigint_bin_ty a;
+        bigint_bin_init(&a);
+        pow10_bin(&a, 9216U);
+        CHECK(a.len == 957U);
+        check_toom_match(&a, &a);
+        bigint_bin_free(&a);
+    }
+}
+
 int main(void)
 {
     test_sizes();
     test_edge_cases();
     test_method_errors();
+    test_toom3();
     if (g_fail == 0) {
         printf("ntt_mul: all tests passed\n");
     }
