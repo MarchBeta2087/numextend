@@ -387,19 +387,6 @@ static bigint_err_ty mul_karatsuba(bigint_bin_ty *dst,
 /* ------------------------------------------------------------------ */
 
 /*
- * brief: NTT 长度对数 log2n = ceil(log2(2s−1))，s = 两操作数肢数和
- * note: 16-bit 分节（2 节/肢）下卷积长度 = 2(n+m) − 1 = 2s−1
- */
-static uint32_t mul_ntt_log2n(size_t s)
-{
-    uint32_t log2n = 0U;
-    while (((size_t)1U << log2n) < (2U * s - 1U)) {
-        log2n++;
-    }
-    return log2n;
-}
-
-/*
  * brief: 选取两个 c ≥ log2n 的内置模数（设计文档 §4.3：每个模数 2^c ≥ N）
  * return: 找到返回 BIGINT_OK_E；内置表不足以覆盖变换长度返回
  *         BIGINT_ERR_UNSUPPORTED_E
@@ -457,7 +444,14 @@ static bigint_err_ty mul_ntt(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
     if (s > NEX_MUL_NTT_MAX_SUM) {
         return BIGINT_ERR_UNSUPPORTED_E;
     }
-    const uint32_t log2n = mul_ntt_log2n(s);
+    /* 变换长度须容纳两侧节数（每肢 2 节）与卷积长度 2s−1：零操作数时
+       2s−1 < 2·max_len，取两者较大（修复零×单肢的拆节越界，ASan 捕获） */
+    const size_t chunks_side = 2U * ((lhs->len > rhs->len) ? lhs->len : rhs->len);
+    const size_t need = (2U * s - 1U > chunks_side) ? (2U * s - 1U) : chunks_side;
+    uint32_t log2n = 0U;
+    while ((log2n < 31U) && (((size_t)1U << log2n) < need)) {
+        log2n++;
+    }
     const uint32_t n = 1U << log2n;
 
     const ntt_mod_ty *mods[2];
@@ -598,8 +592,12 @@ static bigint_err_ty mul_fft(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
     const uint32_t per_limb = 32U / chunk_bits;
     const size_t l = per_limb * lhs->len;
     const size_t m = per_limb * rhs->len;
+    /* 变换长度须容纳两侧节数与卷积长度 l+m−1：零操作数时 l+m−1 <
+       单侧节数，取两者较大（修复零×单肢的拆节越界，ASan 捕获） */
+    const size_t chunks_side = (l > m) ? l : m;
+    const size_t need = (l + m - 1U > chunks_side) ? (l + m - 1U) : chunks_side;
     uint32_t log2n = 0U;
-    while ((log2n < 31U) && (((size_t)1U << log2n) < (l + m - 1U))) {
+    while ((log2n < 31U) && (((size_t)1U << log2n) < need)) {
         log2n++;
     }
     if (log2n > 30U) {

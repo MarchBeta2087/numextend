@@ -10,6 +10,7 @@
  */
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
+#include "nex/bigint/nex_bigint_conv.h"
 #include "nex/nex_alloc.h"
 
 #include <stdlib.h>
@@ -358,6 +359,133 @@ static bigint_err_ty flush_group(bigint_bin_ty *tmp, uint32_t base, uint64_t acc
         return err;
     }
     return add_small(tmp, (uint32_t)acc);
+}
+
+/* ------------------------------------------------------------------ */
+/* 内部辅助：十进制快速 I/O（设计文档 §13 方向落地，经转换单元跨支线）  */
+/* ------------------------------------------------------------------ */
+
+/*
+ * brief: 单肢十进制位数（1..9），用于十进制输出位数估算
+ */
+static size_t bin_limb_digit_count(uint32_t limb)
+{
+    size_t count = 1U;
+    while (limb >= 10U) {
+        limb /= 10U;
+        count++;
+    }
+    return count;
+}
+
+/*
+ * brief: 将单肢十进制写入 out；pad 为 true 时定长 9 位前导补零
+ * return: 写入字符数
+ * note: 与 dec 模块格式化语义一致（最高肢去前导零，其余肢补零）
+ */
+static size_t bin_write_limb(char *out, uint32_t limb, bool pad)
+{
+    char tmp[9];
+    for (size_t idx = 9U; idx-- > 0U;) {
+        tmp[idx] = (char)('0' + (int)(limb % 10U));
+        limb /= 10U;
+    }
+    if (pad) {
+        memcpy(out, tmp, 9U);
+        return 9U;
+    }
+    size_t first = 0U;
+    while ((first < 8U) && (tmp[first] == '0')) {
+        first++;
+    }
+    const size_t count = 9U - first;
+    memcpy(out, tmp + first, count);
+    return count;
+}
+
+/*
+ * brief: 十进制快速输出（base 10 专用）：bin→dec 分治转换后逐肢格式化
+ * param: out     输出缓冲（无 '\0' 结尾，仅数字字符）
+ * param: out_cap 输出缓冲容量
+ * param: count_out 传出数字字符数
+ * note: 替代 digits_generic 的 O(n²) 反复除 10^9；转换经转换单元（§2.1）
+ */
+static bigint_err_ty digits_dec_fast(const bigint_bin_ty *val, char *out,
+        size_t out_cap, size_t *count_out)
+{
+    bigint_dec_ty dec;
+    (void)bigint_dec_init(&dec);  // 栈对象非空，恒成功
+    bigint_err_ty err = bigint_conv_bin_to_dec(&dec, val);
+    if (err != BIGINT_OK_E) {
+        bigint_dec_free(&dec);
+        return err;
+    }
+
+    const size_t digit_count = (dec.len - 1U) * 9U
+            + bin_limb_digit_count(dec.limbs[dec.len - 1U]);
+    if (digit_count + 1U > out_cap) {
+        bigint_dec_free(&dec);
+        return BIGINT_ERR_OOM_E;  // 理论不可达（digit_cap = len·32+1）
+    }
+    size_t pos = bin_write_limb(out, dec.limbs[dec.len - 1U], false);
+    for (size_t idx = dec.len - 1U; idx-- > 0U;) {
+        pos += bin_write_limb(out + pos, dec.limbs[idx], true);
+    }
+    *count_out = digit_count;
+    bigint_dec_free(&dec);
+    return BIGINT_OK_E;
+}
+
+/*
+ * brief: 十进制快速解析（base 10 专用）：数字串按 9 位分组直接解析为
+ *        dec 肢（O(n)），再经分治 dec→bin 转入 bin 幅值
+ * param: tmp   累积对象（调用方初始化为零）
+ * param: cur   起始位置
+ * param: stop  传出首个未消费字符位置；无合法数字时返回
+ *        BIGINT_ERR_PARSE_E（stop 指向 cur）
+ */
+static bigint_err_ty parse_dec_fast(bigint_bin_ty *tmp, const char *cur,
+        const char **stop)
+{
+    /* 定位合法数字跨度 [cur, scan)（'0'..'9'） */
+    const char *scan = cur;
+    while (digit_value(*scan) < 10U) {
+        scan++;
+    }
+    *stop = scan;
+    if (scan == cur) {
+        return BIGINT_ERR_PARSE_E;
+    }
+
+    const size_t ndigits = (size_t)(scan - cur);
+    const size_t nlimbs = (ndigits + 8U) / 9U;
+    bigint_dec_ty dec;
+    bigint_err_ty err = bigint_dec_init_cap(&dec, nlimbs);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    /* 自右向左每 9 位一组解析为 dec 肢（小端：最低位组在 limb[0]） */
+    size_t idx = 0U;
+    const char *g_end = scan;
+    while (g_end > cur) {
+        const char *g_start = ((size_t)(g_end - cur) >= 9U) ? g_end - 9 : cur;
+        uint32_t group = 0U;
+        for (const char *p = g_start; p < g_end; p++) {
+            group = group * 10U + digit_value(*p);
+        }
+        dec.limbs[idx] = group;
+        idx++;
+        g_end = g_start;
+    }
+    dec.len = idx;
+    while ((dec.len > 0U) && (dec.limbs[dec.len - 1U] == 0U)) {
+        dec.len--;
+    }
+    dec.sign = (dec.len > 0U) ? BIGINT_SIGN_POS_E : BIGINT_SIGN_ZERO_E;
+
+    err = bigint_conv_dec_to_bin(tmp, &dec);
+    bigint_dec_free(&dec);
+    return err;
 }
 
 /*
@@ -1034,7 +1162,12 @@ bigint_err_ty bigint_bin_from_str(bigint_bin_ty *val, const char *str,
     bigint_bin_ty tmp;
     (void)bigint_bin_init(&tmp);  // 栈对象非空，恒成功
     const char *stop = cur;
-    bigint_err_ty err = parse_digits(&tmp, cur, base, &stop);
+    bigint_err_ty err;
+    if (base == 10U) {
+        err = parse_dec_fast(&tmp, cur, &stop);  // O(n) 快速路径
+    } else {
+        err = parse_digits(&tmp, cur, base, &stop);
+    }
     if ((err == BIGINT_OK_E) && (stop == cur)) {
         err = BIGINT_ERR_PARSE_E;  // 符号 / 前缀后没有任何合法数字
     }
@@ -1088,6 +1221,8 @@ bigint_err_ty bigint_bin_to_str(const bigint_bin_ty *val, uint32_t base,
     if (val->len == 0U) {
         digits[0] = '0';
         digit_count = 1U;
+    } else if (base == 10U) {
+        err = digits_dec_fast(val, digits, digit_cap, &digit_count);  // O(n)
     } else if ((base & (base - 1U)) == 0U) {
         digit_count = digits_pow2(val, u32_log2(base), digits);
     } else {

@@ -131,12 +131,24 @@ def build_cases(rng):
         cases.append(("shl", a, n))
         cases.append(("shr", a, n))
     # c_b2d / c_d2b：bin↔dec 互转（设计文档 §4.2.6）。大数触发分治路径
-    # （dec > 64 肢 ≈ 577 位、bin > 64 肢 ≈ 617 位），另含零/一/边界
+    # （dec > 2048 肢 ≈ 18432 位、bin > 256 肢 ≈ 617 位），另含 10^k
+    # 邻域（dec 肢基 10^9 边界）与零/一/符号
     for _ in range(COUNT // 8):
-        v = rand_big(rng, rng.choice([600, 1000, 2000, 5000]))
+        v = rand_big(rng, rng.choice([600, 2000, 5000]))
+        cases.append(("c_b2d", v))
+        cases.append(("c_d2b", v))
+    for _ in range(12):
+        v = rand_big(rng, 20000)
         cases.append(("c_b2d", v))
         cases.append(("c_d2b", v))
     for v in [0, 1, -1, 10**600, 2**2000, -(10**800) + 7]:
+        cases.append(("c_b2d", v))
+        cases.append(("c_d2b", v))
+    for k in [9, 18, 27, 36, 99, 999, 9999]:
+        for v in [10**k - 1, 10**k, 10**k + 1]:
+            cases.append(("c_b2d", v))
+            cases.append(("c_d2b", v))
+    for v in [10**19999 - 1, 10**19999 + 1, 2**10000]:
         cases.append(("c_b2d", v))
         cases.append(("c_d2b", v))
     return cases

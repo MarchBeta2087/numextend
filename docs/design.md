@@ -1,6 +1,6 @@
 # Numextend 设计文档
 
-> 版本：v0.11（草案）
+> 版本：v0.12（草案）
 > 适用代码：`nex/` 目录下全部 C 源代码
 > 关联文档：`coding_standard.md` v1.4（编码规范，本文档中的所有命名均遵循之）
 > 许可证：MIT
@@ -465,8 +465,8 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
 | 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正） | O(n·m) | 递归除法 |
 | 平方 | 专用 schoolbook 平方（利用对称性减半乘累加） | O(n²/2) | 随乘法升级 |
 | 模幂 | 平方-乘，滑动窗口列为后续 | O(log e 次模乘） | Montgomery 约减 |
-| bin→dec | 分治（2 的幂切半 + 平方链表），小规模回退反复除 10^9 | O(n^1.585) | 字符串 I/O 接入（base 10） |
-| dec→bin | 分治（对称），小规模回退逐肢乘 10^9 | O(n^1.585) | 字符串 I/O 接入（base 10） |
+| bin→dec | 分治（2 的幂切半 + 平方链表），小规模回退反复除 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
+| dec→bin | 分治（对称），小规模回退逐肢乘 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
 | gcd（供 bigfrac 使用，公开 API `bigint_bin_gcd`） | 二进制 GCD | O(n²) | Lehmer / 半 GCD |
 
 实现要点：
@@ -1116,8 +1116,7 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 8. 超越函数（atan 落地后解锁 `arg`，另有 exp/log/sin/cos）；
 9. 浮点 FFT 的 SIMD 化与 AUTO 启用（标量 double 下仅 ~512² 肢窄带占优，
    见 §4.3；SIMD 可使中小规模反超 Karatsuba）；
-10. 分治基数转换 bin↔dec（落地后 decimal 快速乘法可经"转 bin → FFT/NTT
-    → 转回"，替代直接的十进制 FFT/NTT）。
+10. 分治基数转换 bin↔dec（已落地）与 decimal 快速乘法（经"转 bin → FFT/NTT → 转回"，替代直接的十进制 FFT/NTT）；十进制字符串 I/O 已接入快速路径（bigint_bin base 10，v0.12）。
 
 ---
 
@@ -1191,3 +1190,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | v0.9 | 2026-08-12 | §4.3 NTT 乘法落地（Phase 2）：`bigint_bin` 集成（16-bit 分节、双模数选择、Garner 常数预计算 + base-2^16 进位还原）；Montgomery 模乘内部化（蝶形无除法，§13 方向落地）；AUTO 阈值实测标定 16384 肢（Karatsuba 交叉点约 13K 肢，-O2）；黄金对拍新增 `mul_ntt` 命令 |
 | v0.10 | 2026-08-12 | §4.3 浮点复数 FFT 落地（Phase 3）：`nex/fft/` 核心（DIF/DIT 免位反转）+ `bigint_bin` 集成（强制方法，节位宽 0/8/16）；实测标量 double 下 16-bit 节仅 ~512² 肢窄带胜过 Karatsuba（~10%），8-bit 节处处落败，故 AUTO 不采用 FFT（SIMD 化列入 §13）；NTT 三模数决策：不实现（无场景 + 128 位中间量，容量已覆盖 512 Mbit），128 位乘法留待 64 位肢工作；§13 增补 FFT SIMD 化与分治基数转换方向；黄金对拍新增 `mul_fft` 命令 |
 | v0.11 | 2026-08-12 | §4.3 分治基数转换落地（§13 #10）：`bigint_conv_bin_to_dec` / `bigint_conv_dec_to_bin` 改为分治（2 的幂切半 + 平方链表，T(n) = 2T(n/2) + M(n)），阈值按方向独立实测标定（bin→dec 256 肢、dec→bin 2048 肢起分治胜出；8192 肢分别快 3.6 倍 / 2 倍）；修复分治基例未设 sign 导致低半丢失的缺陷；黄金对拍补齐 `c_b2d`/`c_d2b` 大数用例（此前无覆盖）；新增 `test_bigint_conv` 单元测试 |
+| v0.12 | 2026-08-12 | §4.3 十进制字符串 I/O 接入快速路径：`bigint_bin_from_str` / `bigint_bin_to_str`（base 10）改为"9 位分组直析 dec 肢 → 分治 dec→bin" / "分治 bin→dec → 逐肢格式化"（经转换单元跨支线，§2.1），替代 O(n²) 的 parse_digits / digits_generic（20 万位 from_str ~60ms）；测试补盲：新增 `test_bigint_str`（往返、9 位分组边界、10^k 邻域、部分消费与错误语义、大小查询），`test_oom` 增加 2 万位串的 from_str / to_str OOM 注入扫描（覆盖分治转换分配点），golden 的 `c_b2d`/`c_d2b` 补充 2 万位与 10^k 边界用例 |

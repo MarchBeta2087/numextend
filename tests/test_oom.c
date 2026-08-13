@@ -18,6 +18,7 @@
 #include "nex/convert/nex_convert.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int g_fail = 0;
 #define CHECK(cond) do { \
@@ -275,6 +276,89 @@ static void sweep_frac_add(void) {
 /* bigint_bin / bigint_dec                                            */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* bigint_bin 十进制字符串 I/O（快速路径，覆盖分治转换分配点）           */
+/* ------------------------------------------------------------------ */
+
+/* 构建 2 万位十进制串：from_str 走分治 dec→bin（> 2048 肢）、to_str 走
+ * 分治 bin→dec（> 256 肢），覆盖新增快速路径的全部分配点。串在注入前
+ * 构建（malloc 不占用注入计数窗口） */
+static char *bin_str_big(size_t digits)
+{
+    char *s = (char *)malloc(digits + 1U);
+    if (s == NULL) {
+        return NULL;
+    }
+    for (size_t i = 0U; i < digits; i++) {
+        s[i] = (char)('1' + (int)(i % 9U));  /* 非 0 开头，规范化往返稳定 */
+    }
+    s[digits] = '\0';
+    return s;
+}
+
+static void sweep_bin_from_str(void) {
+    char *big = bin_str_big(20000U);
+    CHECK(big != NULL);
+    if (big == NULL) {
+        return;
+    }
+    bigint_bin_ty expected;
+    bigint_bin_init(&expected);
+    CHECK(bigint_bin_from_str(&expected, big, 10, NULL) == BIGINT_OK_E);
+    for (size_t fail = 1U; fail <= SWEEP_MAX; fail++) {
+        bigint_bin_ty dst;
+        bigint_bin_init(&dst);
+        bigint_bin_copy(&dst, &expected);
+        nex_test_alloc_fail_after = fail;
+        const bigint_err_ty e = bigint_bin_from_str(&dst, big, 10, NULL);
+        nex_test_alloc_fail_after = SIZE_MAX;
+        if (e == BIGINT_ERR_OOM_E) {
+            CHECK(bigint_bin_cmp(&dst, &expected) == 0);  /* 强异常安全 */
+        } else {
+            CHECK(e == BIGINT_OK_E);
+            CHECK(bigint_bin_cmp(&dst, &expected) == 0);
+        }
+        bigint_bin_free(&dst);
+    }
+    printf("bigint_bin from_str OOM sweep: OK\n");
+    bigint_bin_free(&expected);
+    free(big);
+}
+
+static void sweep_bin_to_str(void) {
+    char *big = bin_str_big(20000U);
+    CHECK(big != NULL);
+    if (big == NULL) {
+        return;
+    }
+    bigint_bin_ty a;
+    bigint_bin_init(&a);
+    CHECK(bigint_bin_from_str(&a, big, 10, NULL) == BIGINT_OK_E);
+    for (size_t fail = 1U; fail <= SWEEP_MAX; fail++) {
+        char buf[65536];
+        nex_test_alloc_fail_after = fail;
+        const bigint_err_ty e = bigint_bin_to_str(&a, 10, buf, sizeof(buf),
+                NULL);
+        nex_test_alloc_fail_after = SIZE_MAX;
+        CHECK(e == BIGINT_OK_E || e == BIGINT_ERR_OOM_E);
+    }
+    /* 恢复检查：无注入时输出完整 2 万位 */
+    size_t needed = 0U;
+    CHECK(bigint_bin_to_str(&a, 10, NULL, 0, &needed) == BIGINT_OK_E);
+    CHECK(needed == 20001U);
+    char *out = (char *)malloc(needed);
+    CHECK(out != NULL);
+    if (out != NULL) {
+        CHECK(bigint_bin_to_str(&a, 10, out, needed, &needed)
+                == BIGINT_OK_E);
+        CHECK(strcmp(out, big) == 0);
+        free(out);
+    }
+    printf("bigint_bin to_str OOM sweep: OK\n");
+    bigint_bin_free(&a);
+    free(big);
+}
+
 static void sweep_bin_mul(void) {
     bigint_bin_ty a, b, expected;
     bigint_bin_init(&a);
@@ -408,6 +492,8 @@ int main(void) {
     sweep_bd_sqrt();
     sweep_frac_add();
     sweep_bin_mul();
+    sweep_bin_from_str();
+    sweep_bin_to_str();
     sweep_dec_mul();
     sweep_conv_float_to_dec();
     sweep_cpx_float_mul();
