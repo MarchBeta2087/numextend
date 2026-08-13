@@ -133,6 +133,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME bigint_conv_unit COMMAND test_bigint_conv)
 
+add_executable(test_bigint_str test_bigint_str.c)
+target_link_libraries(test_bigint_str PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_bigint_str PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigint_str_unit COMMAND test_bigint_str)
+
 # Python 可用时注册黄金对拍；脚本自行定位驱动可执行文件
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
