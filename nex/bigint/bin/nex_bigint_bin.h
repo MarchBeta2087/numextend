@@ -326,4 +326,10 @@ size_t bigint_bin_bit_len(const bigint_bin_ty *val);
  */
 size_t bigint_bin_popcount(const bigint_bin_ty *val);
 
+/*
+ * brief: 整数平方根（向下取整）：out = floor(sqrt(val))
+ * note: Newton 迭代，负数返回 BIGINT_ERR_INVALID_E
+ */
+bigint_err_ty bigint_bin_sqrt(bigint_bin_ty *out, const bigint_bin_ty *val);
+
 #endif /* NEX_BIGINT_BIN_H */

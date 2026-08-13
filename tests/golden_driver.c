@@ -461,6 +461,20 @@ int main(void) {
                     printf("\n");
                 }
             }
+        } else if (strcmp(op, "sqrt") == 0) {
+            if (a_str == NULL) {
+                printf("E args\n");
+            } else {
+                rc = bigint_bin_from_str(&x, a_str, 10, NULL);
+                if (rc == BIGINT_OK_E) rc = bigint_bin_sqrt(&z, &x);
+                if (rc != BIGINT_OK_E) {
+                    printf("E err\n");
+                } else {
+                    printf("R ");
+                    print_bigint(&z);
+                    printf("\n");
+                }
+            }
         } else {
             printf("E unknown\n");
         }

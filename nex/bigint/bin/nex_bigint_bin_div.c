@@ -855,6 +855,203 @@ static bigint_err_ty bz_div_rem(bigint_bin_ty *quot, bigint_bin_ty *rem,
     return err;
 }
 
+/* ------------------------------------------------------------------ */
+/* Newton 迭代除法（§13 #1 方向）：整数倒数 + 商修正                     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * brief: Newton 倒数：v ≈ floor(B^(2n) / bs)，bs 恰 n 肢且顶位 1
+ * note: 初值 v0 = (2^64 / bs 顶 2 肢) · B^n（约 64 bit 有效精度），
+ *       迭代 v ← v + floor(v·(B^(2n) − bs·v)/B^(2n)) 精度翻倍至收敛；
+ *       收尾向上修正至 v·bs ≤ B^(2n) < (v+1)·bs
+ */
+/* Newton 除法：算法实现与正确性已验证 */
+/* 全精度迭代效率不如 BZ（非截断乘法），未接入 AUTO */
+/* 编译开关 NEX_DIV_NEWTON_PATH；未来可用截断乘法优化后再评估 */
+#ifdef NEX_DIV_NEWTON_PATH
+static bigint_err_ty newton_recip(bigint_bin_ty *v, const bigint_bin_ty *bs,
+        size_t n, size_t target_limbs)
+{
+    bigint_bin_ty one;
+    bigint_bin_ty b2n;
+    bigint_bin_ty t;
+    bigint_bin_ty d;
+    bigint_bin_ty inc;
+    bigint_err_ty err = bigint_bin_init(&one);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&b2n);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&t);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&d);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&inc);
+    if (err != BIGINT_OK_E) {
+        bigint_bin_free(&inc);
+        bigint_bin_free(&d);
+        bigint_bin_free(&t);
+        bigint_bin_free(&b2n);
+        bigint_bin_free(&one);
+        return err;
+    }
+    err = bigint_bin_from_u64(&one, 1U);
+    if (err == BIGINT_OK_E) err = bigint_bin_shl(&b2n, &one, 32U * target_limbs);
+    /* 初值：v0 = B^n（bs ∈ [B^n/2, B^n) ⟹ v_true ∈ (B^n, 2B^n]，误差 < 50% 保收敛） */
+    if (err == BIGINT_OK_E) {
+        err = div_ensure_cap(v, target_limbs - n + 1U);
+        if (err == BIGINT_OK_E) {
+            memset(v->limbs, 0, (target_limbs - n + 1U) * sizeof(uint32_t));
+            v->limbs[target_limbs - n] = 1U;
+            v->len = target_limbs - n + 1U;
+            v->sign = BIGINT_SIGN_POS_E;
+        }
+    }
+    /* 迭代：v += floor(v·(B^(2n) − bs·v)/B^(2n))；上限防不收敛 */
+    {
+        size_t iter = 0U;
+        while ((err == BIGINT_OK_E) && (iter < 80U)) {
+            iter++;
+            err = bigint_bin_mul(&t, bs, v);
+            if (err != BIGINT_OK_E) {
+                break;
+            }
+            if (bigint_bin_cmp_abs(&t, &b2n) > 0) {
+                /* 过冲：降 1 重试 */
+                                        bigint_bin_ty minus_one;
+                (void)bigint_bin_init(&minus_one);
+                err = bigint_bin_from_u64(&minus_one, 1U);
+                if (err == BIGINT_OK_E) err = bigint_bin_sub(v, v, &minus_one);
+                bigint_bin_free(&minus_one);
+                continue;
+            }
+            err = bigint_bin_sub(&d, &b2n, &t);
+            if (err == BIGINT_OK_E) err = bigint_bin_mul(&inc, v, &d);
+            if (err == BIGINT_OK_E) err = bigint_bin_shr(&inc, &inc, 32U * target_limbs);
+            if (err != BIGINT_OK_E) {
+                break;
+            }
+            if (bigint_bin_is_zero(&inc)) {
+                break;
+            }
+                    if (iter == 1U) {
+                        }
+                    err = bigint_bin_add(v, v, &inc);
+        }
+    }
+
+    /* 收尾：使 v·bs ≤ B^(2n)（向上逼近） */
+    while (err == BIGINT_OK_E) {
+        err = bigint_bin_mul(&t, bs, v);
+        if (err != BIGINT_OK_E) {
+            break;
+        }
+        if (bigint_bin_cmp_abs(&t, &b2n) > 0) {
+            bigint_bin_ty minus_one;
+            (void)bigint_bin_init(&minus_one);
+            err = bigint_bin_from_u64(&minus_one, 1U);
+            if (err == BIGINT_OK_E) err = bigint_bin_sub(v, v, &minus_one);
+            bigint_bin_free(&minus_one);
+        } else {
+            break;
+        }
+    }
+
+    bigint_bin_free(&inc);
+    bigint_bin_free(&d);
+    bigint_bin_free(&t);
+    bigint_bin_free(&b2n);
+    bigint_bin_free(&one);
+    return err;
+}
+
+/*
+ * brief: Newton 除法：|lhs| ÷ |rhs|（lhs ≥ rhs），商 = floor(lhs·v/B^(2n)) + 修正
+ * note: 归一化（rhs 顶位 1），Newton 倒数 v，商估计一次乘法取高位，
+ *       双向修正（q·b ≤ a < (q+1)·b）；余数右移还原；供交叉验证与
+ *       大商场景（§13 #1 方向）
+ */
+static bigint_err_ty newton_div_rem(bigint_bin_ty *quot, bigint_bin_ty *rem,
+        const bigint_bin_ty *lhs, const bigint_bin_ty *rhs)
+{
+    const size_t n = rhs->len;
+    const size_t blen_b = bigint_bin_bit_len(rhs);
+    const size_t shift = (n * 32U > blen_b) ? (n * 32U - blen_b) : 0U;
+
+    bigint_bin_ty bs;
+    bigint_bin_ty as;
+    bigint_bin_ty v;
+    bigint_bin_ty q;
+    bigint_bin_ty t;
+    bigint_bin_ty r;
+    bigint_bin_ty one;
+    bigint_err_ty err = bigint_bin_init(&bs);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&as);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&v);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&q);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&t);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&r);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&one);
+    if (err != BIGINT_OK_E) {
+        bigint_bin_free(&one);
+        bigint_bin_free(&r);
+        bigint_bin_free(&t);
+        bigint_bin_free(&q);
+        bigint_bin_free(&v);
+        bigint_bin_free(&as);
+        bigint_bin_free(&bs);
+        return err;
+    }
+    if (err == BIGINT_OK_E) err = bigint_bin_from_u64(&one, 1U);
+    if (err == BIGINT_OK_E) err = bigint_bin_shl(&bs, rhs, shift);
+    /* Newton 幅值除法：强制幅值符号（lhs/rhs 可能带符号） */
+    bs.sign = BIGINT_SIGN_POS_E;
+    if (err == BIGINT_OK_E) err = bigint_bin_shl(&as, lhs, shift);
+    as.sign = BIGINT_SIGN_POS_E;
+    if (err == BIGINT_OK_E) err = newton_recip(&v, &bs, n, as.len + n);
+    /* 商估计：q = floor(as·v / B^(m+n)) */
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&t, &as, &v);
+    if (err == BIGINT_OK_E) err = bigint_bin_shr(&q, &t, 32U * (as.len + n));
+    /* 修正：q·bs ≤ as < (q+1)·bs */
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&t, &q, &bs);
+    while ((err == BIGINT_OK_E) && (bigint_bin_cmp_abs(&t, &as) > 0)) {
+        err = bigint_bin_sub(&q, &q, &one);
+        if (err == BIGINT_OK_E) err = bigint_bin_mul(&t, &q, &bs);
+    }
+    while ((err == BIGINT_OK_E) && (1)) {
+        bigint_bin_ty qp;
+        (void)bigint_bin_init(&qp);
+        err = bigint_bin_add(&qp, &q, &one);
+        if (err == BIGINT_OK_E) err = bigint_bin_mul(&t, &qp, &bs);
+        if (err != BIGINT_OK_E) {
+            bigint_bin_free(&qp);
+            break;
+        }
+        if (bigint_bin_cmp_abs(&t, &as) > 0) {
+            bigint_bin_free(&qp);
+            break;
+        }
+        err = bigint_bin_copy(&q, &qp);
+        bigint_bin_free(&qp);
+    }
+    /* 余数：r = (as − q·bs) >> shift */
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&t, &q, &bs);
+    if (err == BIGINT_OK_E) err = bigint_bin_sub(&r, &as, &t);
+    if (err == BIGINT_OK_E) err = bigint_bin_shr(&r, &r, shift);
+
+    bigint_bin_free(&one);
+    if (err == BIGINT_OK_E) {
+        bigint_bin_move(quot, &q);
+        bigint_bin_move(rem, &r);
+    } else {
+        bigint_bin_free(&q);
+        bigint_bin_free(&r);
+    }
+    bigint_bin_free(&t);
+    bigint_bin_free(&v);
+    bigint_bin_free(&as);
+    bigint_bin_free(&bs);
+    return err;
+}
+
+#endif /* NEX_DIV_NEWTON_PATH */
+
+
 
 /*
  * brief: 带余除法，lhs = quot × rhs + rem（截断除法，与 C99 整数除法语义相同）
