@@ -225,6 +225,11 @@ static void test_arith(void) {
         CHECK(bigint_dec_mul_ex(&r, &a, &b, &m) == BIGINT_OK_E);
         expect_str("auto", &r, "60");
         m.algo = BIGINT_MUL_TOOM_COOK_E;
+        m.params.toom_cook.k = 3;
+        m.params.toom_cook.cutoff = 0;
+        CHECK(bigint_dec_mul_ex(&r, &a, &b, &m) == BIGINT_OK_E);
+        expect_str("toom3", &r, "60");
+        m.params.toom_cook.k = 5;
         CHECK(bigint_dec_mul_ex(&r, &a, &b, &m) == BIGINT_ERR_UNSUPPORTED_E);
         m.algo = (bigint_mul_algo_ty)99;
         CHECK(bigint_dec_mul_ex(&r, &a, &b, &m) == BIGINT_ERR_INVALID_E);
@@ -510,6 +515,102 @@ static void test_limb_boundary(void) {
     bigint_dec_free(&r);
 }
 
+/* 简单 LCG（测试用，固定种子） */
+static uint32_t g_rng = 0xdec0deU;
+static uint32_t next_u32(void)
+{
+    g_rng = g_rng * 1664525U + 1013904223U;
+    return g_rng;
+}
+
+/* Toom-3 专项（dec 版）：强制 TOOM vs schoolbook，随机尺寸 + 稀疏值 */
+static void test_toom3(void)
+{
+    static const size_t lens[] = { 100U, 512U, 513U, 700U, 957U, 1500U,
+            2048U };
+    for (size_t i = 0U; i < sizeof(lens) / sizeof(lens[0]); i++) {
+        bigint_dec_ty a;
+        bigint_dec_ty b;
+        bigint_dec_ty ref;
+        bigint_dec_ty got;
+        bigint_mul_method_ty m;
+        const size_t la = lens[i];
+        const size_t lb = (lens[i] + 5U) / 2U;
+        bigint_dec_init_cap(&a, la);
+        for (size_t k = 0U; k < la; k++) {
+            a.limbs[k] = (uint32_t)(next_u32() % 999999999U);
+        }
+        a.limbs[la - 1U] = 900000000U;
+        a.len = la;
+        a.sign = BIGINT_SIGN_POS_E;
+        bigint_dec_init_cap(&b, lb);
+        for (size_t k = 0U; k < lb; k++) {
+            b.limbs[k] = (uint32_t)(next_u32() % 999999999U);
+        }
+        b.limbs[lb - 1U] = 900000000U;
+        b.len = lb;
+        b.sign = BIGINT_SIGN_POS_E;
+        bigint_dec_init(&ref);
+        bigint_dec_init(&got);
+        m.algo = BIGINT_MUL_SCHOOLBOOK_E;
+        m.params.schoolbook.reserved = 0;
+        CHECK(bigint_dec_mul_ex(&ref, &a, &b, &m) == BIGINT_OK_E);
+        m.algo = BIGINT_MUL_TOOM_COOK_E;
+        m.params.toom_cook.k = 3;
+        m.params.toom_cook.cutoff = 0;
+        CHECK(bigint_dec_mul_ex(&got, &a, &b, &m) == BIGINT_OK_E);
+        if (bigint_dec_cmp(&ref, &got) != 0) {
+            printf("FAIL toom3 dec la=%u lb=%u\n", (unsigned)la, (unsigned)lb);
+            g_fail++;
+        }
+        m.algo = BIGINT_MUL_SCHOOLBOOK_E;
+        CHECK(bigint_dec_mul_ex(&ref, &a, &a, &m) == BIGINT_OK_E);
+        m.algo = BIGINT_MUL_TOOM_COOK_E;
+        CHECK(bigint_dec_mul_ex(&got, &a, &a, &m) == BIGINT_OK_E);
+        if (bigint_dec_cmp(&ref, &got) != 0) {
+            printf("FAIL toom3 dec square la=%u\n", (unsigned)la);
+            g_fail++;
+        }
+        bigint_dec_free(&got);
+        bigint_dec_free(&ref);
+        bigint_dec_free(&b);
+        bigint_dec_free(&a);
+    }
+    /* 稀疏值：10^9 的幂（dec 肢低位为零），回归视图规范化缺陷 */
+    {
+        bigint_dec_ty a;
+        bigint_dec_ty b;
+        bigint_dec_ty ref;
+        bigint_dec_ty got;
+        bigint_mul_method_ty m;
+        bigint_dec_init(&a);
+        bigint_dec_from_u64(&a, 1U);
+        for (size_t k = 0U; k < 1000U; k++) {
+            bigint_dec_mul_pow10(&a, 9U);
+        }
+        CHECK(a.len == 1001U);
+        bigint_dec_init(&b);
+        bigint_dec_copy(&b, &a);
+        bigint_dec_init(&ref);
+        bigint_dec_init(&got);
+        m.algo = BIGINT_MUL_SCHOOLBOOK_E;
+        m.params.schoolbook.reserved = 0;
+        CHECK(bigint_dec_mul_ex(&ref, &a, &b, &m) == BIGINT_OK_E);
+        m.algo = BIGINT_MUL_TOOM_COOK_E;
+        m.params.toom_cook.k = 3;
+        m.params.toom_cook.cutoff = 0;
+        CHECK(bigint_dec_mul_ex(&got, &a, &b, &m) == BIGINT_OK_E);
+        if (bigint_dec_cmp(&ref, &got) != 0) {
+            printf("FAIL toom3 dec sparse square\n");
+            g_fail++;
+        }
+        bigint_dec_free(&got);
+        bigint_dec_free(&ref);
+        bigint_dec_free(&b);
+        bigint_dec_free(&a);
+    }
+}
+
 int main(void) {
 #ifdef _MSC_VER
     /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
@@ -524,6 +625,7 @@ int main(void) {
     test_pow10();
     test_digit_len();
     test_limb_boundary();
+    test_toom3();
     if (g_fail == 0) {
         printf("ALL TESTS PASSED\n");
         return 0;

@@ -32,7 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char g_buf[65536];
+static char g_buf[1048576];
 
 static void print_bigint(const bigint_bin_ty *v) {
     size_t needed = 0;
