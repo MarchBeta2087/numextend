@@ -129,6 +129,16 @@ static void test_edge_cases(void)
     CHECK(bigint_bin_is_zero(&r));
     CHECK(bigint_bin_mul_ex(&r, &zero, &a, &m) == BIGINT_OK_E);
     CHECK(bigint_bin_is_zero(&r));
+    /* 零 × 单肢（s = 1，变换长度须容纳 2 节——修复 ASan 堆越界） */
+    {
+        bigint_bin_ty one;
+        CHECK(rand_bin(&one, 1U) == BIGINT_OK_E);
+        CHECK(bigint_bin_mul_ex(&r, &zero, &one, &m) == BIGINT_OK_E);
+        CHECK(bigint_bin_is_zero(&r));
+        CHECK(bigint_bin_mul_ex(&r, &one, &zero, &m) == BIGINT_OK_E);
+        CHECK(bigint_bin_is_zero(&r));
+        bigint_bin_free(&one);
+    }
 
     /* 负号：−a × b == −(a × b) */
     CHECK(bigint_bin_copy(&neg, &a) == BIGINT_OK_E);
