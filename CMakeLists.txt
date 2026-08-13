@@ -12,6 +12,7 @@ add_library(nex STATIC
     nex/bigint/bin/nex_bigint_bin_mul.c
     nex/bigint/bin/nex_bigint_bin_div.c
     nex/bigint/bin/nex_bigint_bin_gcd.c
+    nex/bigint/bin64/nex_bigint_bin64.c
     nex/bigint/dec/nex_bigint_dec.c
     nex/bigint/dec/nex_bigint_dec_mul.c
     nex/bigint/dec/nex_bigint_dec_div.c
