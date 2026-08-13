@@ -236,6 +236,7 @@ for (size_t i = 0U; i < buf_len; i++) { ... }
 | `limb` | limb | 大整数存储单元 | `limbs` |
 | `nex` | Numextend | Numextend 库 | `nex_bigint_bin.h` |
 | `bin` | binary | 二进制子模块缩写 | `bigint_bin_*` |
+| `bin64` | 64-bit binary | 64 位肢二进制子模块缩写 | `bigint_bin64_*` |
 | `bitrev` | bit reversal | 位反转置换 | `ntt_bitrev` |
 | `conv` | conversion | 类型转换单元 | `nex_bigint_conv.h` |
 | `ctx` | context | 精度上下文 | `bigfloat_ctx_ty` |
@@ -246,6 +247,7 @@ for (size_t i = 0U; i < buf_len; i++) { ... }
 | `popcount` | population count | 置位计数 | `bigint_bin_popcount` |
 | `re` / `im` | real / imag | 复数实部 / 虚部 | `bigcomplex_float_ty.re` |
 | `shl` / `shr` | shift left / right | 移位 | `bigint_bin_shl` |
+| `u128` | unsigned 128-bit | 128 位无符号整数（64×64→128 乘法产物） | `nex_u128_ty` |
 | `u64` / `i64` / `f64` | uint64 / int64 / float64 | 定宽基本类型后缀 | `bigint_bin_from_u64` |
 | `abs` | absolute value | 绝对值 | `bigint_bin_abs` |
 | `algo` | algorithm | 算法标签 | `bigint_mul_algo_ty` |
@@ -396,3 +398,4 @@ void bigint_dec_free(bigint_dec_ty *bd)
 | v1.3 | 2026-08-05 | 附录 A 补登 30 条：`abs`/`arg`/`bd`/`bigcomplex`/`bigdecimal`/`bigfloat`/`buf`/`cmp`/`conj`/`cpx`/`den`/`div`/`dst`/`eq`/`err`/`init`/`inv`/`lhs`/`rhs`/`mod`/`mul`/`neg`/`num`/`pow`/`quot`/`rem`/`sqrt`/`src`/`str`/`sub`/`val` |
 | v1.4 | 2026-08-10 | 附录 A 补登 6 条：`algo`/`crt`/`ex`/`fft`/`ntt`/`param`（配合设计文档 v0.2 乘法方法选择机制） |
 | v1.5 | 2026-08-12 | 附录 A 补登 5 条：`bitrev`/`dif`/`dit`/`ntt_mod`/`w`（配合设计文档 v0.7 NTT 设计细化） |
+| v1.6 | 2026-08-12 | 附录 A 补登 2 条：`bin64`/`u128`（配合设计文档 v0.13 64 位肢变体） |

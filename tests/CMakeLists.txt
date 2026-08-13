@@ -140,6 +140,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME bigint_str_unit COMMAND test_bigint_str)
 
+add_executable(test_bigint_bin64 test_bigint_bin64.c)
+target_link_libraries(test_bigint_bin64 PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_bigint_bin64 PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigint_bin64_unit COMMAND test_bigint_bin64)
+
 # Python 可用时注册黄金对拍；脚本自行定位驱动可执行文件
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)

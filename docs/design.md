@@ -1,6 +1,6 @@
 # Numextend 设计文档
 
-> 版本：v0.12（草案）
+> 版本：v0.13（草案）
 > 适用代码：`nex/` 目录下全部 C 源代码
 > 关联文档：`coding_standard.md` v1.4（编码规范，本文档中的所有命名均遵循之）
 > 许可证：MIT
@@ -142,6 +142,8 @@ nex/
 │   ├── nex_bigint_conv.h / .c       # bin ↔ dec 互转
 │   ├── bin/
 │   │   └── nex_bigint_bin.h / .c    # 可拆分为多个 .c（见下）
+│   ├── bin64/
+│   │   └── nex_bigint_bin64.h / .c  # 64 位肢变体（§13 #3，v0.13）
 │   └── dec/
 │       └── nex_bigint_dec.h / .c
 ├── fft/
@@ -1107,8 +1109,10 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 1. Toom-3 / 多模 NTT 乘法（分节约定、模数表与位反转策略见 §4.3；NTT
    已实现）、递归除法、Newton 迭代除法与开方；
 2. Montgomery 模幂、Lehmer/半 gcd；
-3. 64 位肢变体（需处理 `uint64_t × uint64_t → 128 位`，受 C99 限制，
-   可经编译器探测条件编译）；
+3. 64 位肢变体：核心已落地（`nex/bigint/bin64/`，v0.13）——加/减/乘
+   （schoolbook + Karatsuba），等位长下约 2 倍提速；64×64→128 经编译
+   器探测（GCC/Clang __int128 + MSVC 便携 4 乘，§13 #3 条件编译落地）；
+   除法 / 字符串 / 互转待按需扩展；
 4. 十进制输出的 Ryū 式快速算法；
 5. 次正规浮点数支持（需放松"最高位恒 1"不变式，影响面大，单独设计评审）；
 6. 自定义分配器钩子；
@@ -1116,7 +1120,10 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 8. 超越函数（atan 落地后解锁 `arg`，另有 exp/log/sin/cos）；
 9. 浮点 FFT 的 SIMD 化与 AUTO 启用（标量 double 下仅 ~512² 肢窄带占优，
    见 §4.3；SIMD 可使中小规模反超 Karatsuba）；
-10. 分治基数转换 bin↔dec（已落地）与 decimal 快速乘法（经"转 bin → FFT/NTT → 转回"，替代直接的十进制 FFT/NTT）；十进制字符串 I/O 已接入快速路径（bigint_bin base 10，v0.12）。
+10. 分治基数转换 bin↔dec（已落地）与十进制字符串 I/O（已接入，
+    bigint_bin base 10，v0.12）；**decimal 快速乘法经实测否定**（v0.13）：
+    "转 bin → NTT → 转回"在 1 万..50 万位全面落后 4-7 倍（转换开销约
+    为同尺寸乘法的 5-6 倍，bin NTT 的 n·log n 优势无法弥补），不实现；
 
 ---
 
@@ -1190,4 +1197,5 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | v0.9 | 2026-08-12 | §4.3 NTT 乘法落地（Phase 2）：`bigint_bin` 集成（16-bit 分节、双模数选择、Garner 常数预计算 + base-2^16 进位还原）；Montgomery 模乘内部化（蝶形无除法，§13 方向落地）；AUTO 阈值实测标定 16384 肢（Karatsuba 交叉点约 13K 肢，-O2）；黄金对拍新增 `mul_ntt` 命令 |
 | v0.10 | 2026-08-12 | §4.3 浮点复数 FFT 落地（Phase 3）：`nex/fft/` 核心（DIF/DIT 免位反转）+ `bigint_bin` 集成（强制方法，节位宽 0/8/16）；实测标量 double 下 16-bit 节仅 ~512² 肢窄带胜过 Karatsuba（~10%），8-bit 节处处落败，故 AUTO 不采用 FFT（SIMD 化列入 §13）；NTT 三模数决策：不实现（无场景 + 128 位中间量，容量已覆盖 512 Mbit），128 位乘法留待 64 位肢工作；§13 增补 FFT SIMD 化与分治基数转换方向；黄金对拍新增 `mul_fft` 命令 |
 | v0.11 | 2026-08-12 | §4.3 分治基数转换落地（§13 #10）：`bigint_conv_bin_to_dec` / `bigint_conv_dec_to_bin` 改为分治（2 的幂切半 + 平方链表，T(n) = 2T(n/2) + M(n)），阈值按方向独立实测标定（bin→dec 256 肢、dec→bin 2048 肢起分治胜出；8192 肢分别快 3.6 倍 / 2 倍）；修复分治基例未设 sign 导致低半丢失的缺陷；黄金对拍补齐 `c_b2d`/`c_d2b` 大数用例（此前无覆盖）；新增 `test_bigint_conv` 单元测试 |
-| v0.12 | 2026-08-12 | §4.3 十进制字符串 I/O 接入快速路径：`bigint_bin_from_str` / `bigint_bin_to_str`（base 10）改为"9 位分组直析 dec 肢 → 分治 dec→bin" / "分治 bin→dec → 逐肢格式化"（经转换单元跨支线，§2.1），替代 O(n²) 的 parse_digits / digits_generic（20 万位 from_str ~60ms）；测试补盲：新增 `test_bigint_str`（往返、9 位分组边界、10^k 邻域、部分消费与错误语义、大小查询），`test_oom` 增加 2 万位串的 from_str / to_str OOM 注入扫描（覆盖分治转换分配点），golden 的 `c_b2d`/`c_d2b` 补充 2 万位与 10^k 边界用例 |
+| v0.12 | 2026-08-12 | §4.3 十进制字符串 I/O 接入快速路径：`bigint_bin_from_str` / `bigint_bin_to_str`（base 10）改为"9 位分组直析 dec 肢 → 分治 dec→bin" / "分治 bin→dec → 逐肢格式化"（经转换单元跨支线，§2.1），替代 O(n²) 的 parse_digits / digits_generic（20 万位 from_str ~60ms）；测试补盲：新增 `test_bigint_str`（往返、9 位分组边界、10^k 邻域、部分消费与错误语义、大小查询），`test_oom` 增加 2 万位串的 from_str / to_str OOM 注入扫描（覆盖分治转换分配点），golden 的 `c_b2d`/`c_d2b` 补充 2 万位与 10^k 边界用例；修复零×单肢的拆节堆越界（ASan 定位，macOS CI 偶发崩溃根因） |
+| v0.13 | 2026-08-12 | §13 #3 64 位肢核心落地（`nex/bigint/bin64/`）：加/减/乘（schoolbook + Karatsuba），`nex_u128_mul` 经编译器探测（__int128 + 便携 4 乘回退），等位长 ~2× 提速，交叉验证 + u128 向量测试；§13 #10 decimal 快速乘法经实测否定（转 bin→NTT→转回全面落后 4-7 倍，不实现） |
