@@ -31,6 +31,8 @@
 - [x] MSVC 全量测试（`windows-msvc`，含 golden 与 `ctest -C Release`）。
 - [ ] 覆盖率门槛（`scripts/coverage.sh` 已有，待接入 CI 并定阈值）。
 - [x] 端序：声明仅小端经过验证（实现为 `uint32_t` 值语义，见 §1.3）。
+- [ ] 清理测试/驱动代码的临时对象泄漏，恢复 LeakSanitizer（当前 sanitizer job
+      设 `ASAN_OPTIONS=detect_leaks=0`，见 `.github/workflows/ci.yml`）。
 
 ## D. 文档与发布
 

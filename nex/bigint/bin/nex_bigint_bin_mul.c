@@ -179,7 +179,9 @@ static bigint_err_ty mul_schoolbook(bigint_bin_ty *dst,
     const size_t n = narrow->len;
     const size_t m = wide->len;
     dst->len = n + m;
-    memset(dst->limbs, 0, (n + m) * sizeof(uint32_t));
+    if ((n + m) > 0U) {
+        memset(dst->limbs, 0, (n + m) * sizeof(uint32_t));
+    }
 
     for (size_t i = 0U; i < n; i++) {
         const uint32_t li = narrow->limbs[i];
