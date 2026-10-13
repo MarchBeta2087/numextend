@@ -28,6 +28,8 @@ jobs:
                 -DCMAKE_PREFIX_PATH="${{ github.workspace }}/_install"
           cmake --build build-downstream
           ./build-downstream/downstream
+      - name: API audit
+        run: sh scripts/api_audit.sh build
 
   # 共享库构建：验证 BUILD_SHARED_LIBS + SOVERSION + 安装消费
   linux-shared:
@@ -128,6 +130,24 @@ jobs:
           # 测试/驱动存在未释放的临时对象（非库缺陷）；暂关 LSan，保留
           # ASan 内存错误与 UBSan。清理测试泄漏后应重新启用。
           ASAN_OPTIONS: detect_leaks=0
+
+  # 覆盖率门槛（Linux）：库行覆盖率 ≥ 80%
+  linux-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gcovr
+        run: sudo apt-get update && sudo apt-get install -y gcovr
+      - name: Build (coverage)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_FLAGS="--coverage -fprofile-abs-path" \
+            -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Coverage gate (line ≥ 80%)
+        run: gcovr --root . --filter 'nex/' --print-summary --fail-under-line 80
 
   # AppleClang + ASan/UBSan
   macos-sanitizer:

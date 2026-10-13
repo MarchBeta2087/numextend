@@ -12,7 +12,8 @@
       安装到用户可见位置随 B1 一并做。
 - [x] 稳定性政策写入 `docs/design.md` §1.4：1.x API 只增不改、同主版本 ABI 稳定
       （SONAME）、公开结构体布局冻结。
-- [ ] 公开头文件逐符号审计：语义、错误码、别名规则、复杂度、OOM、线程安全。
+- [x] 公开头文件逐符号审计（脚本 `scripts/api_audit.sh` + `api_symbols.py`，
+      CI 运行；结论见 design.md §1.5：203/203 有定义、5 个内部符号导出为已知项）。
 - [x] `bigcomplex_*_arg` 移出 v1 公开面（依赖 `atan`，作为 1.x 增量）。
 
 ## B. 可消费性 / 打包
@@ -29,7 +30,8 @@
 - [x] ASan/UBSan：`linux-sanitizer`（GCC）、`macos-sanitizer`（AppleClang）、
       `windows-asan`（MSVC，仅 ASan）。经 `-DNEX_SANITIZE=...` 统一开关。
 - [x] MSVC 全量测试（`windows-msvc`，含 golden 与 `ctest -C Release`）。
-- [ ] 覆盖率门槛（`scripts/coverage.sh` 已有，待接入 CI 并定阈值）。
+- [x] 覆盖率门槛：CI `linux-coverage` 用 gcovr，库行覆盖率 ≥ 80%
+      （当前约 89%；`scripts/coverage.sh` 已重写为 gcovr + 完整 CTest）。
 - [x] 端序：声明仅小端经过验证（实现为 `uint32_t` 值语义，见 §1.3）。
 - [ ] 清理测试/驱动代码的临时对象泄漏，恢复 LeakSanitizer（当前 sanitizer job
       设 `ASAN_OPTIONS=detect_leaks=0`，见 `.github/workflows/ci.yml`）。
