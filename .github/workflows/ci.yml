@@ -1,4 +1,4 @@
-# GitHub Actions CI：三平台构建 + 全量测试（单元 + 黄金对拍 + fuzz + OOM）
+# GitHub Actions CI：三/多平台构建 + 全量测试 + 打包消费 + Clang/MSVC + ASan/UBSan
 name: CI
 
 on:
@@ -100,3 +100,73 @@ jobs:
                 -DCMAKE_PREFIX_PATH="$PWD/_install"
           cmake --build build-downstream
           ./build-downstream/downstream.exe
+
+  # Clang 编译器覆盖（Linux）
+  linux-clang:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (clang)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # GCC + ASan/UBSan
+  linux-sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (GCC ASan+UBSan)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DNEX_SANITIZE=address,undefined
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          # 测试/驱动存在未释放的临时对象（非库缺陷）；暂关 LSan，保留
+          # ASan 内存错误与 UBSan。清理测试泄漏后应重新启用。
+          ASAN_OPTIONS: detect_leaks=0
+
+  # AppleClang + ASan/UBSan
+  macos-sanitizer:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (ASan+UBSan)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DNEX_SANITIZE=address,undefined
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+
+  # MSVC 覆盖（与 MinGW 的 windows job 互补）
+  windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # MSVC ASan（MSVC 无 UBSan）
+  windows-asan:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build (MSVC ASan)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNEX_SANITIZE=address
+          cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=0

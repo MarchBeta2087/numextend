@@ -24,6 +24,8 @@
 ```sh
 cmake -S . -B build && cmake --build build      # 库 + 测试 + demo
 ctest --test-dir build                          # 全部测试（GCC）
+# sanitizer 构建（CI 亦用）：GCC/Clang 用 -DNEX_SANITIZE=address,undefined；
+# MSVC 用 -DNEX_SANITIZE=address（MSVC 无 UBSan）
 scripts/build-msvc-debug.bat                    # MSVC Debug + CRT 调试堆检查
 # 之后：cd build-dbg\tests && runall.bat        # 0 泄漏 / 0 堆损坏验证
 ./build/demo.exe                                # 能力演示

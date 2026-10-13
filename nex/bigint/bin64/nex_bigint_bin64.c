@@ -445,7 +445,9 @@ static bigint_err_ty b64_mul_schoolbook(bigint_bin64_ty *dst,
     if (err != BIGINT_OK_E) {
         return err;
     }
-    memset(dst->limbs, 0, total * sizeof(uint64_t));
+    if (total > 0U) {
+        memset(dst->limbs, 0, total * sizeof(uint64_t));
+    }
 
     for (size_t i = 0U; i < n; i++) {
         const uint64_t li = narrow->limbs[i];

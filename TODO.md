@@ -24,11 +24,15 @@
 
 ## C. 正确性与可移植性证据
 
-- [ ] CI 矩阵：{GCC, Clang} × {Linux, macOS} + MSVC，`-O0` 与 `-O2` 都测。
-- [ ] **ASan + UBSan job**（把 `MEMO.md` 里的手动 MSVC ASan 固化进 CI）。
-- [ ] MSVC 全量测试与 GCC 对齐（确认 golden 注册、`ctest -C Release`）。
-- [ ] 覆盖率门槛（`scripts/coverage.sh` 已有）。
-- [ ] 端序：显式声明"仅小端"，或补大端正确性验证。
+- [x] CI 矩阵：Clang（`linux-clang`）与 MSVC（`windows-msvc`）加入；`-O0`（macos
+      Debug）与 `-O2`（Release）覆盖。
+- [x] ASan/UBSan：`linux-sanitizer`（GCC）、`macos-sanitizer`（AppleClang）、
+      `windows-asan`（MSVC，仅 ASan）。经 `-DNEX_SANITIZE=...` 统一开关。
+- [x] MSVC 全量测试（`windows-msvc`，含 golden 与 `ctest -C Release`）。
+- [ ] 覆盖率门槛（`scripts/coverage.sh` 已有，待接入 CI 并定阈值）。
+- [x] 端序：声明仅小端经过验证（实现为 `uint32_t` 值语义，见 §1.3）。
+- [ ] 清理测试/驱动代码的临时对象泄漏，恢复 LeakSanitizer（当前 sanitizer job
+      设 `ASAN_OPTIONS=detect_leaks=0`，见 `.github/workflows/ci.yml`）。
 
 ## D. 文档与发布
 

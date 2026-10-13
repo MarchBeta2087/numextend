@@ -15,6 +15,20 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+# 可选 sanitizer（CI / 本地验证）：-DNEX_SANITIZE=address,undefined
+# MSVC 仅支持 address；GCC/Clang 支持组合且遇错即停（halt-on-error）。
+set(NEX_SANITIZE "" CACHE STRING "启用 sanitizer（如 address,undefined）")
+if(NEX_SANITIZE)
+    if(MSVC)
+        # MSVC 仅 address（无 UBSan）；运行时经 .drectve 自动链接
+        add_compile_options(/fsanitize=address)
+    else()
+        add_compile_options(-fsanitize=${NEX_SANITIZE} -fno-omit-frame-pointer
+                            -fno-sanitize-recover=all)
+        add_link_options(-fsanitize=${NEX_SANITIZE})
+    endif()
+endif()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
