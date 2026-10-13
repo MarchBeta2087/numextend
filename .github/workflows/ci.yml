@@ -8,26 +8,28 @@ on:
     branches: [main, master, dev]
 
 jobs:
+  # 优化构建：覆盖 -O2 下的严格别名/UB/内联路径
   linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build
         run: |
-          cmake -S . -B build
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
       - name: Demo
         run: ./build/demo
 
+  # 非优化构建：保留断言与 -O0 行为，与 linux/windows 的优化构建互补
   macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build
         run: |
-          cmake -S . -B build
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
           cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
