@@ -15,6 +15,7 @@
  */
 
 #include "nex/bigint/bin64/nex_bigint_bin64.h"
+#include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/nex_alloc.h"
 
 #include <stdlib.h>
@@ -656,4 +657,112 @@ bigint_err_ty bigint_bin64_mul(bigint_bin64_ty *dst,
         bigint_bin64_free(&tmp);
     }
     return err;
+}
+
+/* ------------------------------------------------------------------ */
+/* 除法：转换包装复用 bin（32 位肢）除法 */
+/* ------------------------------------------------------------------ */
+
+/* 内部：bin64 → bin（32 位肢，小端拆分） */
+static bigint_err_ty bin64_to_bin(bigint_bin_ty *dst,
+        const bigint_bin64_ty *src)
+{
+    size_t limbs32 = (src->len > 0U) ? src->len * 2U - 1U : 0U;
+    if ((src->len > 0U) && ((src->limbs[src->len - 1U] >> 32U) != 0U)) {
+        limbs32 += 1U;
+    }
+    bigint_err_ty err = bigint_bin_init_cap(dst, limbs32 + 1U);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    dst->len = limbs32;
+    for (size_t i = 0U; i < src->len; i++) {
+        dst->limbs[2U * i] = (uint32_t)src->limbs[i];
+        dst->limbs[2U * i + 1U] = (uint32_t)(src->limbs[i] >> 32U);
+    }
+    dst->sign = src->sign;
+    return BIGINT_OK_E;
+}
+
+/* 内部：bin（32 位肢）→ bin64，小端合并 */
+static bigint_err_ty bin_to_bin64(bigint_bin64_ty *dst,
+        const bigint_bin_ty *src)
+{
+    const size_t limbs64 = (src->len + 1U) / 2U;
+    bigint_err_ty err = bigint_bin64_init_cap(dst, limbs64);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    dst->len = limbs64;
+    for (size_t i = 0U; i < limbs64; i++) {
+        const uint64_t lo = (2U * i < src->len) ? src->limbs[2U * i] : 0U;
+        const uint64_t hi = (2U * i + 1U < src->len)
+                ? src->limbs[2U * i + 1U] : 0U;
+        dst->limbs[i] = lo | (hi << 32U);
+    }
+    dst->sign = src->sign;
+    return BIGINT_OK_E;
+}
+
+/*
+ * brief: 带余除法（截断除法，与 C99 整数除法语义相同）
+ * note: 转换包装：拆分为 32 位肢后复用 bigint_bin_div_rem
+ *       （含 Burnikel-Ziegler 递归除法与 Knuth D），合并还原
+ */
+bigint_err_ty bigint_bin64_div_rem(bigint_bin64_ty *quot,
+        bigint_bin64_ty *rem, const bigint_bin64_ty *lhs,
+        const bigint_bin64_ty *rhs)
+{
+    if ((lhs == NULL) || (rhs == NULL)) {
+        return BIGINT_ERR_INVALID_E;
+    }
+    bigint_bin_ty a32;
+    bigint_bin_ty b32;
+    bigint_bin_ty q32;
+    bigint_bin_ty r32;
+    bigint_err_ty err = bin64_to_bin(&a32, lhs);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    err = bin64_to_bin(&b32, rhs);
+    if (err != BIGINT_OK_E) {
+        bigint_bin_free(&a32);
+        return err;
+    }
+    (void)bigint_bin_init(&q32);
+    (void)bigint_bin_init(&r32);
+    err = bigint_bin_div_rem(&q32, &r32, &a32, &b32);
+    bigint_bin_free(&a32);
+    bigint_bin_free(&b32);
+    if (err != BIGINT_OK_E) {
+        bigint_bin_free(&r32);
+        bigint_bin_free(&q32);
+        return err;
+    }
+    bigint_bin64_ty q64;
+    bigint_bin64_ty r64;
+    (void)bigint_bin64_init(&q64);
+    (void)bigint_bin64_init(&r64);
+    err = bin_to_bin64(&q64, &q32);
+    if (err == BIGINT_OK_E) {
+        err = bin_to_bin64(&r64, &r32);
+    }
+    bigint_bin_free(&r32);
+    bigint_bin_free(&q32);
+    if (err != BIGINT_OK_E) {
+        bigint_bin64_free(&r64);
+        bigint_bin64_free(&q64);
+        return err;
+    }
+    if (quot != NULL) {
+        bigint_bin64_move(quot, &q64);
+    } else {
+        bigint_bin64_free(&q64);
+    }
+    if (rem != NULL) {
+        bigint_bin64_move(rem, &r64);
+    } else {
+        bigint_bin64_free(&r64);
+    }
+    return BIGINT_OK_E;
 }

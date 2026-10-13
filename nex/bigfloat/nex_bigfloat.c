@@ -301,78 +301,6 @@ static int flag_rank(bigfloat_flag_ty flag)
 }
 
 /*
- * brief: 整数平方根：q = floor(sqrt(x))，余数 rem = x − q²（均非负）
- * param: q   输出平方根（已初始化）
- * param: rem 输出余数（已初始化）
- * param: x   被开方数（非负）
- * return: 成功返回 BIGINT_OK_E；内存不足返回 BIGINT_ERR_OOM_E
- * note: 逐位试商法：每轮消费 x 的两位、产出一位结果——
- *       rem = 4·rem + x 的位 (2i−1, 2i−2)；q = 2·q；试商 t = 2·q + 1，
- *       若 t ≤ rem 则 rem −= t 且 q 最低位置 1。迭代 k = ceil(bit_len/2)
- *       轮（结果位数恰为 k）。复杂度 O(n² / 32)，正确性优先（§7.5）。
- *       注意：若每轮只消费 x 的一位（rem = 2·rem + bit），q 的位数会
- *       膨胀为 n 而非 k——历史缺陷，已修正。
- */
-static bigint_err_ty isqrt(bigint_bin_ty *q, bigint_bin_ty *rem,
-        const bigint_bin_ty *x)
-{
-    bigint_bin_ty t;
-    bigint_err_ty berr = bigint_bin_init(&t);
-    if (berr != BIGINT_OK_E) {
-        return berr;
-    }
-
-    const size_t n = bigint_bin_bit_len(x);
-    const size_t k = (n + 1U) / 2U;  // 结果位数 = ceil(n / 2)
-    for (size_t i = k; i > 0U; i--) {
-        // rem = 4·rem + x 的位 (2i−1, 2i−2)（0-based 位索引）
-        berr = bigint_bin_shl(rem, rem, 2U);
-        if (berr != BIGINT_OK_E) {
-            break;
-        }
-        const size_t hi = 2U * i - 1U;
-        if ((hi < n) && bigint_bin_bit_test(x, hi)) {
-            berr = bigint_bin_bit_set(rem, 1U, true);
-            if (berr != BIGINT_OK_E) {
-                break;
-            }
-        }
-        if (bigint_bin_bit_test(x, hi - 1U)) {
-            berr = bigint_bin_bit_set(rem, 0U, true);
-            if (berr != BIGINT_OK_E) {
-                break;
-            }
-        }
-        berr = bigint_bin_shl(q, q, 1U);
-        if (berr != BIGINT_OK_E) {
-            break;
-        }
-        // t = 2·q + 1（q 为左移后值；注意是 (q<<1)|1，不能只置位 0——
-        // 那得到的是 q|1，缺 ×2，历史缺陷）
-        berr = bigint_bin_shl(&t, q, 1U);
-        if (berr != BIGINT_OK_E) {
-            break;
-        }
-        berr = bigint_bin_bit_set(&t, 0U, true);
-        if (berr != BIGINT_OK_E) {
-            break;
-        }
-        if (bigint_bin_cmp(&t, rem) <= 0) {
-            berr = bigint_bin_sub(rem, rem, &t);
-            if (berr != BIGINT_OK_E) {
-                break;
-            }
-            berr = bigint_bin_bit_set(q, 0U, true);
-            if (berr != BIGINT_OK_E) {
-                break;
-            }
-        }
-    }
-    bigint_bin_free(&t);
-    return berr;
-}
-
-/*
  * brief: 常规加法/减法核心（两操作数均为正常值，非零非无穷非 NaN）
  * param: dst      目标对象（允许与 lhs / rhs 别名）
  * param: lhs      被加数 / 被减数
@@ -1402,9 +1330,11 @@ bigfloat_err_ty bigfloat_sqrt(bigfloat_ty *dst, const bigfloat_ty *src,
         scale_shift = -(int64_t)(l / 2U);
     }
 
-    // 整数平方根：q = floor(sqrt(Y))，rem = Y − q²
+    // 整数平方根：q = floor(sqrt(Y))，rem = Y − q²（Newton 迭代，见
+    // bigint_bin_sqrt；余数供粘位判定）
     bigint_bin_ty q;
     bigint_bin_ty rem;
+    bigint_bin_ty sq;
     berr = bigint_bin_init(&q);
     if (berr != BIGINT_OK_E) {
         bigint_bin_free(&y);
@@ -1416,7 +1346,21 @@ bigfloat_err_ty bigfloat_sqrt(bigfloat_ty *dst, const bigfloat_ty *src,
         bigint_bin_free(&q);
         return BIGFLOAT_ERR_OOM_E;
     }
-    berr = isqrt(&q, &rem, &y);
+    berr = bigint_bin_init(&sq);
+    if (berr != BIGINT_OK_E) {
+        bigint_bin_free(&y);
+        bigint_bin_free(&q);
+        bigint_bin_free(&rem);
+        return BIGFLOAT_ERR_OOM_E;
+    }
+    berr = bigint_bin_sqrt(&q, &y);
+    if (berr == BIGINT_OK_E) {
+        berr = bigint_bin_mul(&sq, &q, &q);
+    }
+    if (berr == BIGINT_OK_E) {
+        berr = bigint_bin_sub(&rem, &y, &sq);
+    }
+    bigint_bin_free(&sq);
     bigint_bin_free(&y);
     if (berr != BIGINT_OK_E) {
         bigint_bin_free(&q);

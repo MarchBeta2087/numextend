@@ -255,11 +255,117 @@ static void test_edge(void)
     bigint_bin64_free(&a);
 }
 
+/*
+ * bin64 除法专项：LCG 随机 + 边界，验证不变量 q·b + r == a（纯 bin64 内）
+ */
+static void test_div(void)
+{
+    bigint_bin64_ty a, b, q, r, t;
+    bigint_bin64_init(&a);
+    bigint_bin64_init(&b);
+    bigint_bin64_init(&q);
+    bigint_bin64_init(&r);
+    bigint_bin64_init(&t);
+
+    /* 基本除法 */
+    CHECK(bigint_bin64_from_u64(&a, 100ULL) == BIGINT_OK_E);
+    CHECK(bigint_bin64_from_u64(&b, 7ULL) == BIGINT_OK_E);
+    CHECK(bigint_bin64_div_rem(&q, &r, &a, &b) == BIGINT_OK_E);
+    {
+        uint64_t qv = 0U;
+        uint64_t rv = 0U;
+        CHECK(bigint_bin64_to_u64(&q, &qv) == BIGINT_OK_E);
+        CHECK(bigint_bin64_to_u64(&r, &rv) == BIGINT_OK_E);
+        CHECK(qv == 14ULL);
+        CHECK(rv == 2ULL);
+    }
+    /* 除零 */
+    CHECK(bigint_bin64_from_u64(&b, 0ULL) == BIGINT_OK_E);
+    CHECK(bigint_bin64_div_rem(&q, &r, &a, &b) == BIGINT_ERR_DIV_ZERO_E);
+    /* |lhs| < |rhs| */
+    CHECK(bigint_bin64_from_u64(&a, 5ULL) == BIGINT_OK_E);
+    CHECK(bigint_bin64_from_u64(&b, 10ULL) == BIGINT_OK_E);
+    CHECK(bigint_bin64_div_rem(&q, &r, &a, &b) == BIGINT_OK_E);
+    {
+        uint64_t qv = 99U;
+        uint64_t rv = 99U;
+        CHECK(bigint_bin64_to_u64(&q, &qv) == BIGINT_OK_E);
+        CHECK(bigint_bin64_to_u64(&r, &rv) == BIGINT_OK_E);
+        CHECK(qv == 0ULL);
+        CHECK(rv == 5ULL);
+    }
+    /* 负数：截断语义 */
+    CHECK(bigint_bin64_from_u64(&a, 100ULL) == BIGINT_OK_E);
+    CHECK(bigint_bin64_from_u64(&b, 7ULL) == BIGINT_OK_E);
+    a.sign = BIGINT_SIGN_NEG_E;
+    CHECK(bigint_bin64_div_rem(&q, &r, &a, &b) == BIGINT_OK_E);
+    {
+        uint64_t qv = 0U;
+        CHECK(bigint_bin64_to_u64(&q, &qv) == BIGINT_OK_E);
+        CHECK(qv == 14ULL);
+        CHECK(q.sign == BIGINT_SIGN_NEG_E);
+        CHECK(r.sign == BIGINT_SIGN_NEG_E);
+    }
+
+    /* LCG 随机：不变量 q·b + r == a */
+    {
+        uint32_t seed = 0x20240813U;
+        size_t k;
+        for (k = 0; k < 5; k++) {
+            size_t bl = 8 + k * 30;
+            size_t ql = 20 + k * 60;
+            size_t i;
+            bigint_bin64_ty q0;
+            bigint_bin64_init(&q0);
+            CHECK(bigint_bin64_init_cap(&b, bl) == BIGINT_OK_E);
+            CHECK(bigint_bin64_init_cap(&q0, ql) == BIGINT_OK_E);
+            b.len = bl;
+            q0.len = ql;
+            for (i = 0; i < bl; i++) {
+                seed = seed * 1664525U + 1013904223U;
+                b.limbs[i] = ((uint64_t)seed << 32U) | (seed + 1U);
+            }
+            b.limbs[bl - 1U] |= 0x8000000000000000ULL;
+            b.sign = BIGINT_SIGN_POS_E;
+            for (i = 0; i < ql; i++) {
+                seed = seed * 1664525U + 1013904223U;
+                q0.limbs[i] = ((uint64_t)seed << 32U) | (seed + 1U);
+            }
+            q0.limbs[ql - 1U] |= 0x8000000000000000ULL;
+            q0.sign = BIGINT_SIGN_POS_E;
+            CHECK(bigint_bin64_mul(&a, &q0, &b) == BIGINT_OK_E);
+            CHECK(bigint_bin64_add(&a, &a, &b) == BIGINT_OK_E);
+            CHECK(bigint_bin64_sub(&a, &a, &b) == BIGINT_OK_E);
+            CHECK(bigint_bin64_from_u64(&r, 7ULL) == BIGINT_OK_E);
+            CHECK(bigint_bin64_add(&a, &a, &r) == BIGINT_OK_E);
+            CHECK(bigint_bin64_div_rem(&q, &r, &a, &b) == BIGINT_OK_E);
+            CHECK(bigint_bin64_cmp(&q, &q0) == 0);
+            {
+                uint64_t rv = 99U;
+                CHECK(bigint_bin64_to_u64(&r, &rv) == BIGINT_OK_E);
+                CHECK(rv == 7ULL);
+            }
+            /* 不变量 */
+            CHECK(bigint_bin64_mul(&t, &q, &b) == BIGINT_OK_E);
+            CHECK(bigint_bin64_add(&t, &t, &r) == BIGINT_OK_E);
+            CHECK(bigint_bin64_cmp(&t, &a) == 0);
+            bigint_bin64_free(&q0);
+        }
+    }
+
+    bigint_bin64_free(&t);
+    bigint_bin64_free(&r);
+    bigint_bin64_free(&q);
+    bigint_bin64_free(&b);
+    bigint_bin64_free(&a);
+}
+
 int main(void)
 {
     test_u128();
     test_cross_validate();
     test_edge();
+    test_div();
     if (g_fail == 0) {
         printf("bigint_bin64: all tests passed\n");
     }

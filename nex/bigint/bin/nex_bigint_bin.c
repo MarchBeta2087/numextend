@@ -1642,3 +1642,88 @@ size_t bigint_bin_popcount(const bigint_bin_ty *val)
     }
     return count;
 }
+
+/*
+ * brief: 整数平方根（向下取整）：out = floor(sqrt(val))
+ * note: Newton 迭代 x ← (x + val/x) >> 1，初值 2^ceil(blen/2) 保证 ≥ sqrt；
+ *       收敛（xn ≥ x）后递减修正 x² > val 的边界；负数返回 INVALID
+ */
+bigint_err_ty bigint_bin_sqrt(bigint_bin_ty *out, const bigint_bin_ty *val)
+{
+    if ((out == NULL) || (val == NULL)) {
+        return BIGINT_ERR_INVALID_E;
+    }
+    if (bigint_bin_sign(val) == BIGINT_SIGN_NEG_E) {
+        return BIGINT_ERR_INVALID_E;
+    }
+    if (bigint_bin_is_zero(val)) {
+        bigint_err_ty err = bigint_bin_from_u64(out, 0U);
+        return err;
+    }
+
+    const size_t blen = bigint_bin_bit_len(val);
+    const size_t e = (blen + 1U) / 2U;  /* ceil(blen/2)：x0 = 2^e ≥ sqrt(val) */
+
+    bigint_bin_ty one;
+    bigint_bin_ty x;
+    bigint_bin_ty xn;
+    bigint_bin_ty q;
+    bigint_bin_ty rem;
+    bigint_bin_ty sq;
+    bigint_err_ty err = bigint_bin_init(&one);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&x);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&xn);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&q);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&rem);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&sq);
+    if (err != BIGINT_OK_E) {
+        bigint_bin_free(&sq);
+        bigint_bin_free(&rem);
+        bigint_bin_free(&q);
+        bigint_bin_free(&xn);
+        bigint_bin_free(&x);
+        bigint_bin_free(&one);
+        return err;
+    }
+
+    err = bigint_bin_from_u64(&one, 1U);
+    if (err == BIGINT_OK_E) err = bigint_bin_shl(&x, &one, e);
+    /* Newton 迭代：xn = (x + val/x) >> 1；xn ≥ x 时收敛 */
+    while ((err == BIGINT_OK_E) && (1)) {
+        err = bigint_bin_div_rem(&q, &rem, val, &x);
+        if (err != BIGINT_OK_E) {
+            break;
+        }
+        err = bigint_bin_add(&xn, &x, &q);
+        if (err == BIGINT_OK_E) err = bigint_bin_shr(&xn, &xn, 1U);
+        if (err != BIGINT_OK_E) {
+            break;
+        }
+        if (bigint_bin_cmp_abs(&xn, &x) >= 0) {
+            break;
+        }
+        err = bigint_bin_copy(&x, &xn);
+    }
+    /* 修正：x² > val 时递减 */
+    while (err == BIGINT_OK_E) {
+        err = bigint_bin_mul(&sq, &x, &x);
+        if (err != BIGINT_OK_E) {
+            break;
+        }
+        if (bigint_bin_cmp_abs(&sq, val) <= 0) {
+            break;
+        }
+        err = bigint_bin_sub(&x, &x, &one);
+    }
+    if (err == BIGINT_OK_E) {
+        err = bigint_bin_copy(out, &x);
+    }
+
+    bigint_bin_free(&sq);
+    bigint_bin_free(&rem);
+    bigint_bin_free(&q);
+    bigint_bin_free(&xn);
+    bigint_bin_free(&x);
+    bigint_bin_free(&one);
+    return err;
+}

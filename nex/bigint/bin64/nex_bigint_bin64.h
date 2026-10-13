@@ -99,3 +99,11 @@ bigint_err_ty bigint_bin64_mul(bigint_bin64_ty *dst,
         const bigint_bin64_ty *lhs, const bigint_bin64_ty *rhs);
 
 #endif /* NEX_BIGINT_BIN64_H */
+
+/*
+ * brief: 带余除法（截断除法，与 C99 整数除法语义相同）
+ * note: 转换包装复用 32 位肢 bin 除法（含 BZ 递归与 Knuth D）
+ */
+bigint_err_ty bigint_bin64_div_rem(bigint_bin64_ty *quot,
+        bigint_bin64_ty *rem, const bigint_bin64_ty *lhs,
+        const bigint_bin64_ty *rhs);

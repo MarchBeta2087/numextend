@@ -99,6 +99,61 @@ static void test_sizes(void)
     check_mul_match(4096U, 2048U, 0U);
 }
 
+/*
+ * brief: 大尺寸乘法：强制 FFT-8 或 AUTO 与 Toom-3 参考一致
+ * note: 参考用 Toom-3（精确整数，与 FFT 数值路径相互独立）；覆盖 8-bit FFT
+ *       在大尺寸（≥8192 肢）的强制路径正确性（AUTO 大数路径为 Toom-3/
+ *       NTT，见 §4.3）
+ */
+static void check_mul_match_toom(size_t la, size_t lb, uint32_t chunk_bits)
+{
+    bigint_bin_ty a;
+    bigint_bin_ty b;
+    bigint_bin_ty ref;
+    bigint_bin_ty got;
+    bigint_mul_method_ty m;
+    CHECK(rand_bin(&a, la) == BIGINT_OK_E);
+    CHECK(rand_bin(&b, lb) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&ref) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&got) == BIGINT_OK_E);
+
+    m.algo = BIGINT_MUL_TOOM_COOK_E;
+    m.params.toom_cook.k = 3U;
+    m.params.toom_cook.cutoff = 0U;
+    CHECK(bigint_bin_mul_ex(&ref, &a, &b, &m) == BIGINT_OK_E);
+    if (chunk_bits == 0U) {
+        CHECK(bigint_bin_mul(&got, &a, &b) == BIGINT_OK_E);  /* AUTO */
+    } else {
+        m.algo = BIGINT_MUL_FLOAT_COMPLEX_FFT_E;
+        m.params.float_complex_fft.chunk_bits = chunk_bits;
+        CHECK(bigint_bin_mul_ex(&got, &a, &b, &m) == BIGINT_OK_E);
+    }
+    if (bigint_bin_cmp(&ref, &got) != 0) {
+        printf("FAIL fft/toom mismatch la=%u lb=%u bits=%u\n", (unsigned)la,
+                (unsigned)lb, chunk_bits);
+        g_fail++;
+    }
+
+    bigint_bin_free(&got);
+    bigint_bin_free(&ref);
+    bigint_bin_free(&b);
+    bigint_bin_free(&a);
+}
+
+/*
+ * brief: 8-bit FFT 大尺寸强制路径正确性（AUTO 作对照）
+ */
+static void test_large_fft(void)
+{
+    check_mul_match_toom(8192U, 8192U, 8U);
+    check_mul_match_toom(8192U, 8192U, 0U);   /* AUTO */
+    check_mul_match_toom(16384U, 8192U, 8U);
+    check_mul_match_toom(16384U, 16384U, 0U); /* AUTO */
+    check_mul_match_toom(32768U, 16384U, 8U);
+    check_mul_match_toom(65536U, 8192U, 8U);  /* 不等长强制 FFT */
+    check_mul_match_toom(65536U, 65536U, 8U); /* 8-bit 上界边界 */
+}
+
 static void test_edge_cases(void)
 {
     bigint_bin_ty a;
@@ -179,6 +234,7 @@ static void test_method_errors(void)
 int main(void)
 {
     test_sizes();
+    test_large_fft();
     test_edge_cases();
     test_method_errors();
     if (g_fail == 0) {
