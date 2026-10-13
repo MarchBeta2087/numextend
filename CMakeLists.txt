@@ -15,14 +15,24 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 # 版本头：与 project(VERSION) 保持单一来源，生成到构建目录
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/nex/nex_version.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/include/nex/nex_version.h
     @ONLY)
 
-# nex 静态库：各模块源文件与公共算法模块（nex/ntt/），后续按目录追加
-add_library(nex STATIC
+# nex 库：各模块源文件与公共算法模块（nex/ntt/），后续按目录追加。
+# 库类型由 BUILD_SHARED_LIBS 决定（默认 STATIC）。
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(BUILD_SHARED_LIBS)
+    # MSVC 共享库自动导出全部符号（本库无公开全局数据）
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
+add_library(nex
     nex/nex_alloc.c
     nex/bigint/bin/nex_bigint_bin.c
     nex/bigint/bin/nex_bigint_bin_mul.c
@@ -45,11 +55,18 @@ add_library(nex STATIC
     nex/convert/nex_convert.c
 )
 
+# 共享库版本号：SOVERSION = 主版本号（ABI 版本，见 design.md §1.4）
+set_target_properties(nex PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR})
+
 # 根相对 include（"nex/bigint/nex_bigint_common.h"）以仓库根为基准；
-# 另加构建目录的 include（生成 nex/nex_version.h）
+# 另加构建目录的 include（生成 nex/nex_version.h）。
+# BUILD/INSTALL 接口区分构建树与安装树，供 install(EXPORT) 使用。
 target_include_directories(nex PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_BINARY_DIR}/include)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 if(MSVC)
     target_compile_options(nex PRIVATE /W4)
@@ -79,3 +96,48 @@ target_include_directories(bench_sweep PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(NOT WIN32)
     target_link_libraries(nex PUBLIC m)
 endif()
+
+# ------------------------------------------------------------------
+# 安装与导出：find_package(nex CONFIG) + pkg-config
+# ------------------------------------------------------------------
+install(TARGETS nex
+    EXPORT nexTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+# 公开头文件（排除内部头与 .h.in 模板）
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/nex/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nex
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*_internal.h" EXCLUDE)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/nex/nex_version.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nex)
+
+# CMake 包配置（nexConfig.cmake / nexConfigVersion.cmake / nexTargets.cmake）
+install(EXPORT nexTargets
+    FILE nexTargets.cmake
+    NAMESPACE nex::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nex)
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nexConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/nexConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nex)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/nexConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/nexConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/nexConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nex)
+
+# pkg-config
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nex.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/nex.pc
+    @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/nex.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)

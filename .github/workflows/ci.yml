@@ -21,6 +21,34 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Demo
         run: ./build/demo
+      - name: Install & downstream
+        run: |
+          cmake --install build --prefix "${{ github.workspace }}/_install"
+          cmake -S examples/downstream -B build-downstream \
+                -DCMAKE_PREFIX_PATH="${{ github.workspace }}/_install"
+          cmake --build build-downstream
+          ./build-downstream/downstream
+
+  # 共享库构建：验证 BUILD_SHARED_LIBS + SOVERSION + 安装消费
+  linux-shared:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (shared)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Install & downstream (shared)
+        run: |
+          cmake --install build --prefix "${{ github.workspace }}/_install"
+          ls -l "${{ github.workspace }}/_install/lib"
+          cmake -S examples/downstream -B build-downstream \
+                -DCMAKE_PREFIX_PATH="${{ github.workspace }}/_install"
+          cmake --build build-downstream
+          LD_LIBRARY_PATH="${{ github.workspace }}/_install/lib" \
+            ./build-downstream/downstream
 
   # 非优化构建：保留断言与 -O0 行为，与 linux/windows 的优化构建互补
   macos:
@@ -35,6 +63,13 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Demo
         run: ./build/demo
+      - name: Install & downstream
+        run: |
+          cmake --install build --prefix "${{ github.workspace }}/_install"
+          cmake -S examples/downstream -B build-downstream \
+                -DCMAKE_PREFIX_PATH="${{ github.workspace }}/_install"
+          cmake --build build-downstream
+          ./build-downstream/downstream
 
   windows:
     runs-on: windows-latest
@@ -58,3 +93,10 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Demo
         run: ./build/demo.exe
+      - name: Install & downstream
+        run: |
+          cmake --install build --prefix "$PWD/_install"
+          cmake -S examples/downstream -B build-downstream -G Ninja \
+                -DCMAKE_PREFIX_PATH="$PWD/_install"
+          cmake --build build-downstream
+          ./build-downstream/downstream.exe
