@@ -4,7 +4,7 @@
 
 任意精度数值计算库（C99，零依赖），覆盖整数、有理数、二进制/十进制浮点与复数，
 带类型间精确/有损转换矩阵。设计文档见 [`docs/design.md`](docs/design.md)（§4–§10
-为七类数值语义与转换矩阵规范）。
+为七类数值语义与转换矩阵规范）；待办与路线图见 [`TODO.md`](TODO.md)。
 
 ## 模块（`nex/`）
 
@@ -29,7 +29,7 @@ scripts/build-msvc-debug.bat                    # MSVC Debug + CRT 调试堆检�
 ./build/demo.exe                                # 能力演示
 ```
 
-测试共 25 项（CTest）：8 组模块单元测试 + vs-double fuzz（bigfloat 与硬件
+测试共 33 项（CTest）：8 组模块单元测试 + vs-double fuzz（bigfloat 与硬件
 double/float 逐位对照）+ tie 舍入边界构造 + OOM 注入（12 运算 × 64 注入点，
 验证强异常安全）+ 8 组 Python 精确参考黄金对拍 + 多种子。
 
