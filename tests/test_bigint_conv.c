@@ -20,6 +20,7 @@ static uint32_t next_u32(void)
 
 static bigint_err_ty rand_bin(bigint_bin_ty *val, size_t len)
 {
+    bigint_bin_free(val);   /* 复用 val：先释放旧值（要求已初始化） */
     bigint_err_ty err = bigint_bin_init_cap(val, len);
     if (err != BIGINT_OK_E) {
         return err;
@@ -44,6 +45,7 @@ static void check_roundtrip(size_t bin_len)
     bigint_bin_ty back;
     bigint_dec_ty d;
     bigint_dec_ty d2;
+    CHECK(bigint_bin_init(&a) == BIGINT_OK_E);
     CHECK(rand_bin(&a, bin_len) == BIGINT_OK_E);
     CHECK(bigint_bin_init(&back) == BIGINT_OK_E);
     CHECK(bigint_dec_init(&d) == BIGINT_OK_E);

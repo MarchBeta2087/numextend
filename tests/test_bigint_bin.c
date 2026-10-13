@@ -650,6 +650,7 @@ static void test_bz_div(void) {
             bigint_bin_ty q0, w;
             bigint_bin_init(&q0);
             bigint_bin_init(&w);
+            bigint_bin_free(&b);   /* 复用 b：先释放上一轮 */
             CHECK(bigint_bin_init_cap(&b, bl) == BIGINT_OK_E);
             CHECK(bigint_bin_init_cap(&q0, ql) == BIGINT_OK_E);
             b.len = bl;
