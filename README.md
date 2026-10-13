@@ -4,7 +4,9 @@
 
 任意精度数值计算库（C99，零依赖），覆盖整数、有理数、二进制/十进制浮点与复数，
 带类型间精确/有损转换矩阵。设计文档见 [`docs/design.md`](docs/design.md)（§4–§10
-为七类数值语义与转换矩阵规范）；待办与路线图见 [`TODO.md`](TODO.md)。
+为七类数值语义与转换矩阵规范）；待办与路线图见 [`TODO.md`](TODO.md)；
+**开发者参考手册见 [`docs/manual.html`](docs/manual.html)**（源码 `docs/manual/`，
+由 `sh scripts/docs.sh` 从头文件生成）。
 
 ## 模块（`nex/`）
 

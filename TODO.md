@@ -43,6 +43,8 @@
 - [ ] `README.md` 面向使用者（安装、最小示例、能力矩阵）。
 - [x] 每个公开运算的 -O2 性能基线写入文档（`docs/performance.md` +
       `scripts/bench.sh`；README 性能小节）。
+- [x] 开发者参考手册：`docs/manual/`（Markdown，API 章节由头文件生成）+
+      `docs/manual.html`（Pandoc 单文件）；`sh scripts/docs.sh` 生成，CI 校验同步。
 
 ---
 
