@@ -4,7 +4,9 @@
 
 任意精度数值计算库（C99，零依赖），覆盖整数、有理数、二进制/十进制浮点与复数，
 带类型间精确/有损转换矩阵。设计文档见 [`docs/design.md`](docs/design.md)（§4–§10
-为七类数值语义与转换矩阵规范）。
+为七类数值语义与转换矩阵规范）；待办与路线图见 [`TODO.md`](TODO.md)；
+**开发者参考手册见 [`docs/manual.html`](docs/manual.html)**（源码 `docs/manual/`，
+由 `sh scripts/docs.sh` 从头文件生成）；版本变更见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 模块（`nex/`）
 
@@ -24,17 +26,61 @@
 ```sh
 cmake -S . -B build && cmake --build build      # 库 + 测试 + demo
 ctest --test-dir build                          # 全部测试（GCC）
+# sanitizer 构建（CI 亦用）：GCC/Clang 用 -DNEX_SANITIZE=address,undefined；
+# MSVC 用 -DNEX_SANITIZE=address（MSVC 无 UBSan）
 scripts/build-msvc-debug.bat                    # MSVC Debug + CRT 调试堆检查
 # 之后：cd build-dbg\tests && runall.bat        # 0 泄漏 / 0 堆损坏验证
 ./build/demo.exe                                # 能力演示
 ```
 
-测试共 25 项（CTest）：8 组模块单元测试 + vs-double fuzz（bigfloat 与硬件
+## 安装与下游使用
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/your/prefix
+cmake --build build --parallel
+cmake --install build                            # 头文件 + 库 + CMake 包 + pkg-config
+# 共享库：追加 -DBUILD_SHARED_LIBS=ON（SOVERSION = 主版本号，如 libnex.so.1）
+```
+
+下游工程（参见 `examples/downstream/`）：
+
+```cmake
+find_package(nex CONFIG REQUIRED)
+target_link_libraries(app PRIVATE nex::nex)
+```
+
+也可用 pkg-config：`pkg-config --cflags --libs nex`。
+
+测试共 33 项（CTest）：8 组模块单元测试 + vs-double fuzz（bigfloat 与硬件
 double/float 逐位对照）+ tie 舍入边界构造 + OOM 注入（12 运算 × 64 注入点，
 验证强异常安全）+ 8 组 Python 精确参考黄金对拍 + 多种子。
 
+覆盖率：`sh scripts/coverage.sh [阈值]`（gcovr，默认 80%；CI `linux-coverage`
+强制该阈值）。公开 API 审计：`sh scripts/api_audit.sh`（头文件自包含 +
+声明/定义一致性；CI 每次运行）。
+
 黄金对拍参考实现位于 `tests/golden_*.py`（`fractions.Fraction` / `decimal` 精确
 复刻各类型语义），随机种子可配置：`NEX_GOLDEN_SEED=... ctest -R golden`。
+
+## 性能
+
+Release（-O2）实测节选（Intel i5-13500H / GCC 15.2.0；完整报告与规模扫描见
+[`docs/performance.md`](docs/performance.md)）：
+
+| 运算 | 规模 | 耗时 |
+|------|------|------|
+| `bigint_bin` 乘法 | 10⁴ 位十进制 | 0.32 ms |
+| `bigint_bin` 除法 | 10⁴ / 0.5×10⁴ 位 | 0.64 ms |
+| `bin→dec` / `dec→bin` | 10⁵ 位十进制 | 49 / 18 ms |
+| `bigint_bin` 乘法 | 2¹⁶ 肢（≈ 63 万位） | 97 ms |
+| `bigint_bin` 乘法 | 2²⁰ 肢（≈ 1000 万位） | 5.7 s |
+| `bigfloat` 万位精度 sqrt | 33220 bit | 22 ms |
+| `bigdecimal` 万位精度 sqrt | 10000 位 | 25 ms |
+
+复现：`sh scripts/bench.sh [输出文件] [预算秒]`（Release 构建 + `bench_sweep`
+深度扫描；默认输出 `docs/performance.md`）。绝对耗时依赖机器与编译器；
+CI 另提供每日基准 artifact（`.github/workflows/benchmark.yml`）。
 
 ## 演示（`demo/`）
 

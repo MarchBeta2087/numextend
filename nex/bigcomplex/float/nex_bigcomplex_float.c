@@ -2,7 +2,7 @@
  * nex_bigcomplex_float.c：bigcomplex_float_ty（实部/虚部均为 bigfloat
  * 的复数）实现。
  *
- * 职责（设计文档 §9）：生命周期与构造、字符串 I/O、共轭/模/辐角、
+ * 职责（设计文档 §9）：生命周期与构造、字符串 I/O、共轭/模、
  * 四则、相等性。复数不引入新的特殊值类别——特殊值语义完全由分量的
  * 七标志组合表达（§9.3）。
  *
@@ -10,8 +10,7 @@
  *   - 乘法用朴素四乘二加；(a+bi)(c+di) = (ac−bd) + (bc+ad)i；
  *   - 除法用共轭法 (a+bi)(c−di)/(c²+d²)——中间量可能过早溢出/下溢
  *     （如 ∞ 分量经中间乘法产生 NaN），Smith 缩放算法列为后续方向；
- *   - abs 经 sqrt(re² + im²)，同样的溢出注意事项适用；
- *   - arg 依赖 atan，v1 返回 UNSUPPORTED（未引入超越函数）。
+ *   - abs 经 sqrt(re² + im²)，同样的溢出注意事项适用。
  */
 
 #include "nex/bigcomplex/float/nex_bigcomplex_float.h"
@@ -344,16 +343,6 @@ cleanup:
     return map_bf_err(berr);
 }
 
-bigcomplex_float_err_ty bigcomplex_float_arg(bigfloat_ty *dst,
-        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx)
-{
-    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
-        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
-    }
-    /* 依赖 atan，v1 未实现（§9.2） */
-    return BIGCOMPLEX_FLOAT_ERR_UNSUPPORTED_E;
-}
-
 /* ------------------------------------------------------------------ */
 /* 四则（§9.2）                                                        */
 /* ------------------------------------------------------------------ */
@@ -484,11 +473,11 @@ bigcomplex_float_err_ty bigcomplex_float_mul(bigcomplex_float_ty *dst,
     dst->im = im;
     berr = BIGFLOAT_OK_E;
 cleanup:
+    bigfloat_free(&ac);
+    bigfloat_free(&bd);
+    bigfloat_free(&bc);
+    bigfloat_free(&ad);
     if (berr != BIGFLOAT_OK_E) {
-        bigfloat_free(&ac);
-        bigfloat_free(&bd);
-        bigfloat_free(&bc);
-        bigfloat_free(&ad);
         bigfloat_free(&re);
         bigfloat_free(&im);
     }
@@ -580,16 +569,16 @@ bigcomplex_float_err_ty bigcomplex_float_div(bigcomplex_float_ty *dst,
     dst->im = im;
     berr = BIGFLOAT_OK_E;
 cleanup:
+    bigfloat_free(&ac);
+    bigfloat_free(&bd);
+    bigfloat_free(&bc);
+    bigfloat_free(&ad);
+    bigfloat_free(&cc);
+    bigfloat_free(&dd);
+    bigfloat_free(&re_num);
+    bigfloat_free(&im_num);
+    bigfloat_free(&den);
     if (berr != BIGFLOAT_OK_E) {
-        bigfloat_free(&ac);
-        bigfloat_free(&bd);
-        bigfloat_free(&bc);
-        bigfloat_free(&ad);
-        bigfloat_free(&cc);
-        bigfloat_free(&dd);
-        bigfloat_free(&re_num);
-        bigfloat_free(&im_num);
-        bigfloat_free(&den);
         bigfloat_free(&re);
         bigfloat_free(&im);
     }

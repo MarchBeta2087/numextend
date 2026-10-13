@@ -232,6 +232,11 @@ static void test_arith(void) {
         CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_OK_E);
         expect_str("auto", &r, "60");
         m.algo = BIGINT_MUL_TOOM_COOK_E;
+        m.params.toom_cook.k = 3;
+        m.params.toom_cook.cutoff = 0;
+        CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_OK_E);
+        expect_str("toom3", &r, "60");
+        m.params.toom_cook.k = 5;
         CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_ERR_UNSUPPORTED_E);
         m.algo = (bigint_mul_algo_ty)99;
         CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_ERR_INVALID_E);
@@ -547,6 +552,267 @@ static void test_bits(void) {
     bigint_bin_free(&r);
 }
 
+/*
+ * Burnikel-Ziegler 递归除法专项：除数 ≥ 512 肢（约 1.6 万位）且被除数 ≥ 2×
+ * 覆盖稀疏值（2 的幂、全 1）、随机大数；黄金值由库内算术构造（q0·b+r0）
+ * 并与乘法交叉验证商余不变量 q·b + r == a
+ */
+static void test_bz_div(void) {
+    bigint_bin_ty a, b, q, r, t, one;
+    bigint_bin_init(&a);
+    bigint_bin_init(&b);
+    bigint_bin_init(&q);
+    bigint_bin_init(&r);
+    bigint_bin_init(&t);
+    bigint_bin_init(&one);
+    CHECK(bigint_bin_from_u64(&one, 1U) == BIGINT_OK_E);
+
+    /* case 1：稀疏商（b = 2^17000+1, q0 = 2^30000−3, r0 = 2^1500+5） */
+    CHECK(bigint_bin_shl(&b, &one, 17000) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&b, &b, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&q, &one, 30000) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);  /* q0 = 2^30000−3 */
+    CHECK(bigint_bin_shl(&r, &one, 1500) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&r, &r, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&r, &r, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&r, &r, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&r, &r, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&r, &r, &one) == BIGINT_OK_E);  /* r0 = 2^1500+5 */
+    CHECK(bigint_bin_mul(&a, &q, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&a, &a, &r) == BIGINT_OK_E);
+    CHECK(bigint_bin_div_rem(&t, &r, &a, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp_abs(&t, &q) == 0);
+    CHECK(bigint_bin_shl(&t, &one, 1500) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&t, &t, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&t, &t, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&t, &t, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&t, &t, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&t, &t, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp_abs(&r, &t) == 0);
+
+    /* case 2：商 = 除数 + 1（a = b·(b+1) + 12345） */
+    CHECK(bigint_bin_shl(&b, &one, 17000) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&b, &b, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&q, &b, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_from_u64(&r, 12345U) == BIGINT_OK_E);
+    CHECK(bigint_bin_mul(&a, &q, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&a, &a, &r) == BIGINT_OK_E);
+    CHECK(bigint_bin_div_rem(&t, &r, &a, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp_abs(&t, &q) == 0);
+    CHECK(bigint_bin_from_u64(&t, 12345U) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp_abs(&r, &t) == 0);
+
+    /* case 3：全 1 除数（b = 2^17000−1, q0 = 2^25000−1, r0 = 2^999−1） */
+    CHECK(bigint_bin_shl(&b, &one, 17000) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&b, &b, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&q, &one, 25000) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&r, &one, 999) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&r, &r, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_mul(&a, &q, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&a, &a, &r) == BIGINT_OK_E);
+    CHECK(bigint_bin_div_rem(&t, &r, &a, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp_abs(&t, &q) == 0);
+    CHECK(bigint_bin_shl(&t, &one, 999) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&t, &t, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp_abs(&r, &t) == 0);
+
+    /* case 4：2 的幂除数（b = 2^18000, q0 = 2^25000−7, r0 = 2^17000−1） */
+    CHECK(bigint_bin_shl(&b, &one, 18000) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&q, &one, 25000) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&q, &q, &one) == BIGINT_OK_E);  /* q0 = 2^25000−7 */
+    CHECK(bigint_bin_shl(&r, &one, 17000) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&r, &r, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_mul(&a, &q, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&a, &a, &r) == BIGINT_OK_E);
+    CHECK(bigint_bin_div_rem(&t, &r, &a, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp_abs(&t, &q) == 0);
+    CHECK(bigint_bin_shl(&t, &one, 17000) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&t, &t, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp_abs(&r, &t) == 0);
+
+    /* case 5-8：LCG 随机大数（固定种子，确定性），商余不变量交叉验证 */
+    {
+        uint32_t seed = 0x12345678U;
+        size_t k;
+        for (k = 0; k < 4; k++) {
+            size_t bl = 550 + k * 150;
+            size_t ql = 1200 + k * 400;
+            size_t i;
+            bigint_bin_ty q0, w;
+            bigint_bin_init(&q0);
+            bigint_bin_init(&w);
+            bigint_bin_free(&b);   /* 复用 b：先释放上一轮 */
+            CHECK(bigint_bin_init_cap(&b, bl) == BIGINT_OK_E);
+            CHECK(bigint_bin_init_cap(&q0, ql) == BIGINT_OK_E);
+            b.len = bl;
+            q0.len = ql;
+            for (i = 0; i < bl; i++) {
+                seed = seed * 1664525U + 1013904223U;
+                b.limbs[i] = seed;
+            }
+            b.limbs[bl - 1U] |= 0x80000000U;
+            b.sign = BIGINT_SIGN_POS_E;
+            for (i = 0; i < ql; i++) {
+                seed = seed * 1664525U + 1013904223U;
+                q0.limbs[i] = seed;
+            }
+            q0.limbs[ql - 1U] |= 0x80000000U;
+            q0.sign = BIGINT_SIGN_POS_E;
+            CHECK(bigint_bin_mul(&a, &q0, &b) == BIGINT_OK_E);
+            CHECK(bigint_bin_add(&a, &a, &one) == BIGINT_OK_E);
+            CHECK(bigint_bin_div_rem(&t, &r, &a, &b) == BIGINT_OK_E);
+            CHECK(bigint_bin_cmp_abs(&t, &q0) == 0);
+            CHECK(bigint_bin_cmp_abs(&r, &one) == 0);
+            /* 不变量：q·b + r == a */
+            CHECK(bigint_bin_mul(&w, &t, &b) == BIGINT_OK_E);
+            CHECK(bigint_bin_add(&w, &w, &r) == BIGINT_OK_E);
+            CHECK(bigint_bin_cmp_abs(&w, &a) == 0);
+            bigint_bin_free(&w);
+            bigint_bin_free(&q0);
+        }
+    }
+
+    bigint_bin_free(&one);
+    bigint_bin_free(&t);
+    bigint_bin_free(&r);
+    bigint_bin_free(&q);
+    bigint_bin_free(&b);
+    bigint_bin_free(&a);
+}
+
+/*
+ * Newton 整数平方根专项：完美平方 / 2 的幂边界 / 大数不变量 s² ≤ a < (s+1)²
+ */
+static void test_sqrt(void) {
+    bigint_bin_ty a, s, s1, sq, t;
+    bigint_bin_init(&a);
+    bigint_bin_init(&s);
+    bigint_bin_init(&s1);
+    bigint_bin_init(&sq);
+    bigint_bin_init(&t);
+
+    /* 小值 */
+    CHECK(from_str(&a, "0") == BIGINT_OK_E);
+    CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+    expect_str("sqrt0", &s, "0");
+    CHECK(from_str(&a, "1") == BIGINT_OK_E);
+    CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+    expect_str("sqrt1", &s, "1");
+    CHECK(from_str(&a, "2") == BIGINT_OK_E);
+    CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+    expect_str("sqrt2", &s, "1");
+    CHECK(from_str(&a, "3") == BIGINT_OK_E);
+    CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+    expect_str("sqrt3", &s, "1");
+    CHECK(from_str(&a, "4") == BIGINT_OK_E);
+    CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+    expect_str("sqrt4", &s, "2");
+    CHECK(from_str(&a, "15") == BIGINT_OK_E);
+    CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+    expect_str("sqrt15", &s, "3");
+    CHECK(from_str(&a, "16") == BIGINT_OK_E);
+    CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+    expect_str("sqrt16", &s, "4");
+
+    /* 负数 → INVALID */
+    CHECK(from_str(&a, "-25") == BIGINT_OK_E);
+    CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_ERR_INVALID_E);
+
+    /* 2 的幂边界：sqrt(2^200−1) = 2^100−1，sqrt(2^201) = 2^100 */
+    {
+        bigint_bin_ty one;
+        bigint_bin_init(&one);
+        CHECK(bigint_bin_from_u64(&one, 1U) == BIGINT_OK_E);
+        CHECK(bigint_bin_shl(&a, &one, 200) == BIGINT_OK_E);
+        CHECK(bigint_bin_sub(&a, &a, &one) == BIGINT_OK_E);
+        CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+        /* 期望 2^100 − 1 */
+        CHECK(bigint_bin_shl(&t, &one, 100) == BIGINT_OK_E);
+        CHECK(bigint_bin_sub(&t, &t, &one) == BIGINT_OK_E);
+        CHECK(bigint_bin_cmp_abs(&s, &t) == 0);
+        bigint_bin_free(&one);
+    }
+    {
+        bigint_bin_ty one;
+        bigint_bin_init(&one);
+        CHECK(bigint_bin_from_u64(&one, 1U) == BIGINT_OK_E);
+        CHECK(bigint_bin_shl(&a, &one, 201) == BIGINT_OK_E);
+        CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+        /* 不变量：s² ≤ 2^201 < (s+1)² */
+        CHECK(bigint_bin_mul(&sq, &s, &s) == BIGINT_OK_E);
+        CHECK(bigint_bin_cmp_abs(&sq, &a) <= 0);
+        CHECK(bigint_bin_add(&s1, &s, &one) == BIGINT_OK_E);
+        CHECK(bigint_bin_mul(&sq, &s1, &s1) == BIGINT_OK_E);
+        CHECK(bigint_bin_cmp_abs(&sq, &a) > 0);
+        bigint_bin_free(&one);
+    }
+
+    /* 完美平方：sqrt((2^100+1)²) = 2^100+1 */
+    {
+        bigint_bin_ty one, base;
+        bigint_bin_init(&one);
+        bigint_bin_init(&base);
+        CHECK(bigint_bin_from_u64(&one, 1U) == BIGINT_OK_E);
+        CHECK(bigint_bin_shl(&base, &one, 100) == BIGINT_OK_E);
+        CHECK(bigint_bin_add(&base, &base, &one) == BIGINT_OK_E);
+        CHECK(bigint_bin_mul(&a, &base, &base) == BIGINT_OK_E);
+        CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+        CHECK(bigint_bin_cmp_abs(&s, &base) == 0);
+        bigint_bin_free(&base);
+        bigint_bin_free(&one);
+    }
+
+    /* LCG 随机大数：不变量 s² ≤ a < (s+1)² */
+    {
+        uint32_t seed = 0x5a5a5a5aU;
+        size_t k;
+        for (k = 0; k < 6; k++) {
+            size_t bits = 300 + k * 800;
+            size_t limbs = (bits + 31U) / 32U;
+            size_t i;
+            bigint_bin_free(&a);   /* 复用 a：先释放上一轮 */
+            CHECK(bigint_bin_init_cap(&a, limbs) == BIGINT_OK_E);
+            a.len = limbs;
+            for (i = 0; i < limbs; i++) {
+                seed = seed * 1664525U + 1013904223U;
+                a.limbs[i] = seed;
+            }
+            a.limbs[limbs - 1U] |= 0x80000000U;
+            a.sign = BIGINT_SIGN_POS_E;
+            CHECK(bigint_bin_sqrt(&s, &a) == BIGINT_OK_E);
+            /* s² ≤ a */
+            CHECK(bigint_bin_mul(&sq, &s, &s) == BIGINT_OK_E);
+            CHECK(bigint_bin_cmp_abs(&sq, &a) <= 0);
+            /* (s+1)² > a */
+            CHECK(bigint_bin_copy(&s1, &s) == BIGINT_OK_E);
+            {
+                bigint_bin_ty one;
+                bigint_bin_init(&one);
+                CHECK(bigint_bin_from_u64(&one, 1U) == BIGINT_OK_E);
+                CHECK(bigint_bin_add(&s1, &s1, &one) == BIGINT_OK_E);
+                CHECK(bigint_bin_mul(&sq, &s1, &s1) == BIGINT_OK_E);
+                CHECK(bigint_bin_cmp_abs(&sq, &a) > 0);
+                bigint_bin_free(&one);
+            }
+        }
+    }
+
+    bigint_bin_free(&t);
+    bigint_bin_free(&sq);
+    bigint_bin_free(&s1);
+    bigint_bin_free(&s);
+    bigint_bin_free(&a);
+}
+
 int main(void) {
 #ifdef _MSC_VER
     /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
@@ -560,6 +826,8 @@ int main(void) {
     test_arith();
     test_gcd();
     test_bits();
+    test_bz_div();
+    test_sqrt();
     if (g_fail == 0) {
         printf("ALL TESTS PASSED\n");
         return 0;

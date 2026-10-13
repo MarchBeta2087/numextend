@@ -4,6 +4,8 @@
  *   add a b            → R a+b
  *   sub a b            → R a-b
  *   mul a b            → R a*b
+ *   mul_ntt a b        → R a*b（强制多模数 CRT NTT，设计文档 §4.3）
+ *   mul_fft a b        → R a*b（强制浮点复数 FFT，设计文档 §4.3）
  *   div a b            → R q r        （截断除法）
  *   pow a e            → R a^e
  *   pow_mod b e m      → R b^e mod m
@@ -30,7 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char g_buf[65536];
+static char g_buf[1048576];
 
 static void print_bigint(const bigint_bin_ty *v) {
     size_t needed = 0;
@@ -313,9 +315,10 @@ int main(void) {
         int done = 0;
 
         if (strcmp(op, "add") == 0 || strcmp(op, "sub") == 0
-                || strcmp(op, "mul") == 0 || strcmp(op, "and") == 0
-                || strcmp(op, "or") == 0 || strcmp(op, "xor") == 0
-                || strcmp(op, "cmp") == 0) {
+                || strcmp(op, "mul") == 0 || strcmp(op, "mul_ntt") == 0
+                || strcmp(op, "mul_fft") == 0 || strcmp(op, "gcd") == 0
+                || strcmp(op, "and") == 0 || strcmp(op, "or") == 0
+                || strcmp(op, "xor") == 0 || strcmp(op, "cmp") == 0) {
             if (a_str == NULL || b_str == NULL) {
                 printf("E args\n");
             } else {
@@ -327,6 +330,21 @@ int main(void) {
                     if (strcmp(op, "add") == 0) rc = bigint_bin_add(&z, &x, &y);
                     else if (strcmp(op, "sub") == 0) rc = bigint_bin_sub(&z, &x, &y);
                     else if (strcmp(op, "mul") == 0) rc = bigint_bin_mul(&z, &x, &y);
+                    else if (strcmp(op, "gcd") == 0) rc = bigint_bin_gcd(&z, &x, &y);
+                    else if (strcmp(op, "mul_ntt") == 0) {
+                        /* 强制多模数 CRT NTT（设计文档 §4.3，mod_count 默认） */
+                        bigint_mul_method_ty m;
+                        m.algo = BIGINT_MUL_MULTI_MODULI_CRT_NTT_E;
+                        m.params.multi_moduli_crt_ntt.mod_count = 0;
+                        rc = bigint_bin_mul_ex(&z, &x, &y, &m);
+                    }
+                    else if (strcmp(op, "mul_fft") == 0) {
+                        /* 强制浮点复数 FFT（设计文档 §4.3，节位宽自动） */
+                        bigint_mul_method_ty m;
+                        m.algo = BIGINT_MUL_FLOAT_COMPLEX_FFT_E;
+                        m.params.float_complex_fft.chunk_bits = 0;
+                        rc = bigint_bin_mul_ex(&z, &x, &y, &m);
+                    }
                     else if (strcmp(op, "and") == 0) rc = bigint_bin_bit_and(&z, &x, &y);
                     else if (strcmp(op, "or") == 0) rc = bigint_bin_bit_or(&z, &x, &y);
                     else if (strcmp(op, "xor") == 0) rc = bigint_bin_bit_xor(&z, &x, &y);
@@ -440,6 +458,20 @@ int main(void) {
                 } else {
                     printf("R ");
                     print_bigint(&x);
+                    printf("\n");
+                }
+            }
+        } else if (strcmp(op, "sqrt") == 0) {
+            if (a_str == NULL) {
+                printf("E args\n");
+            } else {
+                rc = bigint_bin_from_str(&x, a_str, 10, NULL);
+                if (rc == BIGINT_OK_E) rc = bigint_bin_sqrt(&z, &x);
+                if (rc != BIGINT_OK_E) {
+                    printf("E err\n");
+                } else {
+                    printf("R ");
+                    print_bigint(&z);
                     printf("\n");
                 }
             }

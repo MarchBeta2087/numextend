@@ -74,6 +74,7 @@ static void check_invariants(const char *desc, const bigfrac_ty *f) {
 
 /* 以 "p/q" 或十进制字符串构造既约分数（测试辅助，非被测路径） */
 static void mk_frac(bigfrac_ty *f, const char *s) {
+    bigfrac_free(f);                 /* 允许重复调用：先释放旧值 */
     CHECK(bigfrac_init(f) == BIGFRAC_OK_E);
     CHECK(bigfrac_from_str(f, s, NULL) == BIGFRAC_OK_E);
 }
@@ -90,6 +91,7 @@ static void test_lifecycle(void) {
     CHECK(bigfrac_init(NULL) == BIGFRAC_ERR_INVALID_E);
 
     bigfrac_ty b;
+    CHECK(bigfrac_init(&b) == BIGFRAC_OK_E);
     mk_frac(&b, "-3/7");
     CHECK(bigfrac_copy(&a, &b) == BIGFRAC_OK_E);
     expect_frac("copy", &a, "-3", "7");
@@ -233,6 +235,8 @@ static void test_arith(void) {
     bigfrac_ty y;
     bigfrac_ty z;
     bigfrac_init(&z);
+    bigfrac_init(&x);
+    bigfrac_init(&y);
 
     /* 加：1/2 + 1/3 = 5/6；1/2 + 1/4 = 3/4（lcm 路径）；1/6 + 1/4 = 5/12 */
     mk_frac(&x, "1/2");
@@ -324,6 +328,8 @@ static void test_alias(void) {
     bigfrac_ty y;
     bigfrac_ty z;
     bigfrac_init(&z);
+    bigfrac_init(&x);
+    bigfrac_init(&y);
 
     /* dst 与 lhs / rhs 别名 */
     mk_frac(&x, "1/2");

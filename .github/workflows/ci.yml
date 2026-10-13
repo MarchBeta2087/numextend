@@ -1,4 +1,4 @@
-# GitHub Actions CI：三平台构建 + 全量测试（单元 + 黄金对拍 + fuzz + OOM）
+# GitHub Actions CI：三/多平台构建 + 全量测试 + 打包消费 + Clang/MSVC + ASan/UBSan
 name: CI
 
 on:
@@ -8,31 +8,70 @@ on:
     branches: [main, master, dev]
 
 jobs:
+  # 优化构建：覆盖 -O2 下的严格别名/UB/内联路径
   linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build
         run: |
-          cmake -S . -B build
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
       - name: Demo
         run: ./build/demo
+      - name: Install & downstream
+        run: |
+          cmake --install build --prefix "${{ github.workspace }}/_install"
+          cmake -S examples/downstream -B build-downstream \
+                -DCMAKE_PREFIX_PATH="${{ github.workspace }}/_install"
+          cmake --build build-downstream
+          ./build-downstream/downstream
+      - name: API audit
+        run: sh scripts/api_audit.sh build
 
+  # 共享库构建：验证 BUILD_SHARED_LIBS + SOVERSION + 安装消费
+  linux-shared:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (shared)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Install & downstream (shared)
+        run: |
+          cmake --install build --prefix "${{ github.workspace }}/_install"
+          ls -l "${{ github.workspace }}/_install/lib"
+          cmake -S examples/downstream -B build-downstream \
+                -DCMAKE_PREFIX_PATH="${{ github.workspace }}/_install"
+          cmake --build build-downstream
+          LD_LIBRARY_PATH="${{ github.workspace }}/_install/lib" \
+            ./build-downstream/downstream
+
+  # 非优化构建：保留断言与 -O0 行为，与 linux/windows 的优化构建互补
   macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build
         run: |
-          cmake -S . -B build
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
           cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
       - name: Demo
         run: ./build/demo
+      - name: Install & downstream
+        run: |
+          cmake --install build --prefix "${{ github.workspace }}/_install"
+          cmake -S examples/downstream -B build-downstream \
+                -DCMAKE_PREFIX_PATH="${{ github.workspace }}/_install"
+          cmake --build build-downstream
+          ./build-downstream/downstream
 
   windows:
     runs-on: windows-latest
@@ -56,3 +95,102 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Demo
         run: ./build/demo.exe
+      - name: Install & downstream
+        run: |
+          cmake --install build --prefix "$PWD/_install"
+          cmake -S examples/downstream -B build-downstream -G Ninja \
+                -DCMAKE_PREFIX_PATH="$PWD/_install"
+          cmake --build build-downstream
+          ./build-downstream/downstream.exe
+
+  # Clang 编译器覆盖（Linux）
+  linux-clang:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (clang)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # GCC + ASan/UBSan
+  linux-sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (GCC ASan+UBSan)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DNEX_SANITIZE=address,undefined
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # 覆盖率门槛（Linux）：库行覆盖率 ≥ 80%
+  linux-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gcovr
+        run: sudo apt-get update && sudo apt-get install -y gcovr
+      - name: Build (coverage)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_FLAGS="--coverage -fprofile-abs-path" \
+            -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Coverage gate (line ≥ 80%)
+        run: gcovr --root . --filter 'nex/' --print-summary --fail-under-line 80
+
+  # AppleClang + ASan/UBSan
+  macos-sanitizer:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (ASan+UBSan)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DNEX_SANITIZE=address,undefined
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # MSVC 覆盖（与 MinGW 的 windows job 互补）
+  windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # MSVC ASan（MSVC 无 UBSan）
+  windows-asan:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build (MSVC ASan)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNEX_SANITIZE=address
+          cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # 文档：构建参考手册并校验生成的 API 页面与头文件同步
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+      - name: Build manual
+        run: sh scripts/docs.sh
+      - name: Verify generated API pages are up to date
+        run: git diff --exit-code -- docs/manual

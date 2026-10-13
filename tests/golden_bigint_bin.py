@@ -7,6 +7,7 @@
 driver_path 默认为 ./golden_driver；可通过环境变量 NEX_GOLDEN_DRIVER 覆盖。
 协议见 golden_driver.c 头部注释。全部通过打印 GOLDEN OK 并退出 0。
 """
+import math
 import os
 import random
 import subprocess
@@ -87,6 +88,21 @@ def build_cases(rng):
         for op in ("add", "sub", "mul", "and", "or", "xor"):
             cases.append((op, a, b))
         cases.append(("cmp", a, b))
+    # mul_ntt / mul_fft：强制多模数 NTT 与浮点 FFT（设计文档 §4.3）。
+    # 中小尺寸覆盖强制路径（N ≤ 2^10），大尺寸触发 N=2^13 变换；
+    # 另含零/一/符号边界
+    for _ in range(COUNT // 8):
+        a = rand_big(rng, rng.choice([500, 800, 1500, 3000, 4000]))
+        b = rand_big(rng, rng.choice([500, 800, 1500, 3000, 4000]))
+        cases.append(("mul_ntt", a, b))
+        cases.append(("mul_fft", a, b))
+    for d1, d2 in [(12000, 12000), (20000, 16000), (20000, 20000)]:
+        cases.append(("mul_ntt", rand_big(rng, d1), rand_big(rng, d2)))
+        cases.append(("mul_fft", rand_big(rng, d1), rand_big(rng, d2)))
+    for a, b in [(0, 0), (1, 1), (-1, 1), (1, -1), (-1, -1),
+                 (0, 12345), (12345, 0), (10**30, 10**30)]:
+        cases.append(("mul_ntt", a, b))
+        cases.append(("mul_fft", a, b))
     # div：除数非零
     for _ in range(COUNT):
         a = rand_special(rng)
@@ -115,19 +131,58 @@ def build_cases(rng):
         n = rng.randrange(0, 400)
         cases.append(("shl", a, n))
         cases.append(("shr", a, n))
+    # c_b2d / c_d2b：bin↔dec 互转（设计文档 §4.2.6）。大数触发分治路径
+    # （dec > 2048 肢 ≈ 18432 位、bin > 256 肢 ≈ 617 位），另含 10^k
+    # 邻域（dec 肢基 10^9 边界）与零/一/符号
+    for _ in range(COUNT // 8):
+        v = rand_big(rng, rng.choice([600, 2000, 5000]))
+        cases.append(("c_b2d", v))
+        cases.append(("c_d2b", v))
+    for _ in range(12):
+        v = rand_big(rng, 20000)
+        cases.append(("c_b2d", v))
+        cases.append(("c_d2b", v))
+    for v in [0, 1, -1, 10**600, 2**2000, -(10**800) + 7]:
+        cases.append(("c_b2d", v))
+        cases.append(("c_d2b", v))
+    for k in [9, 18, 27, 36, 99, 999, 9999]:
+        for v in [10**k - 1, 10**k, 10**k + 1]:
+            cases.append(("c_b2d", v))
+            cases.append(("c_d2b", v))
+    for v in [10**19999 - 1, 10**19999 + 1, 2**10000]:
+        cases.append(("c_b2d", v))
+        cases.append(("c_d2b", v))
+    # gcd：Lehmer + 二进制 GCD（设计文档 §4.2.4）。大数触发 Lehmer 路径
+    # （> 32 bit），含互质 / 公因子 / 边界 / 零
+    for _ in range(COUNT // 16):
+        a = rand_big(rng, rng.choice([200, 1000, 3000]))
+        b = rand_big(rng, rng.choice([200, 1000, 3000]))
+        cases.append(("gcd", a, b))
+    for k in [2, 32, 64, 100, 300]:
+        g = rand_big(rng, k)
+        x = rand_big(rng, rng.choice([100, 1000, 3000]))
+        y = rand_big(rng, rng.choice([100, 1000, 3000]))
+        cases.append(("gcd", g * x, g * y))   # 公因子 g 必被约出
+    for a, b in [(0, 0), (0, 5), (5, 0), (1, 1), (1, 10**30),
+                 (2**100, 3 * 2**64), (2**200, 2**100),
+                 (-12, 18), (-12, -18)]:
+        cases.append(("gcd", a, b))
     return cases
 
 
 def expected(op, args):
     """返回 (ok, 结果字符串) 或 (False, 错误标签)。"""
-    if op in ("add", "sub", "mul", "and", "or", "xor"):
+    if op in ("add", "sub", "mul", "mul_ntt", "mul_fft", "gcd", "and",
+              "or", "xor"):
         a, b = args
         if op == "add":
             r = a + b
         elif op == "sub":
             r = a - b
-        elif op == "mul":
+        elif op in ("mul", "mul_ntt", "mul_fft"):
             r = a * b
+        elif op == "gcd":
+            r = math.gcd(a, b)
         elif op == "and":
             r = a & b
         elif op == "or":
@@ -135,6 +190,10 @@ def expected(op, args):
         else:
             r = a ^ b
         return True, str(r)
+    if op == "c_b2d" or op == "c_d2b":
+        # 互转往返：c_b2d 输出十进制、c_d2b 输出二进制（均为源值的精确表示）
+        (a,) = args
+        return True, str(a)
     if op == "cmp":
         a, b = args
         r = 0 if a == b else (1 if a > b else -1)
@@ -182,13 +241,31 @@ def main():
         args = c[1:]
         lines.append(op + " " + " ".join(str(x) for x in args))
 
-    outs, drv_err = run_driver(lines)
-    if drv_err is not None:
-        print("FAIL cannot run driver:", drv_err)
-        return 1
-    if outs is None or len(outs) != len(cases):
+    # 分块处理：驱动崩溃时精确定位到出错用例（块内逐条重跑）
+    CHUNK = 100
+    outs = []
+    for start in range(0, len(lines), CHUNK):
+        chunk = lines[start:start + CHUNK]
+        chunk_out, drv_err = run_driver(chunk)
+        bad = drv_err is not None
+        if not bad and len(chunk_out) != len(chunk):
+            bad = True
+        if bad:
+            # 块内崩溃：逐条重跑定位首个出错用例
+            for i, line in enumerate(chunk):
+                one, e1 = run_driver([line])
+                if e1 is not None:
+                    print("FAIL case %d (cmd: %s...) driver: %s"
+                          % (start + i, line[:60], e1))
+                    return 1
+            print("FAIL chunk %d: crash not reproducible case-by-case"
+                  % (start // CHUNK))
+            return 1
+        outs.extend(chunk_out)
+
+    if len(outs) != len(cases):
         print("FAIL output line count %s != cases %d"
-              % ("N/A" if outs is None else len(outs), len(cases)))
+              % (len(outs), len(cases)))
         return 1
 
     mismatches = 0

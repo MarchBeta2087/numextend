@@ -25,7 +25,7 @@ typedef enum {
     BIGCOMPLEX_DECIMAL_ERR_INVALID_E,     // 非法参数
     BIGCOMPLEX_DECIMAL_ERR_OVERFLOW_E,    // 输出缓冲不足等
     BIGCOMPLEX_DECIMAL_ERR_PARSE_E,       // 字符串解析失败
-    BIGCOMPLEX_DECIMAL_ERR_UNSUPPORTED_E  // 功能未实现（如 arg，v1 可选）
+    BIGCOMPLEX_DECIMAL_ERR_UNSUPPORTED_E  // 已登记但当前版本未实现的功能
 } bigcomplex_decimal_err_ty;
 
 /* ------------------------------------------------------------------ */
@@ -100,29 +100,36 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_conj(bigcomplex_decimal_ty *cpx);
 bigcomplex_decimal_err_ty bigcomplex_decimal_abs(bigdecimal_ty *dst,
         const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
 
-/*
- * brief: 辐角 arg(src)（需要 atan，v1 未实现）
- * return: 恒返回 BIGCOMPLEX_DECIMAL_ERR_UNSUPPORTED_E（dst 不变）
- */
-bigcomplex_decimal_err_ty bigcomplex_decimal_arg(bigdecimal_ty *dst,
-        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
-
 /* ------------------------------------------------------------------ */
 /* 四则（§9.2）                                                        */
 /* ------------------------------------------------------------------ */
 
+/*
+ * brief: 加法 dst = lhs + rhs（分量加法）
+ */
 bigcomplex_decimal_err_ty bigcomplex_decimal_add(bigcomplex_decimal_ty *dst,
         const bigcomplex_decimal_ty *lhs, const bigcomplex_decimal_ty *rhs,
         const bigdecimal_ctx_ty *ctx);
 
+/*
+ * brief: 减法 dst = lhs − rhs（分量减法）
+ */
 bigcomplex_decimal_err_ty bigcomplex_decimal_sub(bigcomplex_decimal_ty *dst,
         const bigcomplex_decimal_ty *lhs, const bigcomplex_decimal_ty *rhs,
         const bigdecimal_ctx_ty *ctx);
 
+/*
+ * brief: 乘法 dst = lhs × rhs（分量四乘二加，§9.2）
+ */
 bigcomplex_decimal_err_ty bigcomplex_decimal_mul(bigcomplex_decimal_ty *dst,
         const bigcomplex_decimal_ty *lhs, const bigcomplex_decimal_ty *rhs,
         const bigdecimal_ctx_ty *ctx);
 
+/*
+ * brief: 除法 dst = lhs / rhs
+ * note: 共轭法 (a+bi)/(c+di) = (a+bi)(c−di)/(c²+d²)；中间量可能过早溢出/
+ *       下溢，Smith 缩放算法列为后续方向（§9.2）
+ */
 bigcomplex_decimal_err_ty bigcomplex_decimal_div(bigcomplex_decimal_ty *dst,
         const bigcomplex_decimal_ty *lhs, const bigcomplex_decimal_ty *rhs,
         const bigdecimal_ctx_ty *ctx);
@@ -131,6 +138,9 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_div(bigcomplex_decimal_ty *dst,
 /* 相等性（复数无序，不提供 cmp，§9.2）                                */
 /* ------------------------------------------------------------------ */
 
+/*
+ * brief: 相等判断（分量各自 eq；任一分量 NaN 则 false）
+ */
 bool bigcomplex_decimal_eq(const bigcomplex_decimal_ty *lhs,
         const bigcomplex_decimal_ty *rhs);
 

@@ -249,7 +249,7 @@ static void test_arith(void) {
     bigcomplex_decimal_free(&a);
 }
 
-static void test_abs_conj_arg(void) {
+static void test_abs_conj(void) {
     bigcomplex_decimal_ty z;
     bigdecimal_ty v;
     bigcomplex_decimal_init(&z);
@@ -283,9 +283,7 @@ static void test_abs_conj_arg(void) {
     expect_str("conj nan", &z, "nan-1i");
     CHECK(bigcomplex_decimal_conj(NULL) == BIGCOMPLEX_DECIMAL_ERR_INVALID_E);
 
-    CHECK(parse(&z, "1+1i") == 0);
-    CHECK(bigcomplex_decimal_arg(&v, &z, g_ctx)
-            == BIGCOMPLEX_DECIMAL_ERR_UNSUPPORTED_E);
+    /* arg 已移出 v1 公开面（依赖 atan，设计文档 §9.2） */
 
     bigdecimal_free(&v);
     bigcomplex_decimal_free(&z);
@@ -341,7 +339,7 @@ int main(void) {
     test_parse_str();
     test_to_str();
     test_arith();
-    test_abs_conj_arg();
+    test_abs_conj();
     test_special_eq();
 
     if (g_fail == 0) {

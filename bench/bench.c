@@ -15,6 +15,7 @@
  */
 #include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/bigint/dec/nex_bigint_dec.h"
+#include "nex/bigint/nex_bigint_conv.h"
 #include "nex/bigfrac/nex_bigfrac.h"
 #include "nex/bigfloat/nex_bigfloat.h"
 #include "nex/bigdecimal/nex_bigdecimal.h"
@@ -105,6 +106,63 @@ static void bench_bin_mul(void) {
         ts[r] = now_ms() - t0;
     }
     report("bigint_bin 万位乘法", ts);
+    bigint_bin_free(&c);
+    bigint_bin_free(&b);
+    bigint_bin_free(&a);
+}
+
+/* 直接填充随机肢（O(n) 构造；十进制逐位构造为 O(n²)，不适用大尺寸） */
+static void rnd_bin_limbs(bigint_bin_ty *v, size_t len) {
+    bigint_bin_init_cap(v, len);
+    for (size_t i = 0U; i < len; i++) {
+        v->limbs[i] = (uint32_t)rnd64();
+    }
+    if (len > 0U) {
+        v->limbs[len - 1U] |= 0x80000000U;
+    }
+    v->len = len;
+    v->sign = BIGINT_SIGN_POS_E;
+}
+
+/* NTT 乘法：2^15 肢（≈ 32 万 bit，超过 AUTO 阈值 2^14，触发 NTT） */
+/* bin↔dec 分治互转（10 万位十进制 ≈ 10384 bin 肢，超过分治阈值） */
+static void bench_bin_conv(void) {
+    bigint_bin_ty a;
+    bigint_dec_ty d;
+    rnd_bin_limbs(&a, 10384U);
+    bigint_dec_init(&d);
+    double ts[64];
+    for (int r = 0; r < g_repeats; r++) {
+        const double t0 = now_ms();
+        bigint_conv_bin_to_dec(&d, &a);
+        ts[r] = now_ms() - t0;
+    }
+    report("bigint bin→dec 十万位", ts);
+    for (int r = 0; r < g_repeats; r++) {
+        const double t0 = now_ms();
+        bigint_conv_dec_to_bin(&a, &d);
+        ts[r] = now_ms() - t0;
+    }
+    report("bigint dec→bin 十万位", ts);
+    bigint_dec_free(&d);
+    bigint_bin_free(&a);
+}
+
+static void bench_bin_mul_ntt(void) {
+    bigint_bin_ty a, b, c;
+    bigint_mul_method_ty m;
+    rnd_bin_limbs(&a, 1U << 15U);
+    rnd_bin_limbs(&b, 1U << 15U);
+    bigint_bin_init(&c);
+    m.algo = BIGINT_MUL_MULTI_MODULI_CRT_NTT_E;
+    m.params.multi_moduli_crt_ntt.mod_count = 0;
+    double ts[64];
+    for (int r = 0; r < g_repeats; r++) {
+        const double t0 = now_ms();
+        bigint_bin_mul_ex(&c, &a, &b, &m);
+        ts[r] = now_ms() - t0;
+    }
+    report("bigint_bin NTT 乘法（32 万 bit）", ts);
     bigint_bin_free(&c);
     bigint_bin_free(&b);
     bigint_bin_free(&a);
@@ -280,6 +338,8 @@ int main(int argc, char **argv) {
     printf("设计 §13 目标：万位十进制整数乘法 < 10 ms\n\n");
 
     bench_bin_mul();
+    bench_bin_mul_ntt();
+    bench_bin_conv();
     bench_bin_div();
     bench_dec_mul();
     bench_frac_add();

@@ -24,6 +24,8 @@
  */
 
 #include "nex/bigdecimal/nex_bigdecimal_internal.h"
+#include "nex/bigint/bin/nex_bigint_bin.h"
+#include "nex/bigint/nex_bigint_conv.h"
 #include "nex/nex_alloc.h"
 
 #include <stdint.h>
@@ -468,12 +470,16 @@ bigdecimal_err_ty nex_dec_round_pack(bigdecimal_ty *dst,
 /* ------------------------------------------------------------------ */
 
 /*
- * brief: 十进制逐位试商法整数平方根
- * note: 每轮消费 x 的两位、产出一位结果：
- *       rem = 100·rem + 两位；q = 10·q；试商 t = (20·q + d)·d（d 从 9
- *       向下试），若 t ≤ rem 则 rem −= t 且 q 末位置 d。
- *       正确性：q² = (10·q_old + d)² = 100·q_old² + (20·q_old + d)·d，
- *       rem 恒等于 x − q²×10^(2·剩余对数)（标准长除法式开方）。
+ * brief: 十进制整数平方根：q = floor(sqrt(x))，余数 rem = x − q²（均非负）
+ * param: q   输出平方根（已初始化）
+ * param: rem 输出余数（已初始化）
+ * param: x   被开方数（非负）
+ * return: 成功返回 BIGINT_OK_E；内存不足返回 BIGINT_ERR_OOM_E；x 为负返回
+ *         BIGINT_ERR_INVALID_E
+ * note: 十进制自身无亚二次除法，原生 Newton 每次迭代为 O(n²) 十进制除法，
+ *       实测比二进制路径慢约 3.7×；故经 bigint_conv 转二进制、用
+ *       bigint_bin_sqrt（二进制 Newton）求根后再转回，并补算 rem = x − q²。
+ *       bigint_conv 是设计文档 §2.1 认可的 bin↔dec 唯一桥接单元（§8.3）。
  */
 bigint_err_ty nex_dec_isqrt(bigint_dec_ty *q, bigint_dec_ty *rem,
         const bigint_dec_ty *x)
@@ -481,208 +487,53 @@ bigint_err_ty nex_dec_isqrt(bigint_dec_ty *q, bigint_dec_ty *rem,
     if ((q == NULL) || (rem == NULL) || (x == NULL)) {
         return BIGINT_ERR_INVALID_E;
     }
-
-    /* 十进制数字串（处理数字对） */
-    size_t need = 0;
-    bigint_err_ty berr = bigint_dec_to_str(x, 10, NULL, 0, &need);
-    if (berr != BIGINT_OK_E) {
-        return berr;
-    }
-    char *digits = (char *)nex_malloc(need + 1U);
-    if (digits == NULL) {
-        return BIGINT_ERR_OOM_E;
-    }
-    berr = bigint_dec_to_str(x, 10, digits, need, &need);
-    if (berr != BIGINT_OK_E) {
-        free(digits);
-        return berr;
-    }
-    const size_t dl = strlen(digits);
-    if (dl == 0U || (dl == 1U && digits[0] == '0')) {
-        free(digits);
-        return BIGINT_OK_E;  // q = 0, rem = 0（调用方已初始化）
+    if (x->sign == BIGINT_SIGN_NEG_E) {
+        return BIGINT_ERR_INVALID_E;
     }
 
-    bigint_dec_ty ten;
-    bigint_dec_ty twenty;
-    bigint_dec_ty q20;
-    bigint_dec_ty t;
-    bigint_dec_ty td;
-    bigint_dec_ty dsm;
-    berr = bigint_dec_init(&ten);
-    if (berr != BIGINT_OK_E) {
-        free(digits);
-        return berr;
-    }
-    berr = bigint_dec_init(&twenty);
-    if (berr != BIGINT_OK_E) {
-        free(digits);
-        bigint_dec_free(&ten);
-        return berr;
-    }
-    berr = bigint_dec_init(&q20);
-    if (berr != BIGINT_OK_E) {
-        free(digits);
-        bigint_dec_free(&ten);
-        bigint_dec_free(&twenty);
-        return berr;
-    }
-    berr = bigint_dec_init(&t);
-    if (berr != BIGINT_OK_E) {
-        free(digits);
-        bigint_dec_free(&ten);
-        bigint_dec_free(&twenty);
-        bigint_dec_free(&q20);
-        return berr;
-    }
-    berr = bigint_dec_init(&td);
-    if (berr != BIGINT_OK_E) {
-        free(digits);
-        bigint_dec_free(&ten);
-        bigint_dec_free(&twenty);
-        bigint_dec_free(&q20);
-        bigint_dec_free(&t);
-        return berr;
-    }
-    berr = bigint_dec_init(&dsm);
-    if (berr != BIGINT_OK_E) {
-        free(digits);
-        bigint_dec_free(&ten);
-        bigint_dec_free(&twenty);
-        bigint_dec_free(&q20);
-        bigint_dec_free(&t);
-        bigint_dec_free(&td);
-        return berr;
-    }
-    berr = bigint_dec_from_u64(&ten, 10U);
+    bigint_bin_ty xb;
+    bigint_bin_ty qb;
+    bigint_bin_ty rb;
+    bigint_bin_ty sq;
+    bigint_err_ty berr = bigint_bin_init(&xb);
     if (berr == BIGINT_OK_E) {
-        berr = bigint_dec_from_u64(&twenty, 20U);
+        berr = bigint_bin_init(&qb);
+    }
+    if (berr == BIGINT_OK_E) {
+        berr = bigint_bin_init(&rb);
+    }
+    if (berr == BIGINT_OK_E) {
+        berr = bigint_bin_init(&sq);
+    }
+    if (berr != BIGINT_OK_E) {
+        bigint_bin_free(&sq);
+        bigint_bin_free(&rb);
+        bigint_bin_free(&qb);
+        bigint_bin_free(&xb);
+        return berr;
     }
 
-    /* 从最高位开始逐对处理（奇数位时首位为单数字） */
-    size_t pos = 0U;
-    if ((dl & 1U) != 0U) {
-        // 首对为单数字
-        const uint64_t pair = (uint64_t)(digits[0] - '0');
-        pos = 1U;
-        berr = bigint_dec_mul_pow10(rem, 2U);
-        if (berr == BIGINT_OK_E) {
-            bigint_dec_ty psm;
-            berr = bigint_dec_init(&psm);
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_from_u64(&psm, pair);
-                if (berr == BIGINT_OK_E) {
-                    berr = bigint_dec_add(rem, rem, &psm);
-                }
-                bigint_dec_free(&psm);
-            }
-        }
-        if (berr != BIGINT_OK_E) {
-            goto isqrt_cleanup;
-        }
-        // 试商 d
-        unsigned chosen = 0U;
-        for (unsigned d = 9U; d > 0U; d--) {
-            berr = bigint_dec_copy(&q20, q);
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_mul(&q20, &q20, &twenty);
-            }
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_from_u64(&dsm, d);
-            }
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_add(&t, &q20, &dsm);
-            }
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_mul(&td, &t, &dsm);
-            }
-            if (berr != BIGINT_OK_E) {
-                goto isqrt_cleanup;
-            }
-            if (bigint_dec_cmp(&td, rem) <= 0) {
-                chosen = d;
-                break;
-            }
-        }
-        berr = bigint_dec_mul_pow10(q, 1U);
-        if (berr == BIGINT_OK_E) {
-            berr = bigint_dec_from_u64(&dsm, chosen);
-        }
-        if (berr == BIGINT_OK_E) {
-            berr = bigint_dec_add(q, q, &dsm);
-        }
-        if (berr == BIGINT_OK_E && chosen > 0U) {
-            berr = bigint_dec_sub(rem, rem, &td);
-        }
-        if (berr != BIGINT_OK_E) {
-            goto isqrt_cleanup;
-        }
+    berr = bigint_conv_dec_to_bin(&xb, x);
+    if (berr == BIGINT_OK_E) {
+        berr = bigint_bin_sqrt(&qb, &xb);
+    }
+    if (berr == BIGINT_OK_E) {
+        berr = bigint_bin_mul(&sq, &qb, &qb);
+    }
+    if (berr == BIGINT_OK_E) {
+        berr = bigint_bin_sub(&rb, &xb, &sq);
+    }
+    if (berr == BIGINT_OK_E) {
+        berr = bigint_conv_bin_to_dec(q, &qb);
+    }
+    if (berr == BIGINT_OK_E) {
+        berr = bigint_conv_bin_to_dec(rem, &rb);
     }
 
-    for (; pos + 1U < dl; pos += 2U) {
-        const uint64_t pair = (uint64_t)(digits[pos] - '0') * 10U
-                + (uint64_t)(digits[pos + 1U] - '0');
-        berr = bigint_dec_mul_pow10(rem, 2U);
-        if (berr == BIGINT_OK_E) {
-            bigint_dec_ty psm;
-            berr = bigint_dec_init(&psm);
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_from_u64(&psm, pair);
-                if (berr == BIGINT_OK_E) {
-                    berr = bigint_dec_add(rem, rem, &psm);
-                }
-                bigint_dec_free(&psm);
-            }
-        }
-        if (berr != BIGINT_OK_E) {
-            goto isqrt_cleanup;
-        }
-        unsigned chosen = 0U;
-        for (unsigned d = 9U; d > 0U; d--) {
-            berr = bigint_dec_copy(&q20, q);
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_mul(&q20, &q20, &twenty);
-            }
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_from_u64(&dsm, d);
-            }
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_add(&t, &q20, &dsm);
-            }
-            if (berr == BIGINT_OK_E) {
-                berr = bigint_dec_mul(&td, &t, &dsm);
-            }
-            if (berr != BIGINT_OK_E) {
-                goto isqrt_cleanup;
-            }
-            if (bigint_dec_cmp(&td, rem) <= 0) {
-                chosen = d;
-                break;
-            }
-        }
-        berr = bigint_dec_mul_pow10(q, 1U);
-        if (berr == BIGINT_OK_E) {
-            berr = bigint_dec_from_u64(&dsm, chosen);
-        }
-        if (berr == BIGINT_OK_E) {
-            berr = bigint_dec_add(q, q, &dsm);
-        }
-        if (berr == BIGINT_OK_E && chosen > 0U) {
-            berr = bigint_dec_sub(rem, rem, &td);
-        }
-        if (berr != BIGINT_OK_E) {
-            goto isqrt_cleanup;
-        }
-    }
-
-isqrt_cleanup:
-    free(digits);
-    bigint_dec_free(&ten);
-    bigint_dec_free(&twenty);
-    bigint_dec_free(&q20);
-    bigint_dec_free(&t);
-    bigint_dec_free(&td);
-    bigint_dec_free(&dsm);
+    bigint_bin_free(&sq);
+    bigint_bin_free(&rb);
+    bigint_bin_free(&qb);
+    bigint_bin_free(&xb);
     return berr;
 }
 
@@ -1047,7 +898,9 @@ bigdecimal_err_ty bigdecimal_mul(bigdecimal_ty *dst,
     // 常规：尾数乘、指数加（指数和溢出防御）
     const int64_t e1 = lhs->exp;
     const int64_t e2 = rhs->exp;
-    int64_t raw_exp;
+    /* 初值仅为消除 -O2 下 GCC 的 -Wmaybe-uninitialized 误报：该值仅在前两只
+       指数溢出分支均未命中时（即下方 else 已赋值）被读取 */
+    int64_t raw_exp = 0;
     bool exp_overflow = false;
     bool exp_underflow = false;
     if ((e1 > 0) && (e2 > 0) && (e1 > INT64_MAX - e2)) {

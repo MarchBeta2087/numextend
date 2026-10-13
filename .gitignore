@@ -1,8 +1,6 @@
 # 构建目录
-/build/
-/build-dbg/
-/build-cov/
-/build-asan/
+/build*/
+/_install*/
 
 # 编译产物
 *.o
@@ -26,3 +24,8 @@ __pycache__/
 # 系统文件
 .DS_Store
 Thumbs.db
+# 覆盖率产物
+*.gcov
+
+# 基准报告（CI 产物）
+docs/performance-ci.md

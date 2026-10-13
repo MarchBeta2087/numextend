@@ -1,6 +1,6 @@
 # Numextend 设计文档
 
-> 版本：v0.2（草案）
+> 版本：v1.0.0
 > 适用代码：`nex/` 目录下全部 C 源代码
 > 关联文档：`coding_standard.md` v1.4（编码规范，本文档中的所有命名均遵循之）
 > 许可证：MIT
@@ -15,6 +15,8 @@
     - [1.1 项目定位](#11-项目定位)
     - [1.2 类型总览](#12-类型总览)
     - [1.3 目标与非目标](#13-目标与非目标)
+    - [1.4 API/ABI 稳定性政策](#14-apiabi-稳定性政策)
+    - [1.5 公开 API 审计](#15-公开-api-审计)
   - [2. 总体架构](#2-总体架构)
     - [2.1 模块分层与依赖](#21-模块分层与依赖)
     - [2.2 目录结构与文件命名](#22-目录结构与文件命名)
@@ -54,6 +56,7 @@
   - [11. 错误处理与边界语义](#11-错误处理与边界语义)
   - [12. 测试与验证策略](#12-测试与验证策略)
   - [13. 性能目标与后续方向](#13-性能目标与后续方向)
+  - [14. 已知限制与非目标](#14-已知限制与非目标)
   - [附录 A：缩写与后缀登记增补建议](#附录-a缩写与后缀登记增补建议)
   - [修订记录](#修订记录)
 
@@ -93,7 +96,9 @@ Numextend（库前缀 `nex`）是一个纯 C99 编写的任意精度数值库，
 - 纯 C99（`-std=c99`），通过 `-Wall -Wextra -Wpedantic` 无警告编译；
 - 无外部依赖，仅使用 C 标准库；
 - 正确性优先，其次是清晰可读的算法实现，再次是性能；
-- 全部命名、格式遵循 `coding_standard.md` v1.4。
+- 全部命名、格式遵循 `coding_standard.md` v1.4；
+- 平台：x86-64 / arm64 等小端平台；实现基于 `uint32_t` 值语义，预期与端序
+  无关，但当前仅小端经过验证（大端未测试）。
 
 非目标（v1 明确不做）：
 
@@ -101,6 +106,47 @@ Numextend（库前缀 `nex`）是一个纯 C99 编写的任意精度数值库，
 - GPU  offload 与内部多线程并行；
 - 超越函数（sin/cos/log/exp 等）的完整实现（仅保留 sqrt；其余列为后续方向）；
 - 次正规（subnormal）浮点数（见 §7.3 的取舍说明）。
+
+### 1.4 API/ABI 稳定性政策
+
+本节是库对外承诺的正式条款，自 **v1.0.0** 起生效；本文档其余部分与各头文件
+注释均以此为约束。
+
+- **API（源码）稳定**：1.x 线内只做**向后兼容的增量**（新增函数、新增枚举
+  值、新增可选参数）；不得以破坏性方式改变既有签名或语义。破坏性变更只允许
+  出现在新的主版本。**贬弃流程**：先在新 minor 中以文档/注释标记 deprecated，
+  至少保留一个 minor 周期后，方可于下一主版本移除。
+- **ABI（二进制）稳定**：同一主版本内，共享库 `libnex` 可**直接替换**而不需
+  重编译消费者；主版本号即 SONAME（如 `libnex.so.1`）。为此，公开头文件中
+  **结构体的字段顺序、大小与对齐**在同一主版本内冻结。
+- **公开结构体字段为实现细节**：消费者可读取字段用于调试，但**不得依赖**其
+  布局或直接修改；可移植代码应使用提供的访问器。新增内部状态不得以新增公开
+  字段的方式进入同一主版本。
+- **版本标识**：库版本经生成的 `nex/nex_version.h`（`NEX_VERSION_*`）暴露，
+  与 `project(VERSION)` 保持单一来源，独立于本文档的修订号。
+- **发布形态**：同时提供静态库与共享库（`BUILD_SHARED_LIBS`）；安装后经
+  `find_package(nex CONFIG)` 使用。
+
+### 1.5 公开 API 审计
+
+v1.0 前对全部公开头文件做机械 + 人工审计；脚本 `scripts/api_audit.sh`（CI 每次
+运行）与 `scripts/api_symbols.py`（声明/定义比对）负责可复现部分。结论：
+
+- **自包含**：14 个公开头文件均可独立编译（`-std=c99 -Wall -Wextra
+  -Wpedantic`），各含 include guard，不依赖内部头。
+- **声明 / 定义一致**：公开头文件中 **203 个函数声明全部有定义**，无缺失。
+- **导出面**：另有 5 个内部辅助函数具外部链接并被共享库导出
+  （`nex_bf_round_pack`、`nex_bf_dec_round`、`nex_bf_from_decimal`、
+  `nex_dec_round_pack`、`nex_dec_isqrt`）；均以保留前缀 `nex_` 命名，不属公开
+  API。严格隐藏需引入显式可见性控制（`NEX_API`），列为后续细化。
+- **低层模块**：`nex/fft/`、`nex/ntt/` 随库安装，供测试与高级用法，不属七类型
+  API，不作额外兼容承诺。
+- **命名**：所有公开函数以模块前缀（`bigint_bin_`、`bigfloat_` …）开头。
+- **文档**：每个公开函数在头文件内均有 `brief/param/return/note` 注释；语义、
+  错误码、别名规则、OOM 与线程安全分别见 §3、§4–§10、§3.2/§3.3。
+- **有意缺口**（非疏漏）：`bigint_dec` 无公开 `gcd`/`sqrt`；`bigint_bin64` 仅核心
+  运算；复数 `arg` 已移出；超越函数、次正规、自定义分配器为 v1 非目标（§13）。
+- **覆盖率**：完整 CTest 下库行覆盖率约 **89%**；CI 门槛 80%（见 §12）。
 
 ---
 
@@ -128,6 +174,8 @@ Numextend（库前缀 `nex`）是一个纯 C99 编写的任意精度数值库，
 - 上层模块只能通过下层模块的公开头文件交互，禁止跨层包含 `static` 实现细节；
 - `bigint_bin ↔ bigint_dec` 的互转是唯一的跨支线依赖，由专门的转换单元承担
   （见 §4.2.5），该单元同时包含两个模块的头文件，位于 `nex/bigint/` 层级。
+- bin / dec 的乘法分派可共享只读公共算法模块 `nex/ntt/`（NTT 核心，仅操作
+  系数数组、不依赖 bigint 类型，见 §4.3）；该共享不构成 bin ↔ dec 互依赖。
 
 ### 2.2 目录结构与文件命名
 
@@ -140,8 +188,14 @@ nex/
 │   ├── nex_bigint_conv.h / .c       # bin ↔ dec 互转
 │   ├── bin/
 │   │   └── nex_bigint_bin.h / .c    # 可拆分为多个 .c（见下）
+│   ├── bin64/
+│   │   └── nex_bigint_bin64.h / .c  # 64 位肢变体（§13 #3，v0.13）
 │   └── dec/
 │       └── nex_bigint_dec.h / .c
+├── fft/
+│   └── nex_fft.h / .c               # 浮点复数 FFT 核心（bin 乘法共用，§4.3）
+├── ntt/
+│   └── nex_ntt.h / .c               # NTT 核心（bin / dec 乘法共用，§4.3）
 ├── bigfrac/
 │   └── nex_bigfrac.h / .c
 ├── bigfloat/
@@ -154,6 +208,11 @@ nex/
     └── decimal/
         └── nex_bigcomplex_decimal.h / .c
 ```
+
+仓库根另含：`CMakeLists.txt`（构建 / 安装 / 导出 + `BUILD_SHARED_LIBS`）、
+`cmake/`（`nexConfig.cmake.in`、`nex.pc.in`）、`examples/downstream/`（独立
+下游示例，验证 `find_package`）、`tests/`、`bench/`、`demo/`、`docs/`、`scripts/`。
+生成物 `nex/nex_version.h`（见 §1.4）落在构建目录，不纳入版本控制。
 
 约定：
 
@@ -383,7 +442,7 @@ typedef enum {
     BIGINT_MUL_TOOM_COOK_E = 1003,            // v1 未实现 → UNSUPPORTED
     /* 2xxx：变换类 */
     BIGINT_MUL_FLOAT_COMPLEX_FFT_E = 2001,    // v1 未实现 → UNSUPPORTED
-    BIGINT_MUL_MULTI_MODULI_CRT_NTT_E = 2002, // v1 未实现 → UNSUPPORTED
+    BIGINT_MUL_MULTI_MODULI_CRT_NTT_E = 2002, // 多模数 CRT NTT（v1 已实现，双模数）
     /* 3xxx */
     BIGINT_MUL_SCHONHAGE_STRASSEN_E = 3001    // v1 未实现 → UNSUPPORTED
 } bigint_mul_algo_ty;
@@ -455,13 +514,13 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
 | 操作 | v1 算法 | 复杂度 | 后续方向 |
 |------|---------|--------|----------|
 | 加 / 减 | 逐肢带进位扫描 | O(n) | — |
-| 乘法 | schoolbook；肢数 ≥ 阈值（初定 32 肢，实测调优）切换 Karatsuba；`mul_ex` 可强制选择二者之一 | O(n²) / O(n^1.585) | Toom-3、FFT（枚举已预留，未实现返回 `BIGINT_ERR_UNSUPPORTED_E`） |
+| 乘法 | schoolbook；肢数 ≥ 32 切换 Karatsuba；≥ 512 切换 Toom-3；≥ 16384 切换多模数 CRT NTT；`mul_ex` 可强制选择各算法（FFT 已实现但不参与 AUTO，见 §4.3） | O(n²) / O(n^1.585) / O(n log n) | FFT 的 SIMD 化与 AUTO 启用再评估、分治基数转换（见 §13） |
 | 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正） | O(n·m) | 递归除法 |
 | 平方 | 专用 schoolbook 平方（利用对称性减半乘累加） | O(n²/2) | 随乘法升级 |
 | 模幂 | 平方-乘，滑动窗口列为后续 | O(log e 次模乘） | Montgomery 约减 |
-| bin→dec | 反复除以 10^9（单肢除法，余数即十进制肢） | O(n²) | 分治转换 |
-| dec→bin | 逐肢乘 10^9 累加 | O(n²) | 分治转换 |
-| gcd（供 bigfrac 使用，公开 API `bigint_bin_gcd`） | 二进制 GCD | O(n²) | Lehmer / 半 GCD |
+| bin→dec | 分治（2 的幂切半 + 平方链表），小规模回退反复除 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
+| dec→bin | 分治（对称），小规模回退逐肢乘 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
+| gcd（供 bigfrac 使用，公开 API `bigint_bin_gcd`） | 大输入 Lehmer 矩阵约减 + 二进制 GCD 收尾；小输入纯二进制 GCD | O(n²)/32 常数改善，实测 4-6.5× | 半 GCD |
 
 实现要点：
 
@@ -470,15 +529,123 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
 - 所有内部辅助函数为 `static`（规范 §8.4）；
 - 进位/借位一律通过 `uint64_t` 中间量显式计算，禁止依赖编译器溢出行为。
 
-变换类乘法的分节约定（对应算法落地时生效）：
+变换类乘法（浮点复数 FFT 与多模数 CRT NTT）的分节约定（对应算法落地时生效）。
 
-- **浮点复数 FFT**：默认每 32-bit 肢拆为 4 节 × 8 bit（可经
-  `params.float_complex_fft.chunk_bits` 覆盖）。卷积系数上界为
-  n·(2^8 − 1)²，配合 double 的 53 位尾数可给出明确的舍入安全界，
-  论证随实现写入注释；
-- **多模数 CRT NTT**：模运算无舍入误差，**不套用** 8-bit 规则，分节位数由
-  所选模数的位宽推导，`params.multi_moduli_crt_ntt.mod_count` 控制模数个数。
-  固定 8 bit 分节会使变换长度无谓放大约 4 倍，故不作 FFT/NTT 共同规则。
+记号：每肢（bin 为 2^32、dec 为 10^9）拆为若干**节**（chunk），节基为 B；
+单侧总节数 L = 每肢节数 × 肢数 n，卷积长度 2L−1，FFT/NTT 长度 N 取下一位
+2 的幂（≥ 2L）。卷积系数上界 C = L·(B−1)²（每个输出位置至多 L 个乘积项）。
+
+**浮点复数 FFT**（`BIGINT_MUL_FLOAT_COMPLEX_FFT_E`）：
+
+- 二进制（基 2^32）：默认每肢 4 节 × 8 bit（B = 256，可经
+  `params.float_complex_fft.chunk_bits` 覆盖）。拆节即 limb 的字节视图，
+  零成本；C ≈ 4n·(2^8−1)²，double 的 53 位尾数下安全余量极大（N 可达
+  ~2^34 点）。增大 chunk_bits 可缩短变换长度（16 bit 时 N = 4n），但安全
+  规模上限随之下降（16 bit 时约 N < 2^18），默认取 8 bit 以覆盖全部规模，
+  完整舍入安全界的论证随实现写入注释；
+- 十进制（基 10^9）：默认每肢 3 节 × 基 1000（B = 10³，C ≈ 3n·(10³−1)²，
+  N = 8n）。**不采用** 每肢 4 节 × 基 256 方案（B = 256，C ≈ 4n·255²，
+  N 同为 8n——两方案变换长度相同，因 6n−1 与 8n−1 的下一位 2 的幂均为 8n）。
+  弃用理由：① 基 256 方案卷积结果须经一次 bin→dec 基数转换才能还原为
+  十进制肢（10^9 不是 2 的幂，十进制肢与字节不对齐；v1 的 O(n²) 朴素转换
+  会抵消 FFT 的收益），而 base-1000 每 3 节恰好拼一个十进制肢，零转换；
+  ② 基 256 方案的最高节受限于 0..59（59 < 10^9/256³ < 60），为非均匀节，
+  增加正确性脚枪；③ 基 256 的系数上界虽小约 3.5 bit，但 base-1000 的精度
+  余量（N 可达 ~2^30 点）对任何现实规模均绰绰有余。字节对齐拆节零成本的
+  优势仅对二进制成立（limb 即字节数组），十进制拆/装为 O(n) 的 div/mod，
+  相对 O(n log n) 变换可忽略；故二/十进制不共享分节规则。
+- **落地状态（v0.10 初版，v0.17 复核）**：二进制 FFT 已实现（`nex/fft/`，
+  方法 `BIGINT_MUL_FLOAT_COMPLEX_FFT_E`，节位宽 0/8/16，0 = 自动：长度和
+  ≤ 2^10 用 16 bit、否则 8 bit）。
+  - v0.10 实测（标量 double，-O2）认为 16-bit 仅 ~512² 肢窄带占优、
+    8-bit 几乎处处落败，故 **AUTO 不采用 FFT**。
+  - v0.17 曾在 **-O0 构建**上扫描到 8-bit 节于大尺寸胜过 Toom-3/NTT，
+    一度改动 AUTO；但以 **-O2 交错采样复测后结论翻转**：FFT-8 在
+    2048..65536 肢全程不优于 Toom-3/NTT（例：4096 肢 3.5 vs 2.3 ms，
+    16384 肢 38 vs 20 ms，65536 肢 213 vs 136 ms），**遂保留 v0.10 的
+    “AUTO 不采用 FFT”结论**（Toom-3 ≤ 16383 肢、NTT ≥ 16384 肢）。
+  - 教训：整数密集的 Toom-3/NTT 从 -O2 获得的收益远大于以 libm 为主的
+    FFT，**未优化（-O0）的基准会给出相反结论**；基准必须与对比基线
+    处于同一优化级别（`bench_sweep` 现输出 -O0 警告并交错采样）。
+  - **16-bit 节安全性澄清**：舍入误差界 |error| ≈ 2·ε·(1+6·log2N)·C
+    （C = L·(2^b−1)²）在 16-bit 下于 min_len ≈ 2048 附近逼近 0.5，
+    实测 3072 肢即出错，故 16-bit 仅保留给强制方法（`NEX_MUL_FFT_B16_MAX_SUM
+    = 1024` 的长度和上限）。8-bit 的误差界在现实规模（≤ 65536 肢，已
+    随机多轮验证）下 << 0.5，安全。
+  - `test_fft_mul` 新增强制 FFT-8 在 8192/16384/32768/65536 肢的正确性
+    用例（与 Toom-3 参考对拍）。
+  十进制 FFT 未实现（还原需分治基数转换，见 §13），本节十进制约定
+  保留待其落地。
+
+**多模数 CRT NTT**（`BIGINT_MUL_MULTI_MODULI_CRT_NTT_E`）：
+
+- 模运算无舍入误差，**不套用** 8-bit 规则：节位宽 b 由模数容量反推。
+  设所选模数之积 Πp ≈ 2^W，须满足 C = L·(2^b)² < Πp（系数小于模积时 CRT
+  重构唯一），且变换长度 N ≤ 2^c（c 见模数结构体）；
+- 默认分节：二进制每肢 2 节 × 16 bit（L = 2n、N = 4n，两个 30-bit 模数
+  覆盖 n ≤ 2^27）；十进制每肢 2 节 × 15 bit（2·2^15 > 10^9，L = 2n、
+  N = 4n，两个 30-bit 模数覆盖 n ≤ 2^29）。固定 8 bit 分节（L = 4n、
+  N = 8n）会使变换长度无谓放大 2 倍，故不作 FFT/NTT 共同规则；
+- `params.multi_moduli_crt_ntt.mod_count` 控制模数个数（0 或 2；其余
+  UNSUPPORTED）。**三模数不实现**：双模数容量已覆盖 n ≤ 2^27 肢
+  （512 Mbit 操作数），远超现实输入；三模数需 128 位中间量（C99 无
+  __int128，结构体模拟可行但无使用场景）且每操作慢 1.5 倍。128 位
+  乘法留待 §13"64 位肢变体"一并实现；
+- **实现要点（Phase 2 落地）**：蝶形乘法走 Montgomery 模乘（R = 2^32，
+  模数常数 m' = −p^{-1} mod 2^32 每次变换现算，Newton 5 轮），蝶形全程
+  无除法；Garner 重构的常数 p1^{-1} mod p2 每次乘法预计算一次、全部
+  系数共享；AUTO 分派阈值实测标定为 16384 肢（Karatsuba 交叉点约
+  13K 肢，-O2 双模数），见 §4.3 算法表；
+- 模数一律取形如 p = k·2^c + 1 的素数（k 奇），定义内部结构体 `ntt_mod_ty`
+  （不属公开 API）：
+
+```c99
+typedef struct {
+    uint32_t p;  /* 素数，p = k·2^c + 1 */
+    uint32_t k;  /* 奇部，k = (p−1) / 2^c */
+    uint32_t c;  /* p−1 中 2 的最大幂指数（2^c || p−1，= 最大变换长度对数） */
+    uint32_t w;  /* 2^c 次本原单位根：w = g^k mod p，满足 w^(2^(c−1)) ≡ −1 (mod p) */
+} ntt_mod_ty;
+```
+
+  其中 g 为模 p 的原根；长度 N 的根 = w^(2^c / N)（N 为 2 的幂且 N ≤ 2^c）。
+  内置模数表为 `const` 数组（下表全部经单元测试逐项校验），c 覆盖 21..27；
+  选取模数组合须满足：每个模数 2^c ≥ N，且 Πp > C：
+
+| p | k | c | g（原根） |
+|---|---|---|-----------|
+| 167772161 | 5 | 25 | 3 |
+| 469762049 | 7 | 26 | 3 |
+| 754974721 | 45 | 24 | 11 |
+| 985661441 | 235 | 22 | 3 |
+| 998244353 | 119 | 23 | 3 |
+| 1004535809 | 479 | 21 | 3 |
+| 1107296257 | 33 | 25 | 10 |
+| 1224736769 | 73 | 24 | 3 |
+| 1811939329 | 27 | 26 | 13 |
+| 2013265921 | 15 | 27 | 31 |
+| 2281701377 | 17 | 27 | 3 |
+
+- **模数有效性校验**：合数模下 Z/mZ 单位群非循环，不存在 2^c 阶根，
+  radix-2 NTT 无正确性保证，故**合数一律不可用**。内置表在单元测试中
+  验证；若将来支持用户自供模数，对外入口对每个模数做运行时校验：
+  ① 质数性——Miller-Rabin，基数 {2,3,5,7,11} 对全部 uint32 为确定性
+  （最小强伪素数 2,152,302,898,747 > 2^32）；② 根阶——w^(2^(c−1)) ≡ −1
+  (mod p)。校验为纯函数、无缓存、不引入全局状态（§3.3），单次成本约
+  数十次模幂，相对 O(n log n) 变换可忽略；合数返回 `BIGINT_ERR_INVALID_E`。
+
+**位反转与蝶形**：正变换用 DIF（频域抽取，Gentleman–Sande）蝶形、逆变换
+用 DIT（时域抽取，Cooley–Tukey）蝶形，正逆配对后输入输出均自然序，
+**位反转被完全消除**（无需置乱遍历与旋转因子表翻转）。若实现期为便于
+调试需要显式位反转，提供 `ntt_bitrev(uint32_t *rev, uint32_t log2n)`：
+由**调用方提供缓冲区**并就地填充反转置换表（显式内存、无全局状态、
+线程安全）；仅允许 `const` 的 256 字节字节反转查找表（编译期常量，
+不违反 §3.3），**禁止**按 N 缓存的全局表。
+
+**模块归属**：NTT 仅操作系数数组（`uint32_t *` + 长度），不依赖 bin/dec
+类型，作为公共算法模块置于 `nex/ntt/`（`nex_ntt.h` / `nex_ntt.c`，深度 2），
+由 bin / dec 的乘法分派共同调用；§2.1 的"跨支线依赖唯一性"随之放宽为
+"bin ↔ dec 互不依赖，可共享只读公共算法模块"（已随 v0.8 落地）。
 
 ---
 
@@ -755,8 +922,9 @@ bigfloat_err_ty bigfloat_compose(bigfloat_ty *dst, const bigint_bin_ty *mant,
 - **乘法**：尾数整数乘（走 `bigint_bin_mul`），规范化并舍入；
 - **除法**：将被除数左移至商达到 `mant_bits + 3` 位，整数除法得商与余数，
   余数非零置粘位，然后舍入。Newton 迭代除法列为后续；
-- **sqrt**：整数平方根（移位试商法）作用于缩放后的尾数，得到舍入所需的
-  保护位与粘位；Newton 迭代列为后续；
+- **sqrt**：整数平方根（`bigint_bin_sqrt`，Newton 迭代）作用于缩放后的
+  尾数，得到舍入所需的保护位与粘位；余数由 `x − q²` 补算供粘位判定
+  （v0.17 由逐位试商法改为 Newton，万位精度实测 -O2：79.8 ms → 22.2 ms）；
 - **十进制输入**：十进制小数解析为 `bigfrac` 式精确有理数（分子分母为
   bigint，分母为 10^k），再做一次带保护位的除法并舍入——保证正确舍入的
   充分条件是中间精度 ≥ `mant_bits + 输入位数相关界`，实现取宽松上界并注释依据；
@@ -832,7 +1000,10 @@ typedef struct {
   这是相对 bigfloat 二进制移位的对称优势），整数加减后去除尾随零规范化，
   按 `mant_digits` 舍入（舍入位与粘位直接从十进制肢读取，无需位操作）；
 - 乘/除：尾数走 `bigint_dec_mul` / 带保护位的整数除法，与 §7.5 平行；
-- sqrt 与十进制的关系不特殊，同样走移位试商整数平方根；
+- sqrt：缩放后尾数经 `bigint_conv` 转二进制、用 `bigint_bin_sqrt`（Newton）
+  求根再转回十进制，并补算 `rem = x − q²` 供粘位判定。十进制自身无亚二次
+  除法，原生 Newton 实测比二进制路径慢约 3.7×；`bigint_conv` 是 §2.1
+  认可的 bin↔dec 唯一桥接，故此处复用（v0.17，万位精度 -O2：232 ms → 25 ms）；
 - 指数调整（`mul_pow10` 整肢移动）使绝大多数十进制缩放为 O(n) 内存搬移。
 
 ---
@@ -879,10 +1050,6 @@ bigcomplex_float_err_ty bigcomplex_float_to_str(const bigcomplex_float_ty *cpx,
 bigcomplex_float_err_ty bigcomplex_float_conj(bigcomplex_float_ty *cpx);  // 共轭
 bigcomplex_float_err_ty bigcomplex_float_abs(bigfloat_ty *dst,
         const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);      // |z|
-bigcomplex_float_err_ty bigcomplex_float_arg(bigfloat_ty *dst,
-        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
-        // 辐角；需要 atan，列为 v1 可选实现，未实现时返回
-        // BIGCOMPLEX_FLOAT_ERR_UNSUPPORTED_E
 
 /* 四则 */
 bigcomplex_float_err_ty bigcomplex_float_add(bigcomplex_float_ty *dst,
@@ -902,8 +1069,8 @@ bool bigcomplex_float_eq(const bigcomplex_float_ty *lhs, const bigcomplex_float_
 - 除法 v1 用共轭法 `(a+bi)/(c+di) = (a+bi)(c−di)/(c²+d²)`；该方法在中间量
   上可能过早溢出/下溢，Smith 缩放算法列为后续方向并在文档与注释中注明取舍；
 - `abs` 经 `sqrt(re² + im²)` 实现，同样的溢出注意事项适用；
-- `arg` 依赖 atan，v1 允许返回 `..._ERR_UNSUPPORTED_E`，避免引入未经设计的
-  超越函数实现。
+- `arg` 依赖超越函数 `atan`，**不属于 v1 公开 API**（已移出，避免引入未经
+  设计的超越函数实现）；后续可作为 1.x 增量重新引入。
 
 ### 9.3 特殊值传播
 
@@ -1001,19 +1168,53 @@ O 可能溢出 / 超范围（返回错误或产生 ±∞）；— 不提供直�
 ## 13. 性能目标与后续方向
 
 v1 性能目标（参考量级，非硬指标）：万位十进制整数乘法 < 10ms（schoolbook 可达成），
-Karatsuba 切换阈值经实测标定（初定 32 肢）。
+Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模扫描报告见
+`docs/performance.md`（由 `scripts/bench.sh` 生成）；CI 每日基准见
+`.github/workflows/benchmark.yml`（产物为 artifact，仅作趋势参考）。
 
 已识别的后续方向（均不改变 v1 语义，仅优化或扩展）：
 
-1. Toom-3 / FFT 乘法、递归除法、Newton 迭代除法与开方；
-2. Montgomery 模幂、Lehmer/半 gcd；
-3. 64 位肢变体（需处理 `uint64_t × uint64_t → 128 位`，受 C99 限制，
-   可经编译器探测条件编译）；
+1. Toom-3（bin 侧 v0.14、dec 侧 v0.15 落地；阈值 512 肢，交叉点 ~600）与多模
+   NTT 乘法（分节约定、模数表与位反转策略见 §4.3；NTT 已实现）、递归除法
+   （Burnikel-Ziegler v0.16 修复并启用：随机大数 + 稀疏/全 1/2 的幂/负数黄金
+   对拍全过，块直写优化后 a/b=256 时较 Knuth D 快 ~22%）、Newton 迭代除法
+   与开方；
+2. Montgomery 模幂、半 gcd（Lehmer gcd 已落地，v0.14）；
+3. 64 位肢变体：核心已落地（`nex/bigint/bin64/`，v0.13）——加/减/乘
+   （schoolbook + Karatsuba），等位长下约 2 倍提速；64×64→128 经编译
+   器探测（GCC/Clang __int128 + MSVC 便携 4 乘，§13 #3 条件编译落地）；
+   除法 / 字符串 / 互转待按需扩展；
 4. 十进制输出的 Ryū 式快速算法；
 5. 次正规浮点数支持（需放松"最高位恒 1"不变式，影响面大，单独设计评审）；
 6. 自定义分配器钩子；
 7. 复数 Karatsuba 三乘式、Smith 稳定除法；
-8. 超越函数（atan 落地后解锁 `arg`，另有 exp/log/sin/cos）。
+8. 超越函数（exp/log/sin/cos）；`atan` 落地后可重新引入复数辐角 `arg`
+   （v1 已移出公开面，见 §9.2）；
+9. 浮点 FFT 的 SIMD 化与 AUTO 启用再评估（标量 double 下 8-bit/16-bit
+   节在 -O2 实测均不优于 Toom-3/NTT，见 §4.3；SIMD 后需重新标定）；
+10. 分治基数转换 bin↔dec（已落地）与十进制字符串 I/O（已接入，
+    bigint_bin base 10，v0.12）；**decimal 快速乘法经实测否定**（v0.13）：
+    "转 bin → NTT → 转回"在 1 万..50 万位全面落后 4-7 倍（转换开销约
+    为同尺寸乘法的 5-6 倍，bin NTT 的 n·log n 优势无法弥补），不实现；
+
+---
+
+## 14. 已知限制与非目标
+
+本节集中列出 v1.0 的**已知限制**与**明确不做**的事项，便于使用者评估适用性。
+完整后续方向见 §13。
+
+| 项目 | 状态 | 说明 / 后续 |
+|------|------|--------------|
+| 超越函数 exp/log/sin/cos/atan | 非目标 | 仅提供 `sqrt`；复数辐角 `arg` 因此移出公开面（§9.2） |
+| 次正规（subnormal）浮点 | 非目标 | 需放松“最高位恒 1”不变式，影响面大（§7.3） |
+| SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3） |
+| 自定义分配器钩子 | 后续 | 现为内部统一分配器 `nex_alloc`（§13 #6） |
+| 十进制侧亚二次除法 | 限制 | `bigint_dec` 仅 Knuth D（O(n²)）；bin 侧已有 BZ |
+| 超大输入 gcd | 限制 | Lehmer 仍 O(n²)；半 gcd 为后续（§13 #2） |
+| 大端平台 | 未验证 | 实现为值语义，预期端序无关；当前仅小端验证（§1.3） |
+| 32 位平台 | 未验证 | CI 仅覆盖 64 位 |
+| 公开结构体字段 | 实现细节 | 布局在 1.x 冻结，但请使用访问器，勿依赖字段（§1.4） |
 
 ---
 
@@ -1036,7 +1237,6 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | `shl` / `shr` | shift left / right | 移位 | `bigint_bin_shl` |
 | `popcount` | population count | 置位计数 | `bigint_bin_popcount` |
 | `abs` | absolute value | 绝对值 | `bigint_bin_abs` |
-| `arg` | argument | 复数辐角 | `bigcomplex_float_arg` |
 | `bd` | bigint decimal | `bigint_dec` 实例惯用名（本规范示例沿用） | `bigint_dec_init(bd, len)` |
 | `bigcomplex` | big complex | 大复数模块前缀 | `bigcomplex_float_add` |
 | `bigdecimal` | big decimal | 十进制浮点模块前缀 | `bigdecimal_from_str` |
@@ -1082,3 +1282,16 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | v0.4 | 2026-08-11 | §8 bigdecimal 模块落地：规范化的“无尾随零”语义（`12 × 10^−1`）、对称指数范围 ±(10^exp_digits−1)、精确字符串 I/O（定点/科学计数两种格式）、十进制逐位试商整数开方；§7.3 澄清预设指数范围与 IEEE 的差异 |
 | v0.5 | 2026-08-11 | §9 bigcomplex 落地（float / decimal 两版）：分量组合语义（乘法朴素四乘二加、除法共轭法、abs 经 sqrt(re²+im²)）、任一分量 NaN → 整体 (NaN, NaN)（§9.3）、"a±bi" 字面量解析与输出、arg 返回 UNSUPPORTED（依赖 atan，v1 未实现） |
 | v0.6 | 2026-08-11 | §10 转换矩阵落地：新增专用转换单元 `nex/convert/`（nex_convert_*，沿袭 nex_bigint_conv 的跨模块胶水层先例）。精确互转（bigint↔bigfrac、浮点→bigfrac）、逆向精确转换（浮点→整数仅接受整数值，否则 INVALID 不截断）、有损互转（显式 ctx、经精确有理数中间值带保护位除法一次舍入，float↔decimal 走 mant×5^k/10^k 精确表示）；复数→实数（im 为 ±0 取 re）。附录 A 注册 `convert` 缩写 |
+| v0.7 | 2026-08-12 | §4.3 变换类乘法分节约定细化：十进制 FFT 定稿为每肢 3 节 × base 1000（弃用 4 节 × 256：两方案变换长度同为 N = 8n，但 256 方案需 bin→dec 基数转换还原且最高节为非均匀 0..59）；NTT 分节按模数容量推导并定默认（bin 16 bit、dec 15 bit，均 2 节/肢、N = 4n）；新增 NTT 模数结构体 `ntt_mod_ty`（p/k/c/w）、内置素数表（11 个 k·2^c+1 素数，c 21..27，均经校验）与确定性校验方案（MR 基数 {2,3,5,7,11} + 根阶验证，合数返回 INVALID）；位反转：DIF/DIT 配对消除，`ntt_bitrev` 由调用方供缓冲区；NTT 模块归属建议 `nex/ntt/`（开放问题） |
+| v0.8 | 2026-08-12 | §4.3 模块归属定案：NTT 核心落地为 `nex/ntt/`（`nex_ntt.h/.c`，仅操作系数数组、无动态分配），§2.1 依赖规则放宽为"bin ↔ dec 互不依赖，可共享只读公共算法模块"，§2.2 目录树增补 `nex/ntt/`；随 NTT 核心实现（Phase 1：模数表 + 校验、DIF/DIT 变换、点乘、Garner CRT 重构）一并交付 |
+| v0.9 | 2026-08-12 | §4.3 NTT 乘法落地（Phase 2）：`bigint_bin` 集成（16-bit 分节、双模数选择、Garner 常数预计算 + base-2^16 进位还原）；Montgomery 模乘内部化（蝶形无除法，§13 方向落地）；AUTO 阈值实测标定 16384 肢（Karatsuba 交叉点约 13K 肢，-O2）；黄金对拍新增 `mul_ntt` 命令 |
+| v0.10 | 2026-08-12 | §4.3 浮点复数 FFT 落地（Phase 3）：`nex/fft/` 核心（DIF/DIT 免位反转）+ `bigint_bin` 集成（强制方法，节位宽 0/8/16）；实测标量 double 下 16-bit 节仅 ~512² 肢窄带胜过 Karatsuba（~10%），8-bit 节处处落败，故 AUTO 不采用 FFT（SIMD 化列入 §13）；NTT 三模数决策：不实现（无场景 + 128 位中间量，容量已覆盖 512 Mbit），128 位乘法留待 64 位肢工作；§13 增补 FFT SIMD 化与分治基数转换方向；黄金对拍新增 `mul_fft` 命令 |
+| v0.11 | 2026-08-12 | §4.3 分治基数转换落地（§13 #10）：`bigint_conv_bin_to_dec` / `bigint_conv_dec_to_bin` 改为分治（2 的幂切半 + 平方链表，T(n) = 2T(n/2) + M(n)），阈值按方向独立实测标定（bin→dec 256 肢、dec→bin 2048 肢起分治胜出；8192 肢分别快 3.6 倍 / 2 倍）；修复分治基例未设 sign 导致低半丢失的缺陷；黄金对拍补齐 `c_b2d`/`c_d2b` 大数用例（此前无覆盖）；新增 `test_bigint_conv` 单元测试 |
+| v0.12 | 2026-08-12 | §4.3 十进制字符串 I/O 接入快速路径：`bigint_bin_from_str` / `bigint_bin_to_str`（base 10）改为"9 位分组直析 dec 肢 → 分治 dec→bin" / "分治 bin→dec → 逐肢格式化"（经转换单元跨支线，§2.1），替代 O(n²) 的 parse_digits / digits_generic（20 万位 from_str ~60ms）；测试补盲：新增 `test_bigint_str`（往返、9 位分组边界、10^k 邻域、部分消费与错误语义、大小查询），`test_oom` 增加 2 万位串的 from_str / to_str OOM 注入扫描（覆盖分治转换分配点），golden 的 `c_b2d`/`c_d2b` 补充 2 万位与 10^k 边界用例；修复零×单肢的拆节堆越界（ASan 定位，macOS CI 偶发崩溃根因） |
+| v0.13 | 2026-08-12 | §13 #3 64 位肢核心落地（`nex/bigint/bin64/`）：加/减/乘（schoolbook + Karatsuba），`nex_u128_mul` 经编译器探测（__int128 + 便携 4 乘回退），等位长 ~2× 提速，交叉验证 + u128 向量测试；§13 #10 decimal 快速乘法经实测否定（转 bin→NTT→转回全面落后 4-7 倍，不实现） |
+| v0.14 | 2026-08-12 | Toom-3 乘法落地（§4.2.4）：三点插值 + 带符号中间量，AUTO 阈值实测 512 肢（交叉点 ~600）；修复视图规范化 / 零减法符号 / 基例递归三个缺陷；Lehmer gcd 落地（§4.3/§13）：顶 64 位续分式矩阵（det ±1）+ 溢出护栏 + 回退完整除法，实测 4-6.5×（1024 肢 5.2ms vs 34ms）；golden 新增 gcd 命令外部验证；Toom-3 专项测试含 10^9216 历史缺陷复现 |
+| v0.15 | 2026-08-13 | dec 侧 Toom-3 落地（§4.2.4 镜像移植，含带符号中间量 dec 版，AUTO 阈值 512 肢，Python 黄金对拍 + 稀疏平方回归）；递归除法（Burnikel-Ziegler，§13 #1）落地但**暂不自动分派**：随机大数黄金对拍通过，稀疏除数（2^k±1 移位后中间全零）存在递归边界缺陷（d2n1n2/d3n2 前提链可被破坏，mag_divmod 对未规范化视图亦暴露问题），保留代码待修，大输入继续走 Knuth D；测试补盲：test_bigint_bin 新增大数除法专项（稀疏/全 1/2 的幂/LCG 不变量）；golden_driver 输入缓冲 64K→1M |
+| v0.16 | 2026-08-13 | Newton 开方 (bigint_bin_sqrt 落地：Newton 迭代 x ← (x + a/x) >> 1，初值 2^ceil(blen/2) 保收敛，整数平方根向下取整)、Newton 除法（整数倒数 + 商修正，正确性验证过但全精度迭代效率不如 BZ，NEX_DIV_NEWTON_PATH 条件编译隐藏的实验路径)；golden 新增 sqrt 命令与单元测试；Montgomery 模幂 (REDC实现且验证，实测无收益：模数 1024+ bit 时比标准路径慢 5%\uff0cREDC 朴素 n² 不如已优化的 Knuth D，不启用，NEX_POW_MOD_MONT 条件编译隐藏；bin64 除法 (bigint_bin64_div_rem 转换包装复用 bin 除法，含 BZ与 Knuth D）\uff1bBurnikel-Ziegler 递归除法缺陷定位并修复（§13 #1，恢复自动分派）：根因是 `bz_mag_cmp` 对未规范化视图（前导零）按长度比较——稀疏除数移位后中间全零，a12 视图顶肢为 0 而实际值 > b，误判走 3a 分支、破坏 d2n1n2 前提、商溢出截断（余数下溢为全 1）；修复为先裁剪前导零再比较；商累加改为块直写（预留 (t−1)n+1 肢，qi 为罕见 n+1 肢时回退累加），a/b=256 时较 Knuth D 快 ~22%（1000 肢除数：830ms vs 1059ms）；稀疏/全 1/2 的幂/负数/非平衡随机黄金对拍全过 |
+| v0.17 | 2026-10-13 | 新增 `bench/bench_sweep.c` 全面性能扫描基准（交错多轮采样，并对未优化构建输出警告）。扫描发现 bigfloat/bigdecimal 的 sqrt 用 O(n²) 逐位试商，改用 Newton：bigfloat 层内复用 `bigint_bin_sqrt`，bigdecimal 经 `bigint_conv` 转二进制复用同一 Newton——-O2 万位精度 79.8→22.2 ms / 232→25 ms（§7.5、§8.3）。另就 FFT 复测：先前在 **-O0 构建**上得到“8-bit FFT 优于 Toom-3/NTT”的结论，经 **-O2 交错采样复测翻转**（FFT-8 全程不占优），**保留 v0.10 的“AUTO 不采用 FFT”**；`test_fft_mul` 仅补强制 FFT-8 大尺寸正确性用例。同时澄清 MEMO 的 “Lehmer gcd 1024 肢 5.2 ms” 与 -O0 下 20 ms 的差异仅为优化级别（-O2 复核 4.6 ms），非回归；教训：基准必须与基线同优化级别 |
+| v0.18 | 2026-10-13 | 迈向 v1.0：`project(numextend VERSION 1.0.0)` + 生成 `nex/nex_version.h`（`NEX_VERSION_*`）；新增 §1.4「API/ABI 稳定性政策」（1.x API 只增不改、同主版本 ABI 稳定、公开结构体布局冻结）；复数辐角 `arg` 移出 v1 公开面（删除 `bigcomplex_float_arg` / `bigcomplex_decimal_arg`，依赖超越函数 `atan`，见 §9.2、§13 #8） |
+| v1.0.0 | 2026-10-14 | 首个正式发布。API/ABI 稳定性政策（§1.4）、公开 API 审计（§1.5）、已知限制与非目标（§14）定稿；参考手册 `docs/manual/` + `docs/manual.html`（头文件生成 + Pandoc，`scripts/docs.sh`）；性能报告 `docs/performance.md`（`scripts/bench.sh`）；安装与导出（`find_package`/pkg-config/共享库 `SOVERSION`）；CI 覆盖 Clang/MSVC/ASan-UBSan/覆盖率门槛/文档同步；建立 `CHANGELOG.md` |
