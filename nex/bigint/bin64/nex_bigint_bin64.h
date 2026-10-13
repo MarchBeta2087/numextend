@@ -82,23 +82,54 @@ bigint_err_ty bigint_bin64_shrink(bigint_bin64_ty *val);
 /* 基本转换与断言                                                       */
 /* ------------------------------------------------------------------ */
 
+/*
+ * brief: 以 uint64_t 赋值
+ * return: 成功返回 BIGINT_OK_E；内存不足返回 BIGINT_ERR_OOM_E（val 不变）
+ */
 bigint_err_ty bigint_bin64_from_u64(bigint_bin64_ty *val, uint64_t value);
+
+/*
+ * brief: 转为 uint64_t
+ * return: 成功返回 BIGINT_OK_E；负数或超出范围返回 BIGINT_ERR_OVERFLOW_E
+ *         （out 不被修改）
+ */
 bigint_err_ty bigint_bin64_to_u64(const bigint_bin64_ty *val, uint64_t *out);
+
+/*
+ * brief: 比较两个大整数
+ * return: lhs < rhs 返回负数，相等返回 0，lhs > rhs 返回正数
+ */
 int bigint_bin64_cmp(const bigint_bin64_ty *lhs, const bigint_bin64_ty *rhs);
+
+/*
+ * brief: 判断是否为零
+ */
 bool bigint_bin64_is_zero(const bigint_bin64_ty *val);
 
 /* ------------------------------------------------------------------ */
 /* 加减乘                                                               */
 /* ------------------------------------------------------------------ */
 
+/*
+ * brief: 加法 dst = lhs + rhs（允许 dst 与任一操作数别名）
+ * return: 成功返回 BIGINT_OK_E；内存不足返回 BIGINT_ERR_OOM_E
+ */
 bigint_err_ty bigint_bin64_add(bigint_bin64_ty *dst,
         const bigint_bin64_ty *lhs, const bigint_bin64_ty *rhs);
+
+/*
+ * brief: 减法 dst = lhs − rhs（允许 dst 与任一操作数别名）
+ * return: 成功返回 BIGINT_OK_E；内存不足返回 BIGINT_ERR_OOM_E
+ */
 bigint_err_ty bigint_bin64_sub(bigint_bin64_ty *dst,
         const bigint_bin64_ty *lhs, const bigint_bin64_ty *rhs);
+
+/*
+ * brief: 乘法 dst = lhs × rhs（schoolbook + Karatsuba，允许别名）
+ * return: 成功返回 BIGINT_OK_E；内存不足返回 BIGINT_ERR_OOM_E
+ */
 bigint_err_ty bigint_bin64_mul(bigint_bin64_ty *dst,
         const bigint_bin64_ty *lhs, const bigint_bin64_ty *rhs);
-
-#endif /* NEX_BIGINT_BIN64_H */
 
 /*
  * brief: 带余除法（截断除法，与 C99 整数除法语义相同）
@@ -107,3 +138,5 @@ bigint_err_ty bigint_bin64_mul(bigint_bin64_ty *dst,
 bigint_err_ty bigint_bin64_div_rem(bigint_bin64_ty *quot,
         bigint_bin64_ty *rem, const bigint_bin64_ty *lhs,
         const bigint_bin64_ty *rhs);
+
+#endif /* NEX_BIGINT_BIN64_H */

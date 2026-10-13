@@ -122,10 +122,25 @@ bigfloat_ctx_ty bigfloat_ctx_binary128(void);
 /* 分类断言（纯标志判断，不失败）                                      */
 /* ------------------------------------------------------------------ */
 
+/*
+ * brief: 判断是否为零（+0 或 −0）
+ */
 bool bigfloat_is_zero(const bigfloat_ty *val);
+
+/*
+ * brief: 判断是否为无穷（+∞ 或 −∞）
+ */
 bool bigfloat_is_inf(const bigfloat_ty *val);
+
+/*
+ * brief: 判断是否为 NaN
+ */
 bool bigfloat_is_nan(const bigfloat_ty *val);
-bool bigfloat_is_normal(const bigfloat_ty *val);  // POS_E 或 NEG_E
+
+/*
+ * brief: 判断是否为正常值（POS_E 或 NEG_E）
+ */
+bool bigfloat_is_normal(const bigfloat_ty *val);
 
 /* ------------------------------------------------------------------ */
 /* 构造与转换                                                          */

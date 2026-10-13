@@ -28,7 +28,14 @@ extern "C" {
 /* 分配失败注入计数器（SIZE_MAX = 不注入，默认）。测试直接赋值。 */
 extern size_t nex_test_alloc_fail_after;
 
+/*
+ * brief: 分配 size 字节；失败返回 NULL（与标准库一致）
+ */
 void *nex_malloc(size_t size);
+
+/*
+ * brief: 重分配 ptr 为 size 字节；失败返回 NULL（ptr 仍有效）
+ */
 void *nex_realloc(void *ptr, size_t size);
 
 #ifdef __cplusplus

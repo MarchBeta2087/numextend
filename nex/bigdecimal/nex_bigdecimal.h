@@ -130,10 +130,25 @@ bigdecimal_ctx_ty bigdecimal_ctx_decimal128(void);
 /* 分类断言（纯标志判断，不失败）                                      */
 /* ------------------------------------------------------------------ */
 
+/*
+ * brief: 判断是否为零（+0 或 −0）
+ */
 bool bigdecimal_is_zero(const bigdecimal_ty *val);
+
+/*
+ * brief: 判断是否为无穷（+∞ 或 −∞）
+ */
 bool bigdecimal_is_inf(const bigdecimal_ty *val);
+
+/*
+ * brief: 判断是否为 NaN
+ */
 bool bigdecimal_is_nan(const bigdecimal_ty *val);
-bool bigdecimal_is_normal(const bigdecimal_ty *val);  // POS_E 或 NEG_E
+
+/*
+ * brief: 判断是否为正常值（POS_E 或 NEG_E）
+ */
+bool bigdecimal_is_normal(const bigdecimal_ty *val);
 
 /* ------------------------------------------------------------------ */
 /* 构造与转换                                                          */
