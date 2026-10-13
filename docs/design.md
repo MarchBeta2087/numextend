@@ -1,6 +1,6 @@
 # Numextend 设计文档
 
-> 版本：v0.18（草案）
+> 版本：v1.0.0
 > 适用代码：`nex/` 目录下全部 C 源代码
 > 关联文档：`coding_standard.md` v1.4（编码规范，本文档中的所有命名均遵循之）
 > 许可证：MIT
@@ -56,6 +56,7 @@
   - [11. 错误处理与边界语义](#11-错误处理与边界语义)
   - [12. 测试与验证策略](#12-测试与验证策略)
   - [13. 性能目标与后续方向](#13-性能目标与后续方向)
+  - [14. 已知限制与非目标](#14-已知限制与非目标)
   - [附录 A：缩写与后缀登记增补建议](#附录-a缩写与后缀登记增补建议)
   - [修订记录](#修订记录)
 
@@ -1198,6 +1199,25 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 
 ---
 
+## 14. 已知限制与非目标
+
+本节集中列出 v1.0 的**已知限制**与**明确不做**的事项，便于使用者评估适用性。
+完整后续方向见 §13。
+
+| 项目 | 状态 | 说明 / 后续 |
+|------|------|--------------|
+| 超越函数 exp/log/sin/cos/atan | 非目标 | 仅提供 `sqrt`；复数辐角 `arg` 因此移出公开面（§9.2） |
+| 次正规（subnormal）浮点 | 非目标 | 需放松“最高位恒 1”不变式，影响面大（§7.3） |
+| SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3） |
+| 自定义分配器钩子 | 后续 | 现为内部统一分配器 `nex_alloc`（§13 #6） |
+| 十进制侧亚二次除法 | 限制 | `bigint_dec` 仅 Knuth D（O(n²)）；bin 侧已有 BZ |
+| 超大输入 gcd | 限制 | Lehmer 仍 O(n²)；半 gcd 为后续（§13 #2） |
+| 大端平台 | 未验证 | 实现为值语义，预期端序无关；当前仅小端验证（§1.3） |
+| 32 位平台 | 未验证 | CI 仅覆盖 64 位 |
+| 公开结构体字段 | 实现细节 | 布局在 1.x 冻结，但请使用访问器，勿依赖字段（§1.4） |
+
+---
+
 ## 附录 A：缩写与后缀登记增补建议
 
 以下条目已并入 `coding_standard.md` 附录 A（v1.2 / v1.3 / v1.4）：
@@ -1274,3 +1294,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 | v0.16 | 2026-08-13 | Newton 开方 (bigint_bin_sqrt 落地：Newton 迭代 x ← (x + a/x) >> 1，初值 2^ceil(blen/2) 保收敛，整数平方根向下取整)、Newton 除法（整数倒数 + 商修正，正确性验证过但全精度迭代效率不如 BZ，NEX_DIV_NEWTON_PATH 条件编译隐藏的实验路径)；golden 新增 sqrt 命令与单元测试；Montgomery 模幂 (REDC实现且验证，实测无收益：模数 1024+ bit 时比标准路径慢 5%\uff0cREDC 朴素 n² 不如已优化的 Knuth D，不启用，NEX_POW_MOD_MONT 条件编译隐藏；bin64 除法 (bigint_bin64_div_rem 转换包装复用 bin 除法，含 BZ与 Knuth D）\uff1bBurnikel-Ziegler 递归除法缺陷定位并修复（§13 #1，恢复自动分派）：根因是 `bz_mag_cmp` 对未规范化视图（前导零）按长度比较——稀疏除数移位后中间全零，a12 视图顶肢为 0 而实际值 > b，误判走 3a 分支、破坏 d2n1n2 前提、商溢出截断（余数下溢为全 1）；修复为先裁剪前导零再比较；商累加改为块直写（预留 (t−1)n+1 肢，qi 为罕见 n+1 肢时回退累加），a/b=256 时较 Knuth D 快 ~22%（1000 肢除数：830ms vs 1059ms）；稀疏/全 1/2 的幂/负数/非平衡随机黄金对拍全过 |
 | v0.17 | 2026-10-13 | 新增 `bench/bench_sweep.c` 全面性能扫描基准（交错多轮采样，并对未优化构建输出警告）。扫描发现 bigfloat/bigdecimal 的 sqrt 用 O(n²) 逐位试商，改用 Newton：bigfloat 层内复用 `bigint_bin_sqrt`，bigdecimal 经 `bigint_conv` 转二进制复用同一 Newton——-O2 万位精度 79.8→22.2 ms / 232→25 ms（§7.5、§8.3）。另就 FFT 复测：先前在 **-O0 构建**上得到“8-bit FFT 优于 Toom-3/NTT”的结论，经 **-O2 交错采样复测翻转**（FFT-8 全程不占优），**保留 v0.10 的“AUTO 不采用 FFT”**；`test_fft_mul` 仅补强制 FFT-8 大尺寸正确性用例。同时澄清 MEMO 的 “Lehmer gcd 1024 肢 5.2 ms” 与 -O0 下 20 ms 的差异仅为优化级别（-O2 复核 4.6 ms），非回归；教训：基准必须与基线同优化级别 |
 | v0.18 | 2026-10-13 | 迈向 v1.0：`project(numextend VERSION 1.0.0)` + 生成 `nex/nex_version.h`（`NEX_VERSION_*`）；新增 §1.4「API/ABI 稳定性政策」（1.x API 只增不改、同主版本 ABI 稳定、公开结构体布局冻结）；复数辐角 `arg` 移出 v1 公开面（删除 `bigcomplex_float_arg` / `bigcomplex_decimal_arg`，依赖超越函数 `atan`，见 §9.2、§13 #8） |
+| v1.0.0 | 2026-10-14 | 首个正式发布。API/ABI 稳定性政策（§1.4）、公开 API 审计（§1.5）、已知限制与非目标（§14）定稿；参考手册 `docs/manual/` + `docs/manual.html`（头文件生成 + Pandoc，`scripts/docs.sh`）；性能报告 `docs/performance.md`（`scripts/bench.sh`）；安装与导出（`find_package`/pkg-config/共享库 `SOVERSION`）；CI 覆盖 Clang/MSVC/ASan-UBSan/覆盖率门槛/文档同步；建立 `CHANGELOG.md` |
