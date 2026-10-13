@@ -1,0 +1,26 @@
+# 性能基准：仅手动或定时触发（不进 PR 门禁——CI runner 噪声大）。
+# 产物为 Markdown 报告 artifact；绝对数字仅作趋势参考。
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      budget:
+        description: '时间预算（秒）'
+        required: false
+        default: '1200'
+  schedule:
+    - cron: '0 4 * * *'   # 每日 04:00 UTC
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run benchmark (deep)
+        run: sh scripts/bench.sh docs/performance-ci.md "${{ github.event.inputs.budget || '1200' }}"
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: docs/performance-ci.md

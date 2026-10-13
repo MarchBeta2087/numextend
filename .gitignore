@@ -26,3 +26,6 @@ __pycache__/
 Thumbs.db
 # 覆盖率产物
 *.gcov
+
+# 基准报告（CI 产物）
+docs/performance-ci.md

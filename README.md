@@ -61,6 +61,25 @@ double/float 逐位对照）+ tie 舍入边界构造 + OOM 注入（12 运算 ×
 黄金对拍参考实现位于 `tests/golden_*.py`（`fractions.Fraction` / `decimal` 精确
 复刻各类型语义），随机种子可配置：`NEX_GOLDEN_SEED=... ctest -R golden`。
 
+## 性能
+
+Release（-O2）实测节选（Intel i5-13500H / GCC 15.2.0；完整报告与规模扫描见
+[`docs/performance.md`](docs/performance.md)）：
+
+| 运算 | 规模 | 耗时 |
+|------|------|------|
+| `bigint_bin` 乘法 | 10⁴ 位十进制 | 0.32 ms |
+| `bigint_bin` 除法 | 10⁴ / 0.5×10⁴ 位 | 0.64 ms |
+| `bin→dec` / `dec→bin` | 10⁵ 位十进制 | 49 / 18 ms |
+| `bigint_bin` 乘法 | 2¹⁶ 肢（≈ 63 万位） | 97 ms |
+| `bigint_bin` 乘法 | 2²⁰ 肢（≈ 1000 万位） | 5.7 s |
+| `bigfloat` 万位精度 sqrt | 33220 bit | 22 ms |
+| `bigdecimal` 万位精度 sqrt | 10000 位 | 25 ms |
+
+复现：`sh scripts/bench.sh [输出文件] [预算秒]`（Release 构建 + `bench_sweep`
+深度扫描；默认输出 `docs/performance.md`）。绝对耗时依赖机器与编译器；
+CI 另提供每日基准 artifact（`.github/workflows/benchmark.yml`）。
+
 ## 演示（`demo/`）
 
 `demo/demo.c` 演示七大类型：Fibonacci / 阶乘 / 精确有理数 / Gauss-Legendre 计算 π

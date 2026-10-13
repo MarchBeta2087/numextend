@@ -1167,7 +1167,9 @@ O 可能溢出 / 超范围（返回错误或产生 ±∞）；— 不提供直�
 ## 13. 性能目标与后续方向
 
 v1 性能目标（参考量级，非硬指标）：万位十进制整数乘法 < 10ms（schoolbook 可达成），
-Karatsuba 切换阈值经实测标定（初定 32 肢）。
+Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模扫描报告见
+`docs/performance.md`（由 `scripts/bench.sh` 生成）；CI 每日基准见
+`.github/workflows/benchmark.yml`（产物为 artifact，仅作趋势参考）。
 
 已识别的后续方向（均不改变 v1 语义，仅优化或扩展）：
 
