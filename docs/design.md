@@ -1,6 +1,6 @@
 # Numextend 设计文档
 
-> 版本：v0.16（草案）
+> 版本：v0.17（草案）
 > 适用代码：`nex/` 目录下全部 C 源代码
 > 关联文档：`coding_standard.md` v1.4（编码规范，本文档中的所有命名均遵循之）
 > 许可证：MIT
@@ -463,7 +463,7 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
 | 操作 | v1 算法 | 复杂度 | 后续方向 |
 |------|---------|--------|----------|
 | 加 / 减 | 逐肢带进位扫描 | O(n) | — |
-| 乘法 | schoolbook；肢数 ≥ 32 切换 Karatsuba；≥ 16384 切换多模数 CRT NTT（阈值实测标定，见 §4.3）；`mul_ex` 可强制选择各算法（FFT 已实现但不参与 AUTO） | O(n²) / O(n^1.585) / O(n log n) | Toom-3；FFT 的 SIMD 化与 AUTO 启用、分治基数转换（见 §13） |
+| 乘法 | schoolbook；肢数 ≥ 32 切换 Karatsuba；≥ 512 切换 Toom-3；≥ 16384 切换多模数 CRT NTT；`mul_ex` 可强制选择各算法（FFT 已实现但不参与 AUTO，见 §4.3） | O(n²) / O(n^1.585) / O(n log n) | FFT 的 SIMD 化与 AUTO 启用再评估、分治基数转换（见 §13） |
 | 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正） | O(n·m) | 递归除法 |
 | 平方 | 专用 schoolbook 平方（利用对称性减半乘累加） | O(n²/2) | 随乘法升级 |
 | 模幂 | 平方-乘，滑动窗口列为后续 | O(log e 次模乘） | Montgomery 约减 |
@@ -503,11 +503,26 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
   余量（N 可达 ~2^30 点）对任何现实规模均绰绰有余。字节对齐拆节零成本的
   优势仅对二进制成立（limb 即字节数组），十进制拆/装为 O(n) 的 div/mod，
   相对 O(n log n) 变换可忽略；故二/十进制不共享分节规则。
-- **落地状态（v0.10）**：二进制 FFT 已实现（`nex/fft/`，强制方法
-  `BIGINT_MUL_FLOAT_COMPLEX_FFT_E`，节位宽 0/8/16，0 = 自动：长度和
-  ≤ 2^10 用 16 bit、否则 8 bit）。实测（标量 double，-O2）：16-bit 节
-  仅在 ~512² 肢窄带胜过 Karatsuba（~10%），8-bit 节（N = 8n）几乎处处
-  落败，故 **AUTO 不采用 FFT**，保留为强制方法与 SIMD 后续方向（§13）。
+- **落地状态（v0.10 初版，v0.17 复核）**：二进制 FFT 已实现（`nex/fft/`，
+  方法 `BIGINT_MUL_FLOAT_COMPLEX_FFT_E`，节位宽 0/8/16，0 = 自动：长度和
+  ≤ 2^10 用 16 bit、否则 8 bit）。
+  - v0.10 实测（标量 double，-O2）认为 16-bit 仅 ~512² 肢窄带占优、
+    8-bit 几乎处处落败，故 **AUTO 不采用 FFT**。
+  - v0.17 曾在 **-O0 构建**上扫描到 8-bit 节于大尺寸胜过 Toom-3/NTT，
+    一度改动 AUTO；但以 **-O2 交错采样复测后结论翻转**：FFT-8 在
+    2048..65536 肢全程不优于 Toom-3/NTT（例：4096 肢 3.5 vs 2.3 ms，
+    16384 肢 38 vs 20 ms，65536 肢 213 vs 136 ms），**遂保留 v0.10 的
+    “AUTO 不采用 FFT”结论**（Toom-3 ≤ 16383 肢、NTT ≥ 16384 肢）。
+  - 教训：整数密集的 Toom-3/NTT 从 -O2 获得的收益远大于以 libm 为主的
+    FFT，**未优化（-O0）的基准会给出相反结论**；基准必须与对比基线
+    处于同一优化级别（`bench_sweep` 现输出 -O0 警告并交错采样）。
+  - **16-bit 节安全性澄清**：舍入误差界 |error| ≈ 2·ε·(1+6·log2N)·C
+    （C = L·(2^b−1)²）在 16-bit 下于 min_len ≈ 2048 附近逼近 0.5，
+    实测 3072 肢即出错，故 16-bit 仅保留给强制方法（`NEX_MUL_FFT_B16_MAX_SUM
+    = 1024` 的长度和上限）。8-bit 的误差界在现实规模（≤ 65536 肢，已
+    随机多轮验证）下 << 0.5，安全。
+  - `test_fft_mul` 新增强制 FFT-8 在 8192/16384/32768/65536 肢的正确性
+    用例（与 Toom-3 参考对拍）。
   十进制 FFT 未实现（还原需分治基数转换，见 §13），本节十进制约定
   保留待其落地。
 
@@ -856,8 +871,9 @@ bigfloat_err_ty bigfloat_compose(bigfloat_ty *dst, const bigint_bin_ty *mant,
 - **乘法**：尾数整数乘（走 `bigint_bin_mul`），规范化并舍入；
 - **除法**：将被除数左移至商达到 `mant_bits + 3` 位，整数除法得商与余数，
   余数非零置粘位，然后舍入。Newton 迭代除法列为后续；
-- **sqrt**：整数平方根（移位试商法）作用于缩放后的尾数，得到舍入所需的
-  保护位与粘位；Newton 迭代列为后续；
+- **sqrt**：整数平方根（`bigint_bin_sqrt`，Newton 迭代）作用于缩放后的
+  尾数，得到舍入所需的保护位与粘位；余数由 `x − q²` 补算供粘位判定
+  （v0.17 由逐位试商法改为 Newton，万位精度实测 -O2：79.8 ms → 22.2 ms）；
 - **十进制输入**：十进制小数解析为 `bigfrac` 式精确有理数（分子分母为
   bigint，分母为 10^k），再做一次带保护位的除法并舍入——保证正确舍入的
   充分条件是中间精度 ≥ `mant_bits + 输入位数相关界`，实现取宽松上界并注释依据；
@@ -933,7 +949,10 @@ typedef struct {
   这是相对 bigfloat 二进制移位的对称优势），整数加减后去除尾随零规范化，
   按 `mant_digits` 舍入（舍入位与粘位直接从十进制肢读取，无需位操作）；
 - 乘/除：尾数走 `bigint_dec_mul` / 带保护位的整数除法，与 §7.5 平行；
-- sqrt 与十进制的关系不特殊，同样走移位试商整数平方根；
+- sqrt：缩放后尾数经 `bigint_conv` 转二进制、用 `bigint_bin_sqrt`（Newton）
+  求根再转回十进制，并补算 `rem = x − q²` 供粘位判定。十进制自身无亚二次
+  除法，原生 Newton 实测比二进制路径慢约 3.7×；`bigint_conv` 是 §2.1
+  认可的 bin↔dec 唯一桥接，故此处复用（v0.17，万位精度 -O2：232 ms → 25 ms）；
 - 指数调整（`mul_pow10` 整肢移动）使绝大多数十进制缩放为 O(n) 内存搬移。
 
 ---
@@ -1121,8 +1140,8 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 6. 自定义分配器钩子；
 7. 复数 Karatsuba 三乘式、Smith 稳定除法；
 8. 超越函数（atan 落地后解锁 `arg`，另有 exp/log/sin/cos）；
-9. 浮点 FFT 的 SIMD 化与 AUTO 启用（标量 double 下仅 ~512² 肢窄带占优，
-   见 §4.3；SIMD 可使中小规模反超 Karatsuba）；
+9. 浮点 FFT 的 SIMD 化与 AUTO 启用再评估（标量 double 下 8-bit/16-bit
+   节在 -O2 实测均不优于 Toom-3/NTT，见 §4.3；SIMD 后需重新标定）；
 10. 分治基数转换 bin↔dec（已落地）与十进制字符串 I/O（已接入，
     bigint_bin base 10，v0.12）；**decimal 快速乘法经实测否定**（v0.13）：
     "转 bin → NTT → 转回"在 1 万..50 万位全面落后 4-7 倍（转换开销约
@@ -1205,3 +1224,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | v0.14 | 2026-08-12 | Toom-3 乘法落地（§4.2.4）：三点插值 + 带符号中间量，AUTO 阈值实测 512 肢（交叉点 ~600）；修复视图规范化 / 零减法符号 / 基例递归三个缺陷；Lehmer gcd 落地（§4.3/§13）：顶 64 位续分式矩阵（det ±1）+ 溢出护栏 + 回退完整除法，实测 4-6.5×（1024 肢 5.2ms vs 34ms）；golden 新增 gcd 命令外部验证；Toom-3 专项测试含 10^9216 历史缺陷复现 |
 | v0.15 | 2026-08-13 | dec 侧 Toom-3 落地（§4.2.4 镜像移植，含带符号中间量 dec 版，AUTO 阈值 512 肢，Python 黄金对拍 + 稀疏平方回归）；递归除法（Burnikel-Ziegler，§13 #1）落地但**暂不自动分派**：随机大数黄金对拍通过，稀疏除数（2^k±1 移位后中间全零）存在递归边界缺陷（d2n1n2/d3n2 前提链可被破坏，mag_divmod 对未规范化视图亦暴露问题），保留代码待修，大输入继续走 Knuth D；测试补盲：test_bigint_bin 新增大数除法专项（稀疏/全 1/2 的幂/LCG 不变量）；golden_driver 输入缓冲 64K→1M |
 | v0.16 | 2026-08-13 | Newton 开方 (bigint_bin_sqrt 落地：Newton 迭代 x ← (x + a/x) >> 1，初值 2^ceil(blen/2) 保收敛，整数平方根向下取整)、Newton 除法（整数倒数 + 商修正，正确性验证过但全精度迭代效率不如 BZ，NEX_DIV_NEWTON_PATH 条件编译隐藏的实验路径)；golden 新增 sqrt 命令与单元测试；Montgomery 模幂 (REDC实现且验证，实测无收益：模数 1024+ bit 时比标准路径慢 5%\uff0cREDC 朴素 n² 不如已优化的 Knuth D，不启用，NEX_POW_MOD_MONT 条件编译隐藏；bin64 除法 (bigint_bin64_div_rem 转换包装复用 bin 除法，含 BZ与 Knuth D）\uff1bBurnikel-Ziegler 递归除法缺陷定位并修复（§13 #1，恢复自动分派）：根因是 `bz_mag_cmp` 对未规范化视图（前导零）按长度比较——稀疏除数移位后中间全零，a12 视图顶肢为 0 而实际值 > b，误判走 3a 分支、破坏 d2n1n2 前提、商溢出截断（余数下溢为全 1）；修复为先裁剪前导零再比较；商累加改为块直写（预留 (t−1)n+1 肢，qi 为罕见 n+1 肢时回退累加），a/b=256 时较 Knuth D 快 ~22%（1000 肢除数：830ms vs 1059ms）；稀疏/全 1/2 的幂/负数/非平衡随机黄金对拍全过 |
+| v0.17 | 2026-08-14 | 新增 `bench/bench_sweep.c` 全面性能扫描基准（交错多轮采样，并对未优化构建输出警告）。扫描发现 bigfloat/bigdecimal 的 sqrt 用 O(n²) 逐位试商，改用 Newton：bigfloat 层内复用 `bigint_bin_sqrt`，bigdecimal 经 `bigint_conv` 转二进制复用同一 Newton——-O2 万位精度 79.8→22.2 ms / 232→25 ms（§7.5、§8.3）。另就 FFT 复测：先前在 **-O0 构建**上得到“8-bit FFT 优于 Toom-3/NTT”的结论，经 **-O2 交错采样复测翻转**（FFT-8 全程不占优），**保留 v0.10 的“AUTO 不采用 FFT”**；`test_fft_mul` 仅补强制 FFT-8 大尺寸正确性用例。同时澄清 MEMO 的 “Lehmer gcd 1024 肢 5.2 ms” 与 -O0 下 20 ms 的差异仅为优化级别（-O2 复核 4.6 ms），非回归；教训：基准必须与基线同优化级别 |

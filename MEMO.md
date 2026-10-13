@@ -76,6 +76,12 @@
 - **MinGW GCC**（不在 PATH，必须全路径）：
   `C:/winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64ucrt-13.0.0-r1/mingw64/bin/gcc.exe`
 - **构建**：`build/`（ninja + GCC，`cmake --build build`）；`build-dbg/`（MSVC Debug，`cmake --build build-dbg`）
+- **⚠ `build/` 未设 CMAKE_BUILD_TYPE → 实际是 -O0**：性能基线必须另建优化构建
+  （如 `build-rel/`：`-DCMAKE_BUILD_TYPE=RelWithDebInfo`，-O2）；同代码 -O0 与 -O2
+  可差 4×（如 Lehmer gcd 1024 肢 20ms vs 4.6ms），且会改变算法交叉点
+  （-O0 下 8-bit FFT 看似胜 Toom-3，-O2 下全程落败）——基准必须与基线同优化级别。
+- **性能基准**：`bench/`（固定规模冒烟）、`bench_sweep`（按规模扫描；已交错采样，
+  对 -O0 构建输出警告）。
 - **测试**：`ctest --test-dir build`（33 项）；MSVC：`build-dbg` 下 `ctest -C Debug`（32 项）
 - **MSVC ASan**：手动 `build/asan/asan_test.bat`（需 vcvars64，cl 编译 + /fsanitize=address）
 - **黄金对拍**：`tests/golden_driver.c` + Python 脚本（`golden_bigint_bin.py` 等）；驱动输入缓冲已扩至 1M（大数用）

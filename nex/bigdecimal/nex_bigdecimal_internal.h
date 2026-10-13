@@ -34,10 +34,9 @@ bigdecimal_err_ty nex_dec_round_pack(bigdecimal_ty *dst,
  * param: rem 输出余数（已初始化）
  * param: x   被开方数（非负）
  * return: 成功返回 BIGDECIMAL_OK_E；内存不足返回 BIGDECIMAL_ERR_OOM_E
- * note: 十进制逐位试商法：每轮消费 x 的两位、产出一位结果——rem = 100·rem
- *       + 两位；q = 10·q；试商 t = (20·q + d)·d（d 从 9 向下试），
- *       若 t ≤ rem 则 rem −= t 且 q 末位置 d。迭代 k = ceil(位数/2) 轮。
- *       复杂度 O(n²)，正确性优先（§8.3）
+ * note: 经 bigint_conv 转二进制后用 bigint_bin_sqrt（Newton）求根再转回，
+ *       并补算 rem = x − q²。十进制自身无亚二次除法，原生 Newton 实测比
+ *       二进制路径慢约 3.7×（§8.3）
  */
 bigint_err_ty nex_dec_isqrt(bigint_dec_ty *q, bigint_dec_ty *rem,
         const bigint_dec_ty *x);

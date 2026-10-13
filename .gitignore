@@ -3,6 +3,7 @@
 /build-dbg/
 /build-cov/
 /build-asan/
+/build-rel/
 
 # 编译产物
 *.o
