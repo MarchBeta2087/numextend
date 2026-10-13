@@ -1,6 +1,6 @@
 # Numextend 设计文档
 
-> 版本：v0.17（草案）
+> 版本：v0.18（草案）
 > 适用代码：`nex/` 目录下全部 C 源代码
 > 关联文档：`coding_standard.md` v1.4（编码规范，本文档中的所有命名均遵循之）
 > 许可证：MIT
@@ -15,6 +15,7 @@
     - [1.1 项目定位](#11-项目定位)
     - [1.2 类型总览](#12-类型总览)
     - [1.3 目标与非目标](#13-目标与非目标)
+    - [1.4 API/ABI 稳定性政策](#14-apiabi-稳定性政策)
   - [2. 总体架构](#2-总体架构)
     - [2.1 模块分层与依赖](#21-模块分层与依赖)
     - [2.2 目录结构与文件命名](#22-目录结构与文件命名)
@@ -101,6 +102,26 @@ Numextend（库前缀 `nex`）是一个纯 C99 编写的任意精度数值库，
 - GPU  offload 与内部多线程并行；
 - 超越函数（sin/cos/log/exp 等）的完整实现（仅保留 sqrt；其余列为后续方向）；
 - 次正规（subnormal）浮点数（见 §7.3 的取舍说明）。
+
+### 1.4 API/ABI 稳定性政策
+
+本节是库对外承诺的正式条款，自 **v1.0.0** 起生效；本文档其余部分与各头文件
+注释均以此为约束。
+
+- **API（源码）稳定**：1.x 线内只做**向后兼容的增量**（新增函数、新增枚举
+  值、新增可选参数）；不得以破坏性方式改变既有签名或语义。破坏性变更只允许
+  出现在新的主版本。**贬弃流程**：先在新 minor 中以文档/注释标记 deprecated，
+  至少保留一个 minor 周期后，方可于下一主版本移除。
+- **ABI（二进制）稳定**：同一主版本内，共享库 `libnex` 可**直接替换**而不需
+  重编译消费者；主版本号即 SONAME（如 `libnex.so.1`）。为此，公开头文件中
+  **结构体的字段顺序、大小与对齐**在同一主版本内冻结。
+- **公开结构体字段为实现细节**：消费者可读取字段用于调试，但**不得依赖**其
+  布局或直接修改；可移植代码应使用提供的访问器。新增内部状态不得以新增公开
+  字段的方式进入同一主版本。
+- **版本标识**：库版本经生成的 `nex/nex_version.h`（`NEX_VERSION_*`）暴露，
+  与 `project(VERSION)` 保持单一来源，独立于本文档的修订号。
+- **发布形态**：同时提供静态库与共享库（`BUILD_SHARED_LIBS`）；安装后经
+  `find_package(nex CONFIG)` 使用。
 
 ---
 
@@ -999,10 +1020,6 @@ bigcomplex_float_err_ty bigcomplex_float_to_str(const bigcomplex_float_ty *cpx,
 bigcomplex_float_err_ty bigcomplex_float_conj(bigcomplex_float_ty *cpx);  // 共轭
 bigcomplex_float_err_ty bigcomplex_float_abs(bigfloat_ty *dst,
         const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);      // |z|
-bigcomplex_float_err_ty bigcomplex_float_arg(bigfloat_ty *dst,
-        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
-        // 辐角；需要 atan，列为 v1 可选实现，未实现时返回
-        // BIGCOMPLEX_FLOAT_ERR_UNSUPPORTED_E
 
 /* 四则 */
 bigcomplex_float_err_ty bigcomplex_float_add(bigcomplex_float_ty *dst,
@@ -1022,8 +1039,8 @@ bool bigcomplex_float_eq(const bigcomplex_float_ty *lhs, const bigcomplex_float_
 - 除法 v1 用共轭法 `(a+bi)/(c+di) = (a+bi)(c−di)/(c²+d²)`；该方法在中间量
   上可能过早溢出/下溢，Smith 缩放算法列为后续方向并在文档与注释中注明取舍；
 - `abs` 经 `sqrt(re² + im²)` 实现，同样的溢出注意事项适用；
-- `arg` 依赖 atan，v1 允许返回 `..._ERR_UNSUPPORTED_E`，避免引入未经设计的
-  超越函数实现。
+- `arg` 依赖超越函数 `atan`，**不属于 v1 公开 API**（已移出，避免引入未经
+  设计的超越函数实现）；后续可作为 1.x 增量重新引入。
 
 ### 9.3 特殊值传播
 
@@ -1139,7 +1156,8 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 5. 次正规浮点数支持（需放松"最高位恒 1"不变式，影响面大，单独设计评审）；
 6. 自定义分配器钩子；
 7. 复数 Karatsuba 三乘式、Smith 稳定除法；
-8. 超越函数（atan 落地后解锁 `arg`，另有 exp/log/sin/cos）；
+8. 超越函数（exp/log/sin/cos）；`atan` 落地后可重新引入复数辐角 `arg`
+   （v1 已移出公开面，见 §9.2）；
 9. 浮点 FFT 的 SIMD 化与 AUTO 启用再评估（标量 double 下 8-bit/16-bit
    节在 -O2 实测均不优于 Toom-3/NTT，见 §4.3；SIMD 后需重新标定）；
 10. 分治基数转换 bin↔dec（已落地）与十进制字符串 I/O（已接入，
@@ -1168,7 +1186,6 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | `shl` / `shr` | shift left / right | 移位 | `bigint_bin_shl` |
 | `popcount` | population count | 置位计数 | `bigint_bin_popcount` |
 | `abs` | absolute value | 绝对值 | `bigint_bin_abs` |
-| `arg` | argument | 复数辐角 | `bigcomplex_float_arg` |
 | `bd` | bigint decimal | `bigint_dec` 实例惯用名（本规范示例沿用） | `bigint_dec_init(bd, len)` |
 | `bigcomplex` | big complex | 大复数模块前缀 | `bigcomplex_float_add` |
 | `bigdecimal` | big decimal | 十进制浮点模块前缀 | `bigdecimal_from_str` |
@@ -1225,3 +1242,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。
 | v0.15 | 2026-08-13 | dec 侧 Toom-3 落地（§4.2.4 镜像移植，含带符号中间量 dec 版，AUTO 阈值 512 肢，Python 黄金对拍 + 稀疏平方回归）；递归除法（Burnikel-Ziegler，§13 #1）落地但**暂不自动分派**：随机大数黄金对拍通过，稀疏除数（2^k±1 移位后中间全零）存在递归边界缺陷（d2n1n2/d3n2 前提链可被破坏，mag_divmod 对未规范化视图亦暴露问题），保留代码待修，大输入继续走 Knuth D；测试补盲：test_bigint_bin 新增大数除法专项（稀疏/全 1/2 的幂/LCG 不变量）；golden_driver 输入缓冲 64K→1M |
 | v0.16 | 2026-08-13 | Newton 开方 (bigint_bin_sqrt 落地：Newton 迭代 x ← (x + a/x) >> 1，初值 2^ceil(blen/2) 保收敛，整数平方根向下取整)、Newton 除法（整数倒数 + 商修正，正确性验证过但全精度迭代效率不如 BZ，NEX_DIV_NEWTON_PATH 条件编译隐藏的实验路径)；golden 新增 sqrt 命令与单元测试；Montgomery 模幂 (REDC实现且验证，实测无收益：模数 1024+ bit 时比标准路径慢 5%\uff0cREDC 朴素 n² 不如已优化的 Knuth D，不启用，NEX_POW_MOD_MONT 条件编译隐藏；bin64 除法 (bigint_bin64_div_rem 转换包装复用 bin 除法，含 BZ与 Knuth D）\uff1bBurnikel-Ziegler 递归除法缺陷定位并修复（§13 #1，恢复自动分派）：根因是 `bz_mag_cmp` 对未规范化视图（前导零）按长度比较——稀疏除数移位后中间全零，a12 视图顶肢为 0 而实际值 > b，误判走 3a 分支、破坏 d2n1n2 前提、商溢出截断（余数下溢为全 1）；修复为先裁剪前导零再比较；商累加改为块直写（预留 (t−1)n+1 肢，qi 为罕见 n+1 肢时回退累加），a/b=256 时较 Knuth D 快 ~22%（1000 肢除数：830ms vs 1059ms）；稀疏/全 1/2 的幂/负数/非平衡随机黄金对拍全过 |
 | v0.17 | 2026-10-13 | 新增 `bench/bench_sweep.c` 全面性能扫描基准（交错多轮采样，并对未优化构建输出警告）。扫描发现 bigfloat/bigdecimal 的 sqrt 用 O(n²) 逐位试商，改用 Newton：bigfloat 层内复用 `bigint_bin_sqrt`，bigdecimal 经 `bigint_conv` 转二进制复用同一 Newton——-O2 万位精度 79.8→22.2 ms / 232→25 ms（§7.5、§8.3）。另就 FFT 复测：先前在 **-O0 构建**上得到“8-bit FFT 优于 Toom-3/NTT”的结论，经 **-O2 交错采样复测翻转**（FFT-8 全程不占优），**保留 v0.10 的“AUTO 不采用 FFT”**；`test_fft_mul` 仅补强制 FFT-8 大尺寸正确性用例。同时澄清 MEMO 的 “Lehmer gcd 1024 肢 5.2 ms” 与 -O0 下 20 ms 的差异仅为优化级别（-O2 复核 4.6 ms），非回归；教训：基准必须与基线同优化级别 |
+| v0.18 | 2026-10-13 | 迈向 v1.0：`project(numextend VERSION 1.0.0)` + 生成 `nex/nex_version.h`（`NEX_VERSION_*`）；新增 §1.4「API/ABI 稳定性政策」（1.x API 只增不改、同主版本 ABI 稳定、公开结构体布局冻结）；复数辐角 `arg` 移出 v1 公开面（删除 `bigcomplex_float_arg` / `bigcomplex_decimal_arg`，依赖超越函数 `atan`，见 §9.2、§13 #8） |

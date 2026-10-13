@@ -3,7 +3,7 @@
  * bigdecimal 的复数）实现。
  *
  * 与 nex_bigcomplex_float.c 平行（设计文档 §9）：乘法朴素四乘二加、
- * 除法共轭法、abs 经 sqrt(re² + im²)、arg v1 返回 UNSUPPORTED。
+ * 除法共轭法、abs 经 sqrt(re² + im²)。
  * 复数不引入新的特殊值类别——特殊值语义完全由分量的七标志组合表达。
  */
 
@@ -338,16 +338,6 @@ cleanup:
     bigdecimal_free(&im2);
     bigdecimal_free(&sum);
     return map_bd_err(berr);
-}
-
-bigcomplex_decimal_err_ty bigcomplex_decimal_arg(bigdecimal_ty *dst,
-        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx)
-{
-    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
-        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
-    }
-    /* 依赖 atan，v1 未实现（§9.2） */
-    return BIGCOMPLEX_DECIMAL_ERR_UNSUPPORTED_E;
 }
 
 /* ------------------------------------------------------------------ */
