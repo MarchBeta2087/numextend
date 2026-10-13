@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: nex
+Description: Numextend 任意精度数值计算库（C99，零依赖）
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lnex
+Libs.private: -lm
+Cflags: -I${includedir}

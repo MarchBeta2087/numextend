@@ -17,10 +17,9 @@
 
 ## B. 可消费性 / 打包
 
-- [ ] CMake `install()` + `export()`，支持 `find_package(nex CONFIG)`
-      （当前只能源码内嵌 `add_subdirectory`）。
-- [ ] 可选 `BUILD_SHARED_LIBS` 构建；MSVC 导出符号（当前仅 STATIC）。
-- [ ] 一个**独立下游示例工程**，证明安装后可被消费。
+- [x] CMake `install()` + `export()`，支持 `find_package(nex CONFIG)` + pkg-config。
+- [x] `BUILD_SHARED_LIBS`（SOVERSION = 主版本号）；`WINDOWS_EXPORT_ALL_SYMBOLS`。
+- [x] 独立下游示例 `examples/downstream/`（CI 三平台 + 共享库 job 验证）。
 - [ ] 打 tag `v1.0.0` + GitHub Release 说明 + `CHANGELOG.md`。
 
 ## C. 正确性与可移植性证据

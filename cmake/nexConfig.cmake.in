@@ -1,0 +1,7 @@
+@PACKAGE_INIT@
+
+# nex CMake 包配置：提供导入目标 nex::nex（静态或共享，取决于构建/安装时
+# 的 BUILD_SHARED_LIBS）。
+include("${CMAKE_CURRENT_LIST_DIR}/nexTargets.cmake")
+
+check_required_components(nex)

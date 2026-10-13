@@ -29,6 +29,25 @@ scripts/build-msvc-debug.bat                    # MSVC Debug + CRT 调试堆检�
 ./build/demo.exe                                # 能力演示
 ```
 
+## 安装与下游使用
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/your/prefix
+cmake --build build --parallel
+cmake --install build                            # 头文件 + 库 + CMake 包 + pkg-config
+# 共享库：追加 -DBUILD_SHARED_LIBS=ON（SOVERSION = 主版本号，如 libnex.so.1）
+```
+
+下游工程（参见 `examples/downstream/`）：
+
+```cmake
+find_package(nex CONFIG REQUIRED)
+target_link_libraries(app PRIVATE nex::nex)
+```
+
+也可用 pkg-config：`pkg-config --cflags --libs nex`。
+
 测试共 33 项（CTest）：8 组模块单元测试 + vs-double fuzz（bigfloat 与硬件
 double/float 逐位对照）+ tie 舍入边界构造 + OOM 注入（12 运算 × 64 注入点，
 验证强异常安全）+ 8 组 Python 精确参考黄金对拍 + 多种子。

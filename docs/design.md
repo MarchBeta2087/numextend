@@ -184,6 +184,11 @@ nex/
         └── nex_bigcomplex_decimal.h / .c
 ```
 
+仓库根另含：`CMakeLists.txt`（构建 / 安装 / 导出 + `BUILD_SHARED_LIBS`）、
+`cmake/`（`nexConfig.cmake.in`、`nex.pc.in`）、`examples/downstream/`（独立
+下游示例，验证 `find_package`）、`tests/`、`bench/`、`demo/`、`docs/`、`scripts/`。
+生成物 `nex/nex_version.h`（见 §1.4）落在构建目录，不纳入版本控制。
+
 约定：
 
 - 头文件命名：`nex_<模块路径>.h`，include guard 为 `NEX_<模块路径>_H`（规范 §11）；

@@ -1,9 +1,6 @@
 # 构建目录
-/build/
-/build-dbg/
-/build-cov/
-/build-asan/
-/build-rel/
+/build*/
+/_install*/
 
 # 编译产物
 *.o
