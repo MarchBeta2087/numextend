@@ -21,7 +21,7 @@
 - [x] CMake `install()` + `export()`，支持 `find_package(nex CONFIG)` + pkg-config。
 - [x] `BUILD_SHARED_LIBS`（SOVERSION = 主版本号）；`WINDOWS_EXPORT_ALL_SYMBOLS`。
 - [x] 独立下游示例 `examples/downstream/`（CI 三平台 + 共享库 job 验证）。
-- [ ] 打 tag `v1.0.0` + GitHub Release 说明 + `CHANGELOG.md`。
+- [x] `CHANGELOG.md` 建立；tag `v1.0.0` + GitHub Release 见发布步骤。
 
 ## C. 正确性与可移植性证据
 
@@ -38,9 +38,9 @@
 
 ## D. 文档与发布
 
-- [ ] `docs/design.md` 去掉"草案"标记、定稿 v1.0、修订记录收口。
-- [ ] 集中一节"已知限制与非目标"（无 SIMD/GPU/线程、无次正规、超越函数仅 sqrt…）。
-- [ ] `README.md` 面向使用者（安装、最小示例、能力矩阵）。
+- [x] `docs/design.md` 去掉"草案"标记、定稿 v1.0、修订记录收口（版本 v1.0.0 + v1.0.0 行）。
+- [x] 集中一节「已知限制与非目标」（§14）。
+- [x] `README.md` 面向使用者（安装、最小示例、能力矩阵、手册/更新日志链接）。
 - [x] 每个公开运算的 -O2 性能基线写入文档（`docs/performance.md` +
       `scripts/bench.sh`；README 性能小节）。
 - [x] 开发者参考手册：`docs/manual/`（Markdown，API 章节由头文件生成）+
