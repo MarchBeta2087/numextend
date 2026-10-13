@@ -317,6 +317,7 @@ static void test_div(void)
             size_t i;
             bigint_bin64_ty q0;
             bigint_bin64_init(&q0);
+            bigint_bin64_free(&b);   /* 复用 b：先释放上一轮 */
             CHECK(bigint_bin64_init_cap(&b, bl) == BIGINT_OK_E);
             CHECK(bigint_bin64_init_cap(&q0, ql) == BIGINT_OK_E);
             b.len = bl;

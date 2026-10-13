@@ -650,6 +650,7 @@ static void test_bz_div(void) {
             bigint_bin_ty q0, w;
             bigint_bin_init(&q0);
             bigint_bin_init(&w);
+            bigint_bin_free(&b);   /* 复用 b：先释放上一轮 */
             CHECK(bigint_bin_init_cap(&b, bl) == BIGINT_OK_E);
             CHECK(bigint_bin_init_cap(&q0, ql) == BIGINT_OK_E);
             b.len = bl;
@@ -778,6 +779,7 @@ static void test_sqrt(void) {
             size_t bits = 300 + k * 800;
             size_t limbs = (bits + 31U) / 32U;
             size_t i;
+            bigint_bin_free(&a);   /* 复用 a：先释放上一轮 */
             CHECK(bigint_bin_init_cap(&a, limbs) == BIGINT_OK_E);
             a.len = limbs;
             for (i = 0; i < limbs; i++) {

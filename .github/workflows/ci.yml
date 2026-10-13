@@ -126,10 +126,6 @@ jobs:
           cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
-        env:
-          # 测试/驱动存在未释放的临时对象（非库缺陷）；暂关 LSan，保留
-          # ASan 内存错误与 UBSan。清理测试泄漏后应重新启用。
-          ASAN_OPTIONS: detect_leaks=0
 
   # 覆盖率门槛（Linux）：库行覆盖率 ≥ 80%
   linux-coverage:
@@ -160,8 +156,6 @@ jobs:
           cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
-        env:
-          ASAN_OPTIONS: detect_leaks=0
 
   # MSVC 覆盖（与 MinGW 的 windows job 互补）
   windows-msvc:
@@ -188,8 +182,6 @@ jobs:
           cmake --build build
       - name: Test
         run: ctest --test-dir build --output-on-failure
-        env:
-          ASAN_OPTIONS: detect_leaks=0
 
   # 文档：构建参考手册并校验生成的 API 页面与头文件同步
   docs:
