@@ -470,11 +470,11 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_mul(bigcomplex_decimal_ty *dst,
     dst->im = im;
     berr = BIGDECIMAL_OK_E;
 cleanup:
+    bigdecimal_free(&ac);
+    bigdecimal_free(&bd);
+    bigdecimal_free(&bc);
+    bigdecimal_free(&ad);
     if (berr != BIGDECIMAL_OK_E) {
-        bigdecimal_free(&ac);
-        bigdecimal_free(&bd);
-        bigdecimal_free(&bc);
-        bigdecimal_free(&ad);
         bigdecimal_free(&re);
         bigdecimal_free(&im);
     }
@@ -566,16 +566,16 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_div(bigcomplex_decimal_ty *dst,
     dst->im = im;
     berr = BIGDECIMAL_OK_E;
 cleanup:
+    bigdecimal_free(&ac);
+    bigdecimal_free(&bd);
+    bigdecimal_free(&bc);
+    bigdecimal_free(&ad);
+    bigdecimal_free(&cc);
+    bigdecimal_free(&dd);
+    bigdecimal_free(&re_num);
+    bigdecimal_free(&im_num);
+    bigdecimal_free(&den);
     if (berr != BIGDECIMAL_OK_E) {
-        bigdecimal_free(&ac);
-        bigdecimal_free(&bd);
-        bigdecimal_free(&bc);
-        bigdecimal_free(&ad);
-        bigdecimal_free(&cc);
-        bigdecimal_free(&dd);
-        bigdecimal_free(&re_num);
-        bigdecimal_free(&im_num);
-        bigdecimal_free(&den);
         bigdecimal_free(&re);
         bigdecimal_free(&im);
     }

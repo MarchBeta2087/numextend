@@ -2,7 +2,7 @@
 
 > **活文档**：只记录"发布 v1.0 前**必须**完成的"工作。性能优化、功能扩展等
 > 非必要方向不作承诺，集中列在文末并指向 `docs/design.md` §13（完整路线图）。
-> 最后更新：2026-10-13（v1.0 筹备中；dev @ `60a7410`）
+> 最后更新：2026-10-14（v1.0；dev 已含 PR #22）
 
 ---
 
@@ -33,8 +33,9 @@
 - [x] 覆盖率门槛：CI `linux-coverage` 用 gcovr，库行覆盖率 ≥ 80%
       （当前约 89%；`scripts/coverage.sh` 已重写为 gcovr + 完整 CTest）。
 - [x] 端序：声明仅小端经过验证（实现为 `uint32_t` 值语义，见 §1.3）。
-- [ ] 清理测试/驱动代码的临时对象泄漏，恢复 LeakSanitizer（当前 sanitizer job
-      设 `ASAN_OPTIONS=detect_leaks=0`，见 `.github/workflows/ci.yml`）。
+- [x] 清理泄漏并恢复 LeakSanitizer：修复 `bigcomplex_*_mul`/`div` 成功路径未释放
+      中间量（**库内真实泄漏**）、`test_bigfrac` 的 `mk_frac` 重复 `_init`；
+      sanitizer job 去掉 `ASAN_OPTIONS=detect_leaks=0`。
 
 ## D. 文档与发布
 

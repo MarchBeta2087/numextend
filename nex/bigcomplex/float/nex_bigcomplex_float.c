@@ -473,11 +473,11 @@ bigcomplex_float_err_ty bigcomplex_float_mul(bigcomplex_float_ty *dst,
     dst->im = im;
     berr = BIGFLOAT_OK_E;
 cleanup:
+    bigfloat_free(&ac);
+    bigfloat_free(&bd);
+    bigfloat_free(&bc);
+    bigfloat_free(&ad);
     if (berr != BIGFLOAT_OK_E) {
-        bigfloat_free(&ac);
-        bigfloat_free(&bd);
-        bigfloat_free(&bc);
-        bigfloat_free(&ad);
         bigfloat_free(&re);
         bigfloat_free(&im);
     }
@@ -569,16 +569,16 @@ bigcomplex_float_err_ty bigcomplex_float_div(bigcomplex_float_ty *dst,
     dst->im = im;
     berr = BIGFLOAT_OK_E;
 cleanup:
+    bigfloat_free(&ac);
+    bigfloat_free(&bd);
+    bigfloat_free(&bc);
+    bigfloat_free(&ad);
+    bigfloat_free(&cc);
+    bigfloat_free(&dd);
+    bigfloat_free(&re_num);
+    bigfloat_free(&im_num);
+    bigfloat_free(&den);
     if (berr != BIGFLOAT_OK_E) {
-        bigfloat_free(&ac);
-        bigfloat_free(&bd);
-        bigfloat_free(&bc);
-        bigfloat_free(&ad);
-        bigfloat_free(&cc);
-        bigfloat_free(&dd);
-        bigfloat_free(&re_num);
-        bigfloat_free(&im_num);
-        bigfloat_free(&den);
         bigfloat_free(&re);
         bigfloat_free(&im);
     }
