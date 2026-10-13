@@ -54,6 +54,10 @@ target_link_libraries(app PRIVATE nex::nex)
 double/float 逐位对照）+ tie 舍入边界构造 + OOM 注入（12 运算 × 64 注入点，
 验证强异常安全）+ 8 组 Python 精确参考黄金对拍 + 多种子。
 
+覆盖率：`sh scripts/coverage.sh [阈值]`（gcovr，默认 80%；CI `linux-coverage`
+强制该阈值）。公开 API 审计：`sh scripts/api_audit.sh`（头文件自包含 +
+声明/定义一致性；CI 每次运行）。
+
 黄金对拍参考实现位于 `tests/golden_*.py`（`fractions.Fraction` / `decimal` 精确
 复刻各类型语义），随机种子可配置：`NEX_GOLDEN_SEED=... ctest -R golden`。
 
