@@ -898,7 +898,9 @@ bigdecimal_err_ty bigdecimal_mul(bigdecimal_ty *dst,
     // 常规：尾数乘、指数加（指数和溢出防御）
     const int64_t e1 = lhs->exp;
     const int64_t e2 = rhs->exp;
-    int64_t raw_exp;
+    /* 初值仅为消除 -O2 下 GCC 的 -Wmaybe-uninitialized 误报：该值仅在前两只
+       指数溢出分支均未命中时（即下方 else 已赋值）被读取 */
+    int64_t raw_exp = 0;
     bool exp_overflow = false;
     bool exp_underflow = false;
     if ((e1 > 0) && (e2 > 0) && (e1 > INT64_MAX - e2)) {
