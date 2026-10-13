@@ -249,7 +249,7 @@ static void test_arith(void) {
     bigcomplex_float_free(&a);
 }
 
-static void test_abs_conj_arg(void) {
+static void test_abs_conj(void) {
     bigcomplex_float_ty z;
     bigfloat_ty v;
     bigcomplex_float_init(&z);
@@ -291,12 +291,7 @@ static void test_abs_conj_arg(void) {
     expect_str("conj nan", &z, "nan-1i");  /* 虚部翻转，实部 NaN 不变 */
     CHECK(bigcomplex_float_conj(NULL) == BIGCOMPLEX_FLOAT_ERR_INVALID_E);
 
-    /* arg → UNSUPPORTED（v1） */
-    CHECK(parse(&z, "1+1i") == 0);
-    CHECK(bigcomplex_float_arg(&v, &z, g_ctx)
-            == BIGCOMPLEX_FLOAT_ERR_UNSUPPORTED_E);
-    CHECK(bigcomplex_float_arg(NULL, &z, g_ctx)
-            == BIGCOMPLEX_FLOAT_ERR_INVALID_E);
+    /* arg 已移出 v1 公开面（依赖 atan，设计文档 §9.2） */
 
     bigfloat_free(&v);
     bigcomplex_float_free(&z);
@@ -362,7 +357,7 @@ int main(void) {
     test_parse_str();
     test_to_str();
     test_arith();
-    test_abs_conj_arg();
+    test_abs_conj();
     test_special_eq();
 
     if (g_fail == 0) {

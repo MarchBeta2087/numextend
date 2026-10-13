@@ -21,6 +21,7 @@
 #include "nex/bigcomplex/float/nex_bigcomplex_float.h"
 #include "nex/bigcomplex/decimal/nex_bigcomplex_decimal.h"
 #include "nex/convert/nex_convert.h"
+#include "nex/nex_version.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -340,7 +341,7 @@ static void demo_convert(void) {
 }
 
 int main(void) {
-    printf("=== Numextend 能力演示 ===\n\n");
+    printf("=== Numextend 能力演示（v%s） ===\n\n", NEX_VERSION_STRING);
     demo_fibonacci();
     demo_factorial();
     demo_fraction();

@@ -2,20 +2,18 @@
 
 > **活文档**：只记录"发布 v1.0 前**必须**完成的"工作。性能优化、功能扩展等
 > 非必要方向不作承诺，集中列在文末并指向 `docs/design.md` §13（完整路线图）。
-> 最后更新：2026-10-13（dev @ `44d8d85`）
+> 最后更新：2026-10-13（v1.0 筹备中；dev @ `60a7410`）
 
 ---
 
 ## A. API 契约与版本化
 
-- [ ] `project(numextend VERSION 1.0.0)`，并生成公开的 `nex_version.h`
-      （`NEX_VERSION_MAJOR/MINOR/PATCH` + 字符串）。
-- [ ] 稳定性政策写入 `docs/design.md`：1.x 只增不改、弃用流程、ABI 承诺范围
-      （仅静态库 / 同 minor 内保证，或提供 SONAME）。
+- [x] `project(numextend VERSION 1.0.0)`，并生成 `nex_version.h`（`NEX_VERSION_*`）；
+      安装到用户可见位置随 B1 一并做。
+- [x] 稳定性政策写入 `docs/design.md` §1.4：1.x API 只增不改、同主版本 ABI 稳定
+      （SONAME）、公开结构体布局冻结。
 - [ ] 公开头文件逐符号审计：语义、错误码、别名规则、复杂度、OOM、线程安全。
-- [ ] **处理占位 API**：`bigcomplex_float_arg` / `bigcomplex_decimal_arg` 现返回
-      `UNSUPPORTED`。二选一——实现 `atan` 纳入 v1，或从 v1 公开面移除/标记
-      experimental。（按 §1.3 非目标，倾向移除。）
+- [x] `bigcomplex_*_arg` 移出 v1 公开面（依赖 `atan`，作为 1.x 增量）。
 
 ## B. 可消费性 / 打包
 

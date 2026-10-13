@@ -25,7 +25,7 @@ typedef enum {
     BIGCOMPLEX_FLOAT_ERR_INVALID_E,     // 非法参数
     BIGCOMPLEX_FLOAT_ERR_OVERFLOW_E,    // 输出缓冲不足等
     BIGCOMPLEX_FLOAT_ERR_PARSE_E,       // 字符串解析失败
-    BIGCOMPLEX_FLOAT_ERR_UNSUPPORTED_E  // 功能未实现（如 arg，v1 可选）
+    BIGCOMPLEX_FLOAT_ERR_UNSUPPORTED_E  // 已登记但当前版本未实现的功能
 } bigcomplex_float_err_ty;
 
 /* ------------------------------------------------------------------ */
@@ -96,13 +96,6 @@ bigcomplex_float_err_ty bigcomplex_float_conj(bigcomplex_float_ty *cpx);
  * return: 成功返回 OK；内存不足返回 OOM（dst 不变）
  */
 bigcomplex_float_err_ty bigcomplex_float_abs(bigfloat_ty *dst,
-        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
-
-/*
- * brief: 辐角 arg(src)（需要 atan，v1 未实现）
- * return: 恒返回 BIGCOMPLEX_FLOAT_ERR_UNSUPPORTED_E（dst 不变）
- */
-bigcomplex_float_err_ty bigcomplex_float_arg(bigfloat_ty *dst,
         const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
 
 /* ------------------------------------------------------------------ */

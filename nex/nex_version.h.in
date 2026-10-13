@@ -1,0 +1,15 @@
+#ifndef NEX_VERSION_H
+#define NEX_VERSION_H
+
+/*
+ * nex 版本宏（由 CMake 依据 project(VERSION) 生成，请勿手改）。
+ *
+ * 语义：NEX_VERSION_* 标识**库版本**（独立于 docs/design.md 的文档修订号）。
+ * 稳定性承诺见 docs/design.md「API/ABI 稳定性政策」。
+ */
+#define NEX_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define NEX_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define NEX_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define NEX_VERSION_STRING "@PROJECT_VERSION@"
+
+#endif /* NEX_VERSION_H */
