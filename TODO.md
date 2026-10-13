@@ -1,72 +1,69 @@
-# TODO（路线图与待办）
+# TODO（v1.0 必要工作）
 
-> **活文档**：只记录「做什么 / 优先级 / 状态」；算法细节与决策依据见 `docs/design.md`
-> （§13 为路线图）。完成项打勾并注明版本；被否定的方向保留在「已否定」以免重复评估。
->
-> 最后更新：2026-10-13（v0.17，dev @ `44d8d85`）
-
-## 图例
-
-- **P0** 近期应做（有明确收益或阻塞后续）
-- **P1** 计划内
-- **P2** 视需求 / 锦上添花
-- `[ ]` 待办 · `[x]` 完成
+> **活文档**：只记录"发布 v1.0 前**必须**完成的"工作。性能优化、功能扩展等
+> 非必要方向不作承诺，集中列在文末并指向 `docs/design.md` §13（完整路线图）。
+> 最后更新：2026-10-13（dev @ `44d8d85`）
 
 ---
 
-## P0
+## A. API 契约与版本化
 
-- [ ] **半 gcd（half-gcd）** — 大数 gcd 仍为 O(n²)（-O2：8192 肢 ≈ 0.36 s；`bigfrac` 约分同受影响）。
-  参考 Stehlé–Zimmermann hgcd / GMP `hgcd2`；建议先写 Python 参考实现对拍。设计 §4.3、§13 #2。
-- [ ] **dec 侧亚二次除法**（Burnikel–Ziegler 或 Newton）— `bigint_dec` 目前仅 Knuth D（O(n²)）；
-  `bigdecimal_div` 与 `nex_dec_isqrt`（现已转二进制）等受益。设计 §4.3、§13。
-- [ ] **bin64 字符串 I/O 与互转** — `bigint_bin64` 仅有 `from_u64`/`to_u64`；
-  缺 `from_str`/`to_str`（base 10/16）与 bin↔bin64、bin64↔dec 互转。设计 §13 #3。
+- [ ] `project(numextend VERSION 1.0.0)`，并生成公开的 `nex_version.h`
+      （`NEX_VERSION_MAJOR/MINOR/PATCH` + 字符串）。
+- [ ] 稳定性政策写入 `docs/design.md`：1.x 只增不改、弃用流程、ABI 承诺范围
+      （仅静态库 / 同 minor 内保证，或提供 SONAME）。
+- [ ] 公开头文件逐符号审计：语义、错误码、别名规则、复杂度、OOM、线程安全。
+- [ ] **处理占位 API**：`bigcomplex_float_arg` / `bigcomplex_decimal_arg` 现返回
+      `UNSUPPORTED`。二选一——实现 `atan` 纳入 v1，或从 v1 公开面移除/标记
+      experimental。（按 §1.3 非目标，倾向移除。）
 
-## P1
+## B. 可消费性 / 打包
 
-- [ ] **浮点 FFT 的 SIMD 化与 AUTO 启用再评估** — 标量 double 下 8/16-bit 节均不优于
-  Toom-3/NTT（v0.10 结论，v0.17 -O2 复测复核）；SIMD 化后需重新标定阈值。设计 §4.3、§13 #9。
-- [ ] **十进制输出 Ryū 式快速算法** — `bigfloat`/`bigdecimal` 的 `to_str` 现走「逐步试转回」
-  往返法，性能可优化。设计 §7.5、§13 #4。
-- [ ] **次正规浮点数支持** — 需放松「最高位恒 1」不变式，影响面大，单独设计评审。设计 §7.3、§13 #5。
-- [ ] **自定义分配器钩子** — 现固定 `nex_malloc`/`nex_realloc`/`free`；提供可选 allocator 钩子。设计 §13 #6。
+- [ ] CMake `install()` + `export()`，支持 `find_package(nex CONFIG)`
+      （当前只能源码内嵌 `add_subdirectory`）。
+- [ ] 可选 `BUILD_SHARED_LIBS` 构建；MSVC 导出符号（当前仅 STATIC）。
+- [ ] 一个**独立下游示例工程**，证明安装后可被消费。
+- [ ] 打 tag `v1.0.0` + GitHub Release 说明 + `CHANGELOG.md`。
 
-## P2
+## C. 正确性与可移植性证据
 
-- [ ] **复数 Karatsuba 三乘式** — 复数乘法现为 4 乘。设计 §13 #7。
-- [ ] **Smith 稳定除法** — `bigcomplex` 除法的缩放稳定性。设计 §9.3、§13 #7。
-- [ ] **超越函数** — `exp`/`log`/`sin`/`cos`/`atan`；`atan` 落地后解锁
-  `bigcomplex_float_arg` / `bigcomplex_decimal_arg`（现返回 `UNSUPPORTED`）。设计 §13 #8。
-- [ ] **bin 侧 NTT/Toom 阈值精调** — 边界 ~16384 肢附近 Toom 略优于 NTT（-O2 ≈ 19.9 vs 20.9 ms，
-  差 ~5%）；可细扫后微调 `NEX_MUL_NTT_CUTOFF`。设计 §4.3。
-- [ ] **`bigint_bin_sqrt` 提速** — 现每轮 Newton 迭代用全精度除法；可改截断/递推降低复杂度
-  （当前万位精度 ≈ 22 ms，可接受）。设计 §7.5。
+- [ ] CI 矩阵：{GCC, Clang} × {Linux, macOS} + MSVC，`-O0` 与 `-O2` 都测。
+- [ ] **ASan + UBSan job**（把 `MEMO.md` 里的手动 MSVC ASan 固化进 CI）。
+- [ ] MSVC 全量测试与 GCC 对齐（确认 golden 注册、`ctest -C Release`）。
+- [ ] 覆盖率门槛（`scripts/coverage.sh` 已有）。
+- [ ] 端序：显式声明"仅小端"，或补大端正确性验证。
 
----
+## D. 文档与发布
 
-## 已否定（保留理由，勿重复评估）
-
-- [x] **标量浮点 FFT 接入 AUTO** — -O2 下 8-bit 节全尺寸不占优、16-bit 节精度不安全
-  （min_len 3072 肢即出错）。v0.10、v0.17。
-- [x] **十进制快速乘法（转 bin→NTT→转回）** — 1 万..50 万位全面落后 4–7×。v0.13。
-- [x] **Montgomery 模幂** — 实测无收益（比标准路径慢 ~5%）；`NEX_POW_MOD_MONT` 条件编译隐藏。v0.16。
-- [x] **Newton 整数除法** — 全精度迭代不如 BZ；`NEX_DIV_NEWTON_PATH` 条件编译隐藏。v0.16。
-- [x] **NTT 三模数** — 双模数已覆盖 n ≤ 2^27 肢（512 Mbit），无使用场景。v0.9。
-- [x] **十进制 FFT 每肢 4 节 × 256 方案** — 需基数转换且最高节非均匀，无收益。v0.7。
+- [ ] `docs/design.md` 去掉"草案"标记、定稿 v1.0、修订记录收口。
+- [ ] 集中一节"已知限制与非目标"（无 SIMD/GPU/线程、无次正规、超越函数仅 sqrt…）。
+- [ ] `README.md` 面向使用者（安装、最小示例、能力矩阵）。
+- [ ] 每个公开运算的 -O2 性能基线写入文档。
 
 ---
+
+## 已否定（不实现，理由见设计文档修订记录）
+
+标量浮点 FFT 接入 AUTO（v0.10/v0.17）· 十进制快速乘法（v0.13）·
+Montgomery 模幂（v0.16）· Newton 整数除法（v0.16）· NTT 三模数（v0.9）·
+十进制 FFT 每肢 4 节 × 256 方案（v0.7）。
 
 ## 已知技术债 / 风险
 
-- **构建优化级别**：`build/` 默认曾为 -O0（无 `CMAKE_BUILD_TYPE`）→ 已修（`CMakeLists.txt`
-  默认 `RelWithDebInfo`，见 PR #13）。**基准必须与基线同优化级别**，否则算法交叉点会颠倒
-  （FFT 复测曾被 -O0 误导）。
+- **构建优化级别**：默认曾为 -O0（无 `CMAKE_BUILD_TYPE`）→ 已修（PR #13）；
+  基准必须与基线同优化级别，否则算法交叉点会颠倒。
 - **16-bit FFT 舍入安全界**：min_len ≈ 2048 附近逼近 0.5（3072 肢实测出错）；
   8-bit 节已验证至 65536 肢安全。
-- **`bigint_dec` 无亚二次除法**：`bigdecimal` sqrt 依赖 `bigint_conv` 转二进制复用 bin Newton。
-- **未规范化视图比较**是反复出现的 bug 模式（BZ 缺陷根因：对前导零视图按长度比较）。
-- **值相关缺陷**：稀疏值（2^k±1）、10 的幂等需定向用例 + 外部（Python / GMP）黄金对拍。
+- **`bigint_dec` 无亚二次除法**：仅性能问题，不影响语义正确性。
+- **未规范化视图比较**是反复出现的 bug 模式（BZ 缺陷根因）。
+- **值相关缺陷**：稀疏值（2^k±1）、10 的幂等需定向用例 + 外部黄金对拍。
+
+## 非必要方向（不承诺 v1.0，完整见 `docs/design.md` §13）
+
+- **性能**：半 gcd、dec 侧亚二次除法、浮点 FFT 的 SIMD 与 AUTO、Ryū 式十进制
+  输出、NTT/Toom 阈值微调、`bigint_bin_sqrt` 提速。
+- **功能**：bin64 字符串 I/O 与互转、次正规浮点数、自定义分配器钩子、
+  超越函数（exp/log/sin/cos/atan）、复数 Karatsuba 三乘式、Smith 稳定除法。
 
 ---
 
@@ -74,6 +71,6 @@
 
 - **分支**：`feature/*` / `chore/*` → PR → `dev` → `main`；PR 触发三平台 CI
   （linux `Release` / macos `Debug` / windows `Release`）。
-- **性能**：用 -O2 构建（默认 `build/` 或 `build-rel/`）；`bench_sweep`（交错采样）做规模扫描。
+- **性能**：用 -O2 构建；`bench_sweep`（交错采样）做规模扫描。
 - **测试**：`ctest --test-dir build`（33 项，含 Python 黄金对拍）。
-- **文档**：算法与决策入 `docs/design.md`（含版本修订记录）；本文件只维护状态与优先级。
+- **文档**：算法与决策入 `docs/design.md`；本文件只维护"必要工作"状态。
