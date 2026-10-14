@@ -63,7 +63,8 @@
       `bigint_bin` 时）；CI 新增 `linux-subset` 矩阵。
 - [x] 验收：`bigint_bin,bigfrac` / `bigfloat` / `fft,ntt` / `convert` 均通过；
       `convert` 闭包正确排除无依赖的 `bigint_bin64`。
-- 未做：`NEX_MINIMAL` 预设（价值有限，暂缓）。
+- 决策：`NEX_MINIMAL` 预设**移入 §H（非目标）**——依赖环使“最小”名不副实
+  （`NEX_MODULES=bigint_bin` 闭包已含 dec/conv/fft/ntt）；`NEX_MODULES` 已足够。
 
 ### B3 函数级子集 — ⏸ 暂缓（不承诺），改为低成本替代
 
@@ -95,7 +96,9 @@
 - [x] CMake 选项 `-DNEX_AMALGAM=ON`（配置期生成，单 TU 构建）。
 - [x] 验收：`linux-amalgam` CI 用**全量 CTest（34/34）**验证与分文件构建等价；
       子集 amalgam（`bigfloat`）亦通过 `subset_smoke`。
-- 未做：可选单头（STB `NEX_IMPLEMENTATION` 风格）——消费模型改动大，暂缓。
+- 决策：可选单头（STB `NEX_IMPLEMENTATION` 风格）**移入 §H（非目标）**——二文件
+  `nex_amalgam.c/.h` 已覆盖“拖入即用”；若出现明确需求，为约 30 行的生成器扩展
+  （`scripts/amalgamate.py --single-header`），届时再做。
 
 ### B5 子集/合并文档生成 — ✅ 已完成
 
@@ -225,7 +228,9 @@ Montgomery 模幂（v0.16）· Newton 整数除法（v0.16）· NTT 三模数（
 **非目标（除非 §F 明确独立化）：**
 
 SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发布 ·
-次正规浮点（§7.3）· 公开惰性无穷列表抽象（§E）。
+次正规浮点（§7.3）· 公开惰性无穷列表抽象（§E）· `NEX_MINIMAL` 预设
+（依赖环使“最小”不成立）· 单头 STB `NEX_IMPLEMENTATION` 风格
+（二文件 amalgam 已覆盖；如有需求再做）。
 
 ---
 
