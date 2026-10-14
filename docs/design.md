@@ -250,9 +250,9 @@ nex/
   减小的是**归档/分发体积与构建面**，最终可执行文件通常**不变**；共享库场景
   下子集可直接减小 `.so`/`.dll`。
 - 函数级子集（§B3）经评审**暂缓**：成本高（精确函数级调用图 + 定义/调用点
-  条件编译 + 组合测试 + ABI 政策），收益低；替代为文档化工具链 DCE
-  （`-ffunction-sections -fdata-sections` + `-Wl,--gc-sections`，ELF 有效）
-  与（按需）粗粒度特性宏。
+  条件编译 + 组合测试 + ABI 政策），收益低；粗粒度特性宏亦暂缓（可选功能
+  占比小）。替代为文档化工具链 DCE（`-ffunction-sections -fdata-sections`
+  + `-Wl,--gc-sections`，ELF 有效）与场景示例（`examples/amalgam/`）。
 - 校验：`scripts/modules.py check`（CI 运行）保证清单与源码树一致；
   `scripts/modules.py closure <mod...>` 可查看任一子集的闭包。
 - 文档：`scripts/modules.py gen-docs` 生成 `docs/modules.md`（模块 / 依赖 /
