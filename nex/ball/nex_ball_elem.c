@@ -19,7 +19,7 @@
  * 半径用 Lipschitz/相对界膨胀。|x| 过大（k > 20）返回 INVALID。
  */
 
-static const size_t NEX_BALL_HALVE_CAP = 20U;
+static const size_t NEX_BALL_HALVE_CAP = 64U;
 
 static bigfloat_err_ty e_dir_ctx(bigfloat_ctx_ty *out,
         const bigfloat_ctx_ty *base, bigfloat_round_ty round) {
@@ -367,11 +367,14 @@ static bigfloat_err_ty sincos_reduced(bigfloat_ball_ty *sball,
     bigfloat_ball_init(&one_ball);
     if (err == BIGFLOAT_OK_E) {
         bigfloat_ty one;
+        bigfloat_ty zero;
         bigfloat_init(&one);
+        bigfloat_init(&zero);
         err = bigfloat_from_f64(&one, 1.0);
         if (err == BIGFLOAT_OK_E) {
-            err = bigfloat_ball_set(&one_ball, &one, &one, ctx);
+            err = bigfloat_ball_set(&one_ball, &one, &zero, ctx);
         }
+        bigfloat_free(&zero);
         bigfloat_free(&one);
     }
 
@@ -601,7 +604,7 @@ bigfloat_err_ty bigfloat_ball_atan(bigfloat_ball_ty *dst,
         if (err != BIGFLOAT_OK_E || done) {
             break;
         }
-        if (k >= 32U) {
+        if (k >= 64U) {
             err = BIGFLOAT_ERR_INVALID_E;   /* |x| 过大 */
             break;
         }
@@ -821,5 +824,26 @@ bigfloat_err_ty bigfloat_ball_log(bigfloat_ball_ty *dst,
     bigfloat_free(&lo);
     bigfloat_free(&one);
     bigfloat_free(&zero);
+    return err;
+}
+
+bigfloat_err_ty bigfloat_ball_tan(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !e_ball_ok(x)) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ball_ty s;
+    bigfloat_ball_ty c;
+    bigfloat_ball_init(&s);
+    bigfloat_ball_init(&c);
+    bigfloat_err_ty err = bigfloat_ball_sin(&s, x, ctx);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_cos(&c, x, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_div(dst, &s, &c, ctx);
+    }
+    bigfloat_ball_free(&c);
+    bigfloat_ball_free(&s);
     return err;
 }

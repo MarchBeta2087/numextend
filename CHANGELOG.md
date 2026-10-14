@@ -38,6 +38,16 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   球式 `ball_log` 用**迭代平方根规约**（`y = x^(1/2^k)` 使 `|y−1| ≤ 1/8`）+
   `ln1p` 级数 + 2^k 球加法回放，float/decimal 统一；`golden_series` 新增
   `logpub` / `logpubdec`。
+- **三角 `sin` / `cos` / `tan`（TODO §D3）**：`bigfloat_*` / `bigdecimal_*` 正确
+  舍入（球式折半 + half-angle 倍角 + Ziv）；球式 `ball_tan` = sin/cos；折半上限
+  20→64（覆盖 |x| ≲ 2⁶³）；`golden_series` 新增 `sinpub`/`cospub`/`tanpub` 与
+  十进制版。
+
+### 修复
+
+- **球式 `sincos_reduced` 的 `one_ball` 半径错误**：原 `ball_set(&one_ball, &one,
+  &one, ...)` 使 `one_ball = [0,2]`（半径 1），导致 k≥2 折半时 sin/cos 球半径
+  暴涨（x=1 时 rad≈1），正确舍入包装无法收敛。改为半径 0。
 
 ## [1.4.0] - 2026-10-14
 

@@ -374,7 +374,7 @@
 - 直接依赖：`bigfloat`, `bigdecimal`, `series`
 - 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`, `nex/ball/nex_ball_series.c`, `nex/ball/nex_ball_series_dec.c`
 - 公开头：`nex/ball/nex_ball.h`
-- 公开函数（48）：
+- 公开函数（50）：
   - `bigdecimal_ball_add`
   - `bigdecimal_ball_atan`
   - `bigdecimal_ball_contains`
@@ -399,6 +399,7 @@
   - `bigdecimal_ball_sin`
   - `bigdecimal_ball_sqrt`
   - `bigdecimal_ball_sub`
+  - `bigdecimal_ball_tan`
   - `bigfloat_ball_add`
   - `bigfloat_ball_atan`
   - `bigfloat_ball_contains`
@@ -423,18 +424,25 @@
   - `bigfloat_ball_sin`
   - `bigfloat_ball_sqrt`
   - `bigfloat_ball_sub`
+  - `bigfloat_ball_tan`
 
 ### `transcend`
 
 - 直接依赖：`bigfloat`, `bigdecimal`, `ball`
 - 源文件：`nex/transcend/nex_transcend.c`, `nex/transcend/nex_transcend_dec.c`
 - 公开头：`nex/transcend/nex_transcend.h`
-- 公开函数（8）：
+- 公开函数（14）：
   - `bigdecimal_atan`
   - `bigdecimal_atan2`
+  - `bigdecimal_cos`
   - `bigdecimal_exp`
   - `bigdecimal_log`
+  - `bigdecimal_sin`
+  - `bigdecimal_tan`
   - `bigfloat_atan`
   - `bigfloat_atan2`
+  - `bigfloat_cos`
   - `bigfloat_exp`
   - `bigfloat_log`
+  - `bigfloat_sin`
+  - `bigfloat_tan`
