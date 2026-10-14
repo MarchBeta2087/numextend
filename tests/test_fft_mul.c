@@ -231,12 +231,39 @@ static void test_method_errors(void)
     bigint_bin_free(&a);
 }
 
+/*
+ * brief: 强制 16-bit FFT 超出安全规模上限（S > 1024）返回 UNSUPPORTED；
+ *        边界内（S = 1024）仍成功
+ */
+static void test_fft16_cap(void)
+{
+    bigint_bin_ty a;
+    bigint_bin_ty b;
+    bigint_bin_ty r;
+    bigint_mul_method_ty m;
+    CHECK(rand_bin(&a, 512U) == BIGINT_OK_E);
+    CHECK(rand_bin(&b, 513U) == BIGINT_OK_E);   /* s = 1025 > 1024 */
+    CHECK(bigint_bin_init(&r) == BIGINT_OK_E);
+    m.algo = BIGINT_MUL_FLOAT_COMPLEX_FFT_E;
+    m.params.float_complex_fft.chunk_bits = 16U;
+    CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_ERR_UNSUPPORTED_E);
+
+    bigint_bin_free(&b);
+    CHECK(rand_bin(&b, 512U) == BIGINT_OK_E);   /* s = 1024（边界内） */
+    CHECK(bigint_bin_mul_ex(&r, &a, &b, &m) == BIGINT_OK_E);
+
+    bigint_bin_free(&r);
+    bigint_bin_free(&b);
+    bigint_bin_free(&a);
+}
+
 int main(void)
 {
     test_sizes();
     test_large_fft();
     test_edge_cases();
     test_method_errors();
+    test_fft16_cap();
     if (g_fail == 0) {
         printf("fft_mul: all tests passed\n");
     }
