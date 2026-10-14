@@ -190,6 +190,103 @@ const bigint_bin_ty *bigfrac_den(const bigfrac_ty *frac);
 bigfrac_err_ty bigfrac_poly_eval(bigfrac_ty *out,
         const bigfrac_ty *coeffs, size_t degree, const bigfrac_ty *x);
 
+/* ------------------------------------------------------------------ */
+/* 截断幂级数 / Laurent 级数（设计文档 §15）                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * bigfrac_series_ty：系数为 bigfrac_ty 的截断级数
+ *
+ *   S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}
+ *
+ * val 为赋值 valuation（最低次幂指数，可为负 → Laurent）；coeffs 升幂排列。
+ * 规范化：len == 0 表示零级数（val 归 0）；否则末项 coeffs[len-1] != 0。
+ */
+typedef struct {
+    int64_t val;         // 最低次幂指数，可为负（Laurent）
+    bigfrac_ty *coeffs;  // coeffs[i] 对应 z^{val+i}
+    size_t len;          // 有效系数个数
+    size_t cap;          // 已分配容量
+} bigfrac_series_ty;
+
+/*
+ * brief: 初始化为零级数
+ * return: 成功返回 BIGFRAC_OK_E；s 为 NULL 返回 BIGFRAC_ERR_INVALID_E
+ */
+bigfrac_err_ty bigfrac_series_init(bigfrac_series_ty *s);
+
+/*
+ * brief: 由系数数组构造（深拷贝，去尾零）
+ * param: dst    输出（已初始化）
+ * param: val    最低次幂指数
+ * param: coeffs 系数数组，coeffs[i] 对应 z^{val+i}；len 为 0 时可为 NULL
+ * param: len    系数个数
+ * return: 成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E；
+ *         内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+ * note: 全零输入归一为零级数（len = 0，val = 0）
+ */
+bigfrac_err_ty bigfrac_series_from_array(bigfrac_series_ty *dst, int64_t val,
+        const bigfrac_ty *coeffs, size_t len);
+
+/*
+ * brief: 释放级数（s 可为 NULL 或零初始化对象）
+ */
+void bigfrac_series_free(bigfrac_series_ty *s);
+
+/*
+ * brief: 深拷贝
+ * return: 成功返回 BIGFRAC_OK_E；内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+ */
+bigfrac_err_ty bigfrac_series_copy(bigfrac_series_ty *dst,
+        const bigfrac_series_ty *src);
+
+/*
+ * brief: 加法 dst = lhs + rhs，保留最低 order 项
+ * return: 成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E；
+ *         内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+ * note: 结果 val = min(lhs->val, rhs->val)；允许别名；order = 0 得零级数
+ */
+bigfrac_err_ty bigfrac_series_add(bigfrac_series_ty *dst,
+        const bigfrac_series_ty *lhs, const bigfrac_series_ty *rhs,
+        size_t order);
+
+/*
+ * brief: 减法 dst = lhs - rhs，保留最低 order 项
+ * return: 成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E；
+ *         内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+ * note: 结果 val = min(lhs->val, rhs->val)；允许别名；order = 0 得零级数
+ */
+bigfrac_err_ty bigfrac_series_sub(bigfrac_series_ty *dst,
+        const bigfrac_series_ty *lhs, const bigfrac_series_ty *rhs,
+        size_t order);
+
+/*
+ * brief: 乘：dst = lhs × rhs（截断），保留最低 order 项
+ * return: 同 add
+ * note: 结果 val = lhs->val + rhs->val；允许别名
+ */
+bigfrac_err_ty bigfrac_series_mul(bigfrac_series_ty *dst,
+        const bigfrac_series_ty *lhs, const bigfrac_series_ty *rhs,
+        size_t order);
+
+/*
+ * brief: 倒数 dst = 1 / src，保留最低 order 项
+ * return: src 为空或首项为零返回 BIGFRAC_ERR_INVALID_E；内存不足返回
+ *         BIGFRAC_ERR_OOM_E（dst 不变）
+ * note: 结果 val = -src->val（首项非零的“单位级数”），支持 Laurent
+ */
+bigfrac_err_ty bigfrac_series_inv(bigfrac_series_ty *dst,
+        const bigfrac_series_ty *src, size_t order);
+
+/*
+ * brief: 求值 out = Σ_{i=0}^{len-1} coeffs[i] · x^{val+i}
+ * return: 参数非法或（val < 0 时）x == 0 返回 BIGFRAC_ERR_INVALID_E；
+ *         内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+ * note: 精确；val < 0（Laurent）按除以 x^{|val|} 实现
+ */
+bigfrac_err_ty bigfrac_series_eval(bigfrac_ty *out,
+        const bigfrac_series_ty *s, const bigfrac_ty *x);
+
 #ifdef __cplusplus
 }
 #endif
