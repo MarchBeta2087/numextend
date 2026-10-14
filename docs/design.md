@@ -150,7 +150,8 @@ v1.0 前对全部公开头文件做机械 + 人工审计；脚本 `scripts/api_a
 - **文档**：每个公开函数在头文件内均有 `brief/param/return/note` 注释；语义、
   错误码、别名规则、OOM 与线程安全分别见 §3、§4–§10、§3.2/§3.3。
 - **有意缺口**（非疏漏）：`bigint_dec` 无公开 `gcd`/`sqrt`；`bigint_bin64` 仅核心
-  运算；复数 `arg` 已移出；超越函数、次正规、自定义分配器为 v1 非目标（§13）。
+  运算；超越函数（`atan`/`atan2` 已落地，其余后续）、次正规、自定义分配器为
+  v1 非目标（§13）。
 - **覆盖率**：完整 CTest 下库行覆盖率约 **89%**；CI 门槛 80%（见 §12）。
 
 ---
@@ -1109,8 +1110,10 @@ bool bigcomplex_float_eq(const bigcomplex_float_ty *lhs, const bigcomplex_float_
 - 除法 v1 用共轭法 `(a+bi)/(c+di) = (a+bi)(c−di)/(c²+d²)`；该方法在中间量
   上可能过早溢出/下溢，Smith 缩放算法列为后续方向并在文档与注释中注明取舍；
 - `abs` 经 `sqrt(re² + im²)` 实现，同样的溢出注意事项适用；
-- `arg` 依赖超越函数 `atan`，**不属于 v1 公开 API**（已移出，避免引入未经
-  设计的超越函数实现）；后续可作为 1.x 增量重新引入。
+- `arg`（辐角）经 `bigfloat_atan2` / `bigdecimal_atan2` 正确舍入实现：直角
+  分象限 `arg = atan(y/x)`（`x<0` 时 `sign(y)·(π − atan(|y|/|x|))`，虚/实轴与
+  原点单列；`t>1` 时用 `π/2 − atan(1/t)` 归约避大参数）；无灾难抵消。含 ±∞
+  返回 INVALID，NaN 分量传播为 NaN（§16）。
 
 ### 9.3 特殊值传播
 
@@ -1229,7 +1232,8 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 5. 次正规浮点数支持（需放松"最高位恒 1"不变式，影响面大，单独设计评审）；
 6. 自定义分配器钩子；
 7. 复数 Karatsuba 三乘式、Smith 稳定除法；
-8. 超越函数（exp/log/sin/cos）；`atan` 落地后可重新引入复数辐角 `arg`
+8. 超越函数（exp/log/sin/cos、反三角、复数超越）；`atan`/`atan2` 已落地，
+   复数辐角 `arg` 已重新引入（§16）
    （v1 已移出公开面，见 §9.2）；
 9. 浮点 FFT 的 SIMD 化与 AUTO 启用再评估（标量 double 下 8-bit/16-bit
    节在 -O2 实测均不优于 Toom-3/NTT，见 §4.3；SIMD 后需重新标定）；
@@ -1250,7 +1254,7 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 
 | 项目 | 状态 | 说明 / 后续 |
 |------|------|--------------|
-| 超越函数 exp/log/sin/cos | 后续 | `atan` 已落地（float + decimal，§16）；其余为 §D 后续 |
+| 超越函数 exp/log/sin/cos | 后续 | `atan`/`atan2` 已落地（float + decimal，§16）；复数 `arg` 重新引入；其余为 §D 后续 |
 | 次正规（subnormal）浮点 | 非目标 | 需放松“最高位恒 1”不变式，影响面大（§7.3） |
 | SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3） |
 | 函数级子集 | 非目标（1.x 暂缓） | 成本高、收益低；替代见 §2.4 / §13 #11 |
@@ -1447,12 +1451,17 @@ S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}
 
 ## 16. 超越函数（§D）
 
-首个函数 `atan`（依赖它可重新引入复数辐角 `arg`，§9.2），`bigfloat` /
-`bigdecimal` 各一套（`bigfloat_atan` / `bigdecimal_atan`）：
+`bigfloat` / `bigdecimal` 各一套：`atan`（`bigfloat_atan` / `bigdecimal_atan`）
+与其复数辐角形式 `atan2`（`bigfloat_atan2` / `bigdecimal_atan2`，供
+`bigcomplex_*_arg` 使用，§9.2）：
 
 - **正确舍入**：内部以球式（路线 B）做实参规约与严谨误差界，再以 **Ziv 策略**
   提升工作精度（`p <- 2p`），直至球端点分别舍入到目标 `ctx` 后相等——
   此时该值为正确舍入结果。
+- **`atan2` / `arg`**：直角分象限，`x>0` → `atan(y/x)`；`x<0` →
+  `sign(y)·(π − atan(|y|/|x|))`；`x=0` → `sign(y)·π/2`；`y=0` → `0` 或 `π`。
+  `t>1` 用 `π/2 − atan(1/t)` 归约；π、π/2 由球式 `4·atan(1)` / `2·atan(1)`
+  严格得到。
 - **球式 `atan`**：实参折半 `t ← t/(1+√(1+t²))`（`atan t = 2·atan t'`）至
   `|t| ≤ 1/2`，用路线 A 的 `atan` 级数得初始球，再倍角 `2^k`（float 下 ×2^k
   精确；decimal 下 2^k 非精确，改用 k 次球加法 `ball_add(&at,&at,&at)`，

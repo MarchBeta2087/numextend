@@ -8,6 +8,7 @@
  */
 
 #include "nex/bigcomplex/decimal/nex_bigcomplex_decimal.h"
+#include "nex/transcend/nex_transcend.h"
 #include "nex/nex_alloc.h"
 
 #include <stdlib.h>
@@ -338,6 +339,24 @@ cleanup:
     bigdecimal_free(&im2);
     bigdecimal_free(&sum);
     return map_bd_err(berr);
+}
+
+bigcomplex_decimal_err_ty bigcomplex_decimal_arg(bigdecimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        bigdecimal_free(dst);
+        bigdecimal_init(dst);
+        dst->flag = BIGDECIMAL_NAN_E;
+        return BIGCOMPLEX_DECIMAL_OK_E;
+    }
+    if (bigdecimal_is_inf(&src->re) || bigdecimal_is_inf(&src->im)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    return map_bd_err(bigdecimal_atan2(dst, &src->im, &src->re, ctx));
 }
 
 /* ------------------------------------------------------------------ */

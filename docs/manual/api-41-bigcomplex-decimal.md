@@ -119,6 +119,18 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_abs(bigdecimal_ty *dst, const bigco
 
 **说明**：模 |src| = sqrt(re² + im²)（分量运算，中间量可能过早溢出， 缩放算法列为后续方向，§9.2）
 
+### `bigcomplex_decimal_arg`
+
+```c
+bigcomplex_decimal_err_ty bigcomplex_decimal_arg(bigdecimal_ty *dst, const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：辐角 arg(src) = atan2(im, re)，主值 ∈ (−π, π]（正确舍入，§9.2/§16）
+
+**返回**：成功返回 OK（任一分量为 NaN 时 dst 置 NaN）；参数非法或含 ±∞ 返回 INVALID；内存不足返回 OOM（dst 不变）
+
+**备注**：经 bigdecimal_atan2（球式半角规约 + Ziv）；负实轴（im=0, re<0）取 +π
+
 ## 四则（§9.2）
 
 ### `bigcomplex_decimal_add`
