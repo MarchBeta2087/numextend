@@ -56,6 +56,11 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   （折半 + 球平方 / half-angle；eps 用 `10^{−(p+10)}`）。
 - **C3 Padé 精确版（TODO §C3）**：`nex_series_pade_frac`——[m/n] Padé 逼近，
   bigfrac 精确高斯消元；`exp` 的 [2/2] 为 `(12+6z+z²)/(12−6z+z²)`。
+- **C3 续 Padé 求值（TODO §C3）**：`nex_series_pade_eval_{frac,float,decimal}`
+  （精确部分和 + 终值一次舍入）。
+- **C4 mpmath 黄金参考（TODO §C4）**：`tests/golden_series_driver.c` +
+  `tests/golden_series.py`（mpmath 独立参考；缺失时 SKIP）；CTest 新增
+  `series_mpmath_golden`（`exp/sin/cos/ln1p/atan` × 64/128/256 bit）。
 
 ## [1.2.0] - 2026-10-14
 
