@@ -6,6 +6,10 @@
 
 #include "nex/bigdecimal/nex_bigdecimal.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * bigcomplex_decimal_ty：实部/虚部均为 bigdecimal_ty 的复数（设计文档 §9）。
  *
@@ -143,5 +147,9 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_div(bigcomplex_decimal_ty *dst,
  */
 bool bigcomplex_decimal_eq(const bigcomplex_decimal_ty *lhs,
         const bigcomplex_decimal_ty *rhs);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGCOMPLEX_DECIMAL_H */

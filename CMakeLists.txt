@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(numextend VERSION 1.0.0 LANGUAGES C)
+project(numextend VERSION 1.1.0 LANGUAGES C)
 
 # 默认构建类型：未显式指定且非多配置生成器时取 RelWithDebInfo（-O2 -g）。
 # 否则 CMake 会以空 CMAKE_BUILD_TYPE 生成 -O0 构建：既严重拖慢性能，
@@ -11,7 +11,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
         Debug Release RelWithDebInfo MinSizeRel)
 endif()
 
-set(CMAKE_C_STANDARD 99)
+# C 标准：默认 C99（项目承诺基准，含 coding_standard.md §1.1）。
+# NEX_C_STANDARD 可覆盖为 11/17/23（/2y）以验证标准矩阵（TODO §A3）。
+set(NEX_C_STANDARD "99" CACHE STRING "C 标准版本（99/11/17/23/2y）")
+set(CMAKE_C_STANDARD ${NEX_C_STANDARD})
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 

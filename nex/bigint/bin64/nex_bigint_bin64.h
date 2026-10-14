@@ -7,6 +7,10 @@
 
 #include "nex/bigint/nex_bigint_common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * nex_bigint_bin64：64 位肢二进制大整数（设计文档 §13 #3"64 位肢变体"）。
  *
@@ -138,5 +142,9 @@ bigint_err_ty bigint_bin64_mul(bigint_bin64_ty *dst,
 bigint_err_ty bigint_bin64_div_rem(bigint_bin64_ty *quot,
         bigint_bin64_ty *rem, const bigint_bin64_ty *lhs,
         const bigint_bin64_ty *rhs);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGINT_BIN64_H */

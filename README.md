@@ -95,6 +95,16 @@ CI 另提供每日基准 artifact（`.github/workflows/benchmark.yml`）。
 - 规范 §3.1 / §11：OOM 时输出参数保持调用前状态（强异常安全）；
 - 内部统一分配器 `nex/nex_alloc`（OOM 注入测试入口，未来自定义分配器钩子）。
 
+## 兼容性
+
+| 语言 | 支持范围 | 说明 |
+|------|----------|------|
+| C | C99 为承诺基准；C11 / C17 / C23（及 C2y）实测通过 | 默认 `NEX_C_STANDARD=99`；可用 `-DNEX_C_STANDARD=11/17/23` 验证新标准 |
+| C++ | C++11 / C++14 / C++17 / C++20 / C++23 / C++26 | 公开头文件均带 `extern "C"`，可直接 `find_package(nex)` 后以 C ABI 链接，无需手动包装 |
+
+CI 覆盖 C11/C17/C23 与 C++11/C17/C23 矩阵（见 `.github/workflows/ci.yml`）；
+[`tests/test_cpp_consumer.cpp`](tests/test_cpp_consumer.cpp) 是 C++ 互操作回归测试。
+
 ## 许可
 
 见 [LICENSE](LICENSE)。

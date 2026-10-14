@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * nex_fft：浮点复数 FFT 核心模块（设计文档 §4.3"浮点复数 FFT"）。
  *
@@ -51,5 +55,9 @@ fft_err_ty fft_inverse(double *coeffs, uint32_t log2n);
  */
 fft_err_ty fft_pointwise_mul(double *dst, const double *lhs,
         const double *rhs, size_t len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_FFT_H */

@@ -212,3 +212,17 @@ if(Python3_Interpreter_FOUND)
             ENVIRONMENT "NEX_GOLDEN_SEED=${seed}")
     endforeach()
 endif()
+
+# C++ 互操作测试（TODO §A1 / §A2）：公开头文件 extern "C" + 链接 C 编译的库。
+# CXX 语言可选：工具链缺失时静默跳过，不影响 C 库构建。
+include(CheckLanguage)
+check_language(CXX)
+if(CMAKE_CXX_COMPILER)
+    enable_language(CXX)
+    add_executable(test_cpp_consumer test_cpp_consumer.cpp)
+    target_link_libraries(test_cpp_consumer PRIVATE nex)
+    if(NOT MSVC)
+        target_compile_options(test_cpp_consumer PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME cpp_consumer COMMAND test_cpp_consumer)
+endif()

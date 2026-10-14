@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * bigint 层共享定义：符号枚举、错误码枚举、乘法方法选择类型。
  * 供 bigint_bin 与 bigint_dec 两个子模块共用（设计文档 §3.1、§4.2.4）。
@@ -56,5 +60,9 @@ typedef struct {
     bigint_mul_algo_ty algo;     // 算法标签
     bigint_mul_params_ty params; // 与 algo 对应的参数；不适用时忽略
 } bigint_mul_method_ty;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGINT_COMMON_H */

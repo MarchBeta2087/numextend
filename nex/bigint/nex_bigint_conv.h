@@ -5,6 +5,10 @@
 #include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/bigint/dec/nex_bigint_dec.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * bigint_conv：bigint_bin ↔ bigint_dec 互转（设计文档 §4.2.6）。
  * 本单元是唯一同时包含 bin 与 dec 头文件的模块（§2.1 的唯一跨支线依赖）。
@@ -32,5 +36,9 @@ bigint_err_ty bigint_conv_bin_to_dec(bigint_dec_ty *dst,
  */
 bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst,
         const bigint_dec_ty *src);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGINT_CONV_H */

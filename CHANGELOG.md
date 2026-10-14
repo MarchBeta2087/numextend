@@ -7,6 +7,19 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [1.1.0] - 2026-10-14
+
+### 新增
+
+- **C++ 互操作**：全部公开头文件补齐 `extern "C"` 守卫，C++11–C++26 可经
+  C ABI 直接链接消费；新增 `tests/test_cpp_consumer.cpp` 回归测试。
+- **C 标准矩阵**：新增 `NEX_C_STANDARD` 构建选项（默认仍为 C99），支持以
+  C11/C17/C23（及 C2y）验证；CI 新增 C++ 与 C 标准矩阵 job。
+
+### 文档
+
+- `README.md` 与 `docs/design.md` §1.3 增补「标准兼容性」说明。
+
 ## [1.0.0] - 2026-10-14
 
 首个正式发布：七种任意精度数值类型与跨类型转换矩阵，纯 C99、零外部依赖。
@@ -37,4 +50,5 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
+[1.1.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.1.0
 [1.0.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.0.0

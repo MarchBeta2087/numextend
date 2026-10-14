@@ -7,6 +7,10 @@
 
 #include "nex/bigint/nex_bigint_common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * bigint_bin_ty：二进制肢（基 2^32）任意精度整数（设计文档 §4）。
  *
@@ -331,5 +335,9 @@ size_t bigint_bin_popcount(const bigint_bin_ty *val);
  * note: Newton 迭代，负数返回 BIGINT_ERR_INVALID_E
  */
 bigint_err_ty bigint_bin_sqrt(bigint_bin_ty *out, const bigint_bin_ty *val);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGINT_BIN_H */
