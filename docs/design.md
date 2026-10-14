@@ -108,9 +108,9 @@ Numextend（库前缀 `nex`）是一个纯 C99 编写的任意精度数值库，
 非目标（v1 明确不做）：
 
 - 汇编级优化、SIMD、平台特化代码；
-- GPU  offload 与内部多线程并行；
-- 超越函数（sin/cos/log/exp 等）的完整实现（仅保留 sqrt；其余列为后续方向）；
-- 次正规（subnormal）浮点数（见 §7.3 的取舍说明）。
+- GPU offload 与内部多线程并行（跨平台线程封装为独立可选目标，不进核心，§14）；
+- 次正规（subnormal）浮点数（见 §7.3 的取舍说明）；
+- 超大 `|x|`（> 2⁶³）三角函数的 Payne–Hanek 规约（§16.2）。
 
 ### 1.4 API/ABI 稳定性政策
 
@@ -137,9 +137,11 @@ Numextend（库前缀 `nex`）是一个纯 C99 编写的任意精度数值库，
 v1.0 前对全部公开头文件做机械 + 人工审计；脚本 `scripts/api_audit.sh`（CI 每次
 运行）与 `scripts/api_symbols.py`（声明/定义比对）负责可复现部分。结论：
 
-- **自包含**：14 个公开头文件均可独立编译（`-std=c99 -Wall -Wextra
-  -Wpedantic`），各含 include guard，不依赖内部头。
-- **声明 / 定义一致**：公开头文件中 **203 个函数声明全部有定义**，无缺失。
+- **自包含**：**v1.5.0 时** 17 个公开头文件均可独立编译（`-std=c99 -Wall
+  -Wextra -Wpedantic`），各含 include guard，不依赖内部头。
+- **声明 / 定义一致**：**v1.5.0 时**公开头文件中 **333 个函数声明全部有定义**，
+  无缺失（v1.0 审计时为 14 头 / 203 函数，随 §C/§D/§I 增量扩大；`api_audit`
+  每次 CI 复核并输出当前计数）。
 - **导出面**：另有 5 个内部辅助函数具外部链接并被共享库导出
   （`nex_bf_round_pack`、`nex_bf_dec_round`、`nex_bf_from_decimal`、
   `nex_dec_round_pack`、`nex_dec_isqrt`）；均以保留前缀 `nex_` 命名，不属公开
@@ -150,8 +152,8 @@ v1.0 前对全部公开头文件做机械 + 人工审计；脚本 `scripts/api_a
 - **文档**：每个公开函数在头文件内均有 `brief/param/return/note` 注释；语义、
   错误码、别名规则、OOM 与线程安全分别见 §3、§4–§10、§3.2/§3.3。
 - **有意缺口**（非疏漏）：`bigint_dec` 无公开 `gcd`/`sqrt`；`bigint_bin64` 仅核心
-  运算；超越函数（`atan`/`atan2` 已落地，其余后续）、次正规、自定义分配器为
-  v1 非目标（§13）。
+  运算；次正规、自定义分配器、超大 `|x|` 的 Payne–Hanek 为 v1 非目标（§13）；
+  超越函数（含复数）已全部落地（§16）。
 - **覆盖率**：完整 CTest 下库行覆盖率约 **89%**；CI 门槛 80%（见 §12）。
 
 ---
@@ -177,6 +179,9 @@ v1.0 前对全部公开头文件做机械 + 人工审计；脚本 `scripts/api_a
 - `bigfrac`、`bigfloat` 构建于 `bigint_bin` 之上（二进制运算效率最高）；
 - `bigdecimal` 构建于 `bigint_dec` 之上（十进制语义与十进制 I/O 天然契合）；
 - `bigcomplex_float` / `bigcomplex_decimal` 仅是对应浮点对的组合，不引入新的数值语义；
+- 分析层：`nex/series`（级数与 Padé，路线 A，构建于 `bigfrac`/`bigfloat`/`bigdecimal`）、
+  `nex/ball`（球式区间与实参规约，路线 B，构建于 `bigfloat`/`bigdecimal`/`series`）、
+  `nex/transcend`（正确舍入超越函数，构建于 `bigfloat`/`bigdecimal`/`ball`）；
 - 上层模块只能通过下层模块的公开头文件交互，禁止跨层包含 `static` 实现细节；
 - `bigint_bin ↔ bigint_dec` 的互转是唯一的跨支线依赖，由专门的转换单元承担
   （见 §4.2.5），该单元同时包含两个模块的头文件，位于 `nex/bigint/` 层级。
@@ -208,11 +213,17 @@ nex/
 │   └── nex_bigfloat.h / .c
 ├── bigdecimal/
 │   └── nex_bigdecimal.h / .c
-└── bigcomplex/
+├── bigcomplex/
     ├── float/
     │   └── nex_bigcomplex_float.h / .c
     └── decimal/
         └── nex_bigcomplex_decimal.h / .c
+├── series/
+│   └── nex_series.h / .c            # 截断级数与 Padé（路线 A，§15）
+├── ball/
+│   └── nex_ball.h / .c              # 球式区间与实参规约（路线 B，§15.6）
+└── transcend/
+    └── nex_transcend.h / .c         # 正确舍入超越函数（§16）
 ```
 
 仓库根另含：`CMakeLists.txt`（构建 / 安装 / 导出 + `BUILD_SHARED_LIBS`）、
@@ -478,10 +489,10 @@ typedef enum {
     /* 1xxx：亚二次分治类 */
     BIGINT_MUL_SCHOOLBOOK_E = 1001,
     BIGINT_MUL_KARATSUBA_E = 1002,
-    BIGINT_MUL_TOOM_COOK_E = 1003,            // v1 未实现 → UNSUPPORTED
+    BIGINT_MUL_TOOM_COOK_E = 1003,            // Toom-3（v1 仅 k=3）
     /* 2xxx：变换类 */
-    BIGINT_MUL_FLOAT_COMPLEX_FFT_E = 2001,    // v1 未实现 → UNSUPPORTED
-    BIGINT_MUL_MULTI_MODULI_CRT_NTT_E = 2002, // 多模数 CRT NTT（v1 已实现，双模数）
+    BIGINT_MUL_FLOAT_COMPLEX_FFT_E = 2001,    // 浮点 FFT（v1 仅 8/16 bit 节；不参与 AUTO）
+    BIGINT_MUL_MULTI_MODULI_CRT_NTT_E = 2002, // 多模数 CRT NTT（v1 默认双模数）
     /* 3xxx */
     BIGINT_MUL_SCHONHAGE_STRASSEN_E = 3001    // v1 未实现 → UNSUPPORTED
 } bigint_mul_algo_ty;
@@ -1237,7 +1248,8 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
    对拍全过，块直写优化后 a/b=256 时较 Knuth D 快 ~22%；dec 侧 v1.5.0 移植，
    基 10⁹ 以 Knuth-D 归一化因子 d + 肢移位 pad 代替 bin 的位规约，除数 ≥ 64
    肢分派，10⁵ 位 ≈ 45 ms 约 8×）、Newton 迭代除法与开方；
-2. Montgomery 模幂、半 gcd（Lehmer gcd 已落地，v0.14）；
+2. 半 gcd（Lehmer gcd 已落地，v0.14）；Montgomery 模幂经实测否定（v0.16：
+   REDC 朴素 n² 不优于已优化 Knuth D，不启用）；
 3. 64 位肢变体：核心已落地（`nex/bigint/bin64/`，v0.13）——加/减/乘
    （schoolbook + Karatsuba），等位长下约 2 倍提速；64×64→128 经编译
    器探测（GCC/Clang __int128 + MSVC 便携 4 乘，§13 #3 条件编译落地）；
@@ -1246,9 +1258,9 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 5. 次正规浮点数支持（需放松"最高位恒 1"不变式，影响面大，单独设计评审）；
 6. 自定义分配器钩子；
 7. 复数 Karatsuba 三乘式、Smith 稳定除法；
-8. 超越函数（exp/log/sin/cos、反三角、复数超越）；`atan`/`atan2` 已落地，
-   复数辐角 `arg` 已重新引入（§16）
-   （v1 已移出公开面，见 §9.2）；
+8. 超越函数：`atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos`、复数
+   超越与复数辐角 `arg` 已全部落地（float + decimal，§16）；超大 `|x|` 的
+   Payne–Hanek 规约待续（§16.2）；
 9. 浮点 FFT 的 SIMD 化与 AUTO 启用再评估（标量 double 下 8-bit/16-bit
    节在 -O2 实测均不优于 Toom-3/NTT，见 §4.3；SIMD 后需重新标定）；
 10. 分治基数转换 bin↔dec（已落地）与十进制字符串 I/O（已接入，
@@ -1268,15 +1280,15 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 
 | 项目 | 状态 | 说明 / 后续 |
 |------|------|--------------|
-| 超越函数 exp/log/sin/cos | 部分落地 | `atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos` 已落地（float + decimal，§16）；复数 `arg` 重新引入；复数超越为 §D 后续 |
+| 超越函数 exp/log/sin/cos | 已实现 | `atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos`、复数超越与 `arg` 已全部落地（float + decimal，§16）；超大 `|x|` 的 Payne–Hanek 待续（§16.2） |
 | 次正规（subnormal）浮点 | 非目标 | 需放松“最高位恒 1”不变式，影响面大（§7.3） |
 | SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3）；跨平台线程封装列为**独立可选目标**（`contrib/nex_thread`，不进核心/amalgam，TODO §F） |
 | 函数级子集 | 非目标（1.x 暂缓） | 成本高、收益低；替代见 §2.4 / §13 #11 |
 | 自定义分配器钩子 | 后续 | 现为内部统一分配器 `nex_alloc`（§13 #6） |
 | 十进制侧亚二次除法 | 已实现 | `bigint_dec` 大输入走 Burnikel-Ziegler（除数 ≥ 64 肢分派）；基 10⁹ 以 Knuth-D 归一化因子 + 肢移位规约（§13 #1） |
 | 超大输入 gcd | 限制 | Lehmer 仍 O(n²)；半 gcd 为后续（§13 #2） |
-| 大端平台 | 未验证 | 实现为值语义，预期端序无关；当前仅小端验证（§1.3） |
-| 32 位平台 | 未验证 | CI 仅覆盖 64 位 |
+| 大端平台 | 已验证 | 实现为值语义；CI `linux-bigendian`（s390x + QEMU，v1.4.0）（§1.3） |
+| 32 位平台 | 已验证 | CI `linux-32bit`（`-m32 -msse2 -mfpmath=sse`，v1.4.0） |
 | 公开结构体字段 | 实现细节 | 布局在 1.x 冻结，但请使用访问器，勿依赖字段（§1.4） |
 
 ---
@@ -1329,7 +1341,7 @@ S(z) = Σ_{i=0}^{N} a[i] · z^{k+i},   k ∈ ℤ
 
 ### 15.3 实现状态与后续
 
-- **已落地（C2 第一阶段，`bigfrac` 精确）**：`bigfrac_series_ty`
+- **已落地（C2，`bigfrac` 精确）**：`bigfrac_series_ty`
   `(val, coeffs, len, cap)`；`from_array` / `copy` / `add` / `sub` /
   `mul`（截断到 `order`）/ `inv`（支持 Laurent，结果 `val = −src->val`）/
   `eval`（`val < 0` 按除以 `x^{|val|}`，要求 `x ≠ 0`）。精确、允许别名、
@@ -1337,11 +1349,10 @@ S(z) = Σ_{i=0}^{N} a[i] · z^{k+i},   k ∈ ℤ
   另已落地：`bigfrac_series_deriv` / `integral`（逐项，前导零归一；含
   `z^{−1}` 项积分报 INVALID）与 `bigfrac_series_compose`（秦九韶式，
   `f.val = 0`、`g.val ≥ 0`）。
-- **后续（C2 续 / C3）**：
-  - `bigfloat` / `bigdecimal` 级数 + 严谨**误差界**（数值类型，含自适应截断）；
-  - 级数复合与求导/积分（已落地，见上）。
-  - Padé 逼近（有理函数，作为 `exp`/`atan` 等的可选核）；
-  - `valuation` 字段从第一天即存在，非负幂级数即 `k ≥ 0` 特例（已按此实现）。
+- **已落地（C2 完整 / C3）**：`bigfloat` / `bigdecimal` 数值级数点求值 + 严谨
+  **误差界**（自适应截断，`nex_series_*_order`/`_eval_*`，§15.6）；球系数级数
+  （§15.8）；Padé 逼近与求值（§15.7）。`valuation` 字段自始存在，非负幂级数即
+  `k ≥ 0` 特例。
 
 ### 15.4 关于惰性求值（无穷列表）的决策
 
@@ -1418,15 +1429,16 @@ C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
   - 已落地（逆幂核）：`nex_series_ln1p_order`/`atan_order` 与
     `nex_series_{ln1p,atan}_eval_float`/`_decimal`（`ln(1+z)`、`atan(z)`，
     常数比值尾界 `r^step/(1−r^step)`；|z| ≲ 1/2）。
-- **路线 B：球式（中心 + 误差半径）**（第一阶段已落地）
+- **路线 B：球式（中心 + 误差半径）**（已落地）
   - `nex/ball/`：`bigfloat_ball_ty` / `bigdecimal_ball_ty` = `{mid, rad}`（区间
     `[mid−rad, mid+rad]`）；`add/sub/mul/div` 在端点间用**定向舍入**
     （`TOWARD_POS/NEG`）求严格包含区间，再由中心化 `from_interval` 归一（半径
     余量覆盖中心/减法舍入）；`contains` 向内舍入以避免假阳性。
-  - 实参规约（已落地）：`bigfloat_ball_exp/sin/cos`——k 次折半（2 的幂精确缩放）
-    → 路线 A 级数得初始球（尾界 + 舍入余量 + 输入半径膨胀）→ `exp` 反复
-    **球平方** / `sin/cos` half-angle 倍角；半径全程严格传播。|x| 过大
-    （k > 20）返回 INVALID。后续：`bigdecimal` 版；更大 |x|。
+  - 实参规约（已落地）：`bigfloat_ball_*` / `bigdecimal_ball_*` 的
+    `exp`/`log`/`sin`/`cos`/`tan`/`sqrt`/`atan`/`atan2`/`asin`/`acos`——折半
+    （2 的幂精确缩放，上限 64）/ 迭代平方根规约 → 路线 A 级数得初始球（尾界 +
+    舍入余量 + 输入半径膨胀）→ 球平方 / half-angle 倍角 / 球加法回放；半径全程
+    严格传播。`|x|` 过大返回 INVALID（超大 `|x|` 的 Payne–Hanek 见 §16.2）。
 - **关系**：路线 A 是路线 B 的轻量特例；B 在 A 之上加半径传播。分阶段交付，
   B 作为可选层，避免一次性扩大公开面。
 

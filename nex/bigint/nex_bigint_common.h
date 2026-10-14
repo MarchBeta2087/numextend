@@ -39,9 +39,9 @@ typedef enum {
     BIGINT_MUL_AUTO_E = 0,                    // 按肢数阈值自动分派（默认）
     BIGINT_MUL_SCHOOLBOOK_E = 1001,           // 朴素 O(n^2) 乘法
     BIGINT_MUL_KARATSUBA_E = 1002,            // Karatsuba 分治
-    BIGINT_MUL_TOOM_COOK_E = 1003,            // v1 未实现 → UNSUPPORTED
-    BIGINT_MUL_FLOAT_COMPLEX_FFT_E = 2001,    // v1 未实现 → UNSUPPORTED
-    BIGINT_MUL_MULTI_MODULI_CRT_NTT_E = 2002, // v1 未实现 → UNSUPPORTED
+    BIGINT_MUL_TOOM_COOK_E = 1003,            // Toom-3（v1 仅 k=3）
+    BIGINT_MUL_FLOAT_COMPLEX_FFT_E = 2001,    // 浮点 FFT（v1 仅 8/16 bit 节；不参与 AUTO）
+    BIGINT_MUL_MULTI_MODULI_CRT_NTT_E = 2002, // 多模数 CRT NTT（v1 默认双模数）
     BIGINT_MUL_SCHONHAGE_STRASSEN_E = 3001    // v1 未实现 → UNSUPPORTED
 } bigint_mul_algo_ty;
 
