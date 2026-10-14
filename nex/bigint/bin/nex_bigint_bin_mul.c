@@ -591,6 +591,11 @@ static bigint_err_ty mul_fft(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
         mul_normalize(dst);
         return BIGINT_OK_E;
     }
+    /* 16-bit 节仅在小规模下舍入安全；强制请求超限时拒绝（而非静默出错）。
+       自动路径（chunk_bits==0）已按 s 选择 8/16-bit。 */
+    if (chunk_bits == 16U && s > NEX_MUL_FFT_B16_MAX_SUM) {
+        return BIGINT_ERR_UNSUPPORTED_E;
+    }
     if (chunk_bits == 0U) {
         chunk_bits = (s <= NEX_MUL_FFT_B16_MAX_SUM) ? 16U : 8U;
     }
