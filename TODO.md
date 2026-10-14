@@ -236,9 +236,9 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 
 ## I. v1.5.0 规划（候选）
 
-- **通用（球系数）数值级数**：✅ `bigfloat_ball_series`（init/free/from_array/
-  copy/add/sub/mul/eval/compose）已落地；测试 `tests/test_ball.c`；design §15.8。
-  待续：`bigdecimal_ball_series`。
+- **通用（球系数）数值级数**：✅ `bigfloat_ball_series` 与
+  `bigdecimal_ball_series`（init/free/from_array/copy/add/sub/mul/eval/compose）
+  均已落地；测试 `tests/test_ball.c`；design §15.8。
 - **`bigint_dec` 亚二次除法**：已量化——`bench_sweep` 新增 `dec` 除法扫描，
   n=1024 肢（≈1 万位）~10 ms，O(n²) 确认（每翻倍 ×4.1）；**常规规模非瓶颈**，
   继续延后；若需 10⁵ 位再评估。

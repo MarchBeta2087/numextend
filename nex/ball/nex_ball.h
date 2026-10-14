@@ -305,6 +305,93 @@ bigdecimal_err_ty bigdecimal_ball_sin(bigdecimal_ball_ty *dst,
 bigdecimal_err_ty bigdecimal_ball_cos(bigdecimal_ball_ty *dst,
         const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
 
+/*
+ * bigdecimal_ball_series_ty：系数为 bigdecimal_ball_ty 的截断级数（§I）
+ * 语义同 bigfloat_ball_series_ty。
+ */
+typedef struct {
+    int64_t val;                   // 最低次幂指数
+    bigdecimal_ball_ty *coeffs;    // 球系数，coeffs[i] 对应 z^{val+i}
+    size_t len;                    // 有效系数个数
+    size_t cap;                    // 已分配容量
+} bigdecimal_ball_series_ty;
+
+/*
+ * brief: 初始化为零级数
+ * return: 成功返回 BIGDECIMAL_OK_E；s 为 NULL 返回 BIGDECIMAL_ERR_INVALID_E
+ */
+bigdecimal_err_ty bigdecimal_ball_series_init(bigdecimal_ball_series_ty *s);
+
+/*
+ * brief: 释放（s 可为 NULL）
+ */
+void bigdecimal_ball_series_free(bigdecimal_ball_series_ty *s);
+
+/*
+ * brief: 由球系数数组构造（深拷贝，去尾零）
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法返回 BIGDECIMAL_ERR_INVALID_E；
+ *         内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_from_array(
+        bigdecimal_ball_series_ty *dst, int64_t val,
+        const bigdecimal_ball_ty *coeffs, size_t len);
+
+/*
+ * brief: 深拷贝
+ * return: 成功返回 BIGDECIMAL_OK_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_copy(bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *src);
+
+/*
+ * brief: 加法 dst = lhs + rhs（截断到 order）
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法返回 BIGDECIMAL_ERR_INVALID_E；
+ *         内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_add(bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *lhs,
+        const bigdecimal_ball_series_ty *rhs, size_t order,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 减法 dst = lhs - rhs（截断到 order）
+ * return: 同 add
+ */
+bigdecimal_err_ty bigdecimal_ball_series_sub(bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *lhs,
+        const bigdecimal_ball_series_ty *rhs, size_t order,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 乘法 dst = lhs × rhs（截断到 order）
+ * return: 同 add
+ */
+bigdecimal_err_ty bigdecimal_ball_series_mul(bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *lhs,
+        const bigdecimal_ball_series_ty *rhs, size_t order,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 求值 out = Σ coeffs[i]·x^{val+i}（要求 val ≥ 0）
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法或 val < 0 返回
+ *         BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（out 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_eval(bigdecimal_ball_ty *out,
+        const bigdecimal_ball_series_ty *s, const bigdecimal_ball_ty *x,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 复合 dst = f∘g = f(g(z))，截断到 order（秦九韶式）
+ * param: f 要求 val == 0；g 要求 val ≥ 0
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法返回 BIGDECIMAL_ERR_INVALID_E；
+ *         内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_compose(
+        bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *f,
+        const bigdecimal_ball_series_ty *g, size_t order,
+        const bigdecimal_ctx_ty *ctx);
+
 #ifdef __cplusplus
 }
 #endif

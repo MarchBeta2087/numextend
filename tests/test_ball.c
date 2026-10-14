@@ -263,6 +263,74 @@ static void test_ball_series(void) {
     bigfloat_ball_series_free(&a);
 }
 
+static void mk_dbser(bigdecimal_ball_series_ty *s, int64_t val,
+        const char *const *cs, size_t n, const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ball_ty tmp[8];
+    for (size_t i = 0U; i < n; i++) {
+        bigdecimal_ball_init(&tmp[i]);
+        mk_dec(&tmp[i], cs[i], "0", ctx);
+    }
+    (void)bigdecimal_ball_series_from_array(s, val, tmp, n);
+    for (size_t i = 0U; i < n; i++) {
+        bigdecimal_ball_free(&tmp[i]);
+    }
+}
+
+static void test_ball_series_decimal(void) {
+    const bigdecimal_ctx_ty ctx = bigdecimal_ctx_decimal64();
+    bigdecimal_ball_series_ty a;
+    bigdecimal_ball_series_ty b;
+    bigdecimal_ball_series_ty r;
+    bigdecimal_ball_series_init(&a);
+    bigdecimal_ball_series_init(&b);
+    bigdecimal_ball_series_init(&r);
+    const char *f[] = {"1", "1", "1"};   /* 1 + z + z^2 */
+    mk_dbser(&a, 0, f, 3U, &ctx);
+
+    /* f + f = 2 + 2z + 2z^2 */
+    CHECK(bigdecimal_ball_series_add(&r, &a, &a, 8U, &ctx) ==
+          BIGDECIMAL_OK_E);
+    CHECK(r.val == 0 && r.len == 3U);
+    CHECK(contains_dec(&r.coeffs[0], "2", &ctx));
+    CHECK(contains_dec(&r.coeffs[1], "2", &ctx));
+    CHECK(contains_dec(&r.coeffs[2], "2", &ctx));
+
+    /* f * f = 1 + 2z + 3z^2 + 2z^3 + z^4 */
+    CHECK(bigdecimal_ball_series_mul(&r, &a, &a, 8U, &ctx) ==
+          BIGDECIMAL_OK_E);
+    CHECK(r.val == 0 && r.len == 5U);
+    CHECK(contains_dec(&r.coeffs[0], "1", &ctx));
+    CHECK(contains_dec(&r.coeffs[1], "2", &ctx));
+    CHECK(contains_dec(&r.coeffs[2], "3", &ctx));
+    CHECK(contains_dec(&r.coeffs[3], "2", &ctx));
+    CHECK(contains_dec(&r.coeffs[4], "1", &ctx));
+
+    /* 求值 f(0.5) = 1.75 */
+    bigdecimal_ball_ty x;
+    bigdecimal_ball_ty out;
+    bigdecimal_ball_init(&x);
+    bigdecimal_ball_init(&out);
+    mk_dec(&x, "0.5", "0", &ctx);
+    CHECK(bigdecimal_ball_series_eval(&out, &a, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(contains_dec(&out, "1.75", &ctx));
+
+    /* 复合 f(1+z) = 3 + 3z + z^2 */
+    const char *g[] = {"1", "1"};
+    mk_dbser(&b, 0, g, 2U, &ctx);
+    CHECK(bigdecimal_ball_series_compose(&r, &a, &b, 8U, &ctx) ==
+          BIGDECIMAL_OK_E);
+    CHECK(r.val == 0 && r.len == 3U);
+    CHECK(contains_dec(&r.coeffs[0], "3", &ctx));
+    CHECK(contains_dec(&r.coeffs[1], "3", &ctx));
+    CHECK(contains_dec(&r.coeffs[2], "1", &ctx));
+
+    bigdecimal_ball_free(&out);
+    bigdecimal_ball_free(&x);
+    bigdecimal_ball_series_free(&r);
+    bigdecimal_ball_series_free(&b);
+    bigdecimal_ball_series_free(&a);
+}
+
 int main(void) {
     const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
     bigfloat_ball_ty a;
@@ -347,6 +415,7 @@ int main(void) {
     test_elem();
     test_elem_decimal();
     test_ball_series();
+    test_ball_series_decimal();
 
     if (failures == 0) {
         printf("test_ball: all checks passed\n");
