@@ -1,9 +1,8 @@
 # TODO（v1.1 及以后路线图）
 
-> **活文档**：v1.0.0（2026-10-14）与 v1.1.0（C++ 互操作 + C 标准矩阵）已落地，
-> 本文件记录 **v1.1 之后的规划**。只收录已评估、可执行的方向；未决/否定的候选
-> 集中列在文末。优先级见 §0。
-> 最后更新：2026-10-14（v1.1.0：§A 完成）
+> **活文档**：v1.0.0 – v1.3.0 已发布，本文件记录 **v1.3 之后的规划**。只收录已评估、
+> 可执行的方向；未决/否定的候选集中列在文末。优先级见 §0。
+> 最后更新：2026-10-14（v1.3.0：§C 幂级数基础设施完成）
 
 ---
 
@@ -108,16 +107,50 @@
 
 ---
 
-## C. P2 秦九韶 / 幂级数 / Padé 基础设施（目标 v1.3）
+## C. P2 秦九韶 / 幂级数 / Padé 基础设施（目标 v1.3）— 进行中
 
-- [ ] **C1 秦九韶（Horner）多项式求值**
-  - 覆盖 `bigint_bin`/`bigfrac`/`bigfloat`/`bigdecimal`；统一误差/舍入协定。
-- [ ] **C2 幂级数**（截断阶数 + 严谨误差界；`bigfrac` 先做精确系数版）。
-- [ ] **C3 Padé 逼近**（有理函数逼近，作为 `exp`/`atan` 等的可选核）。
-- [ ] **C4 外部高精度黄金参考**：测试期引入 `mpmath`（或 MPFR），
-      运行期保持零依赖；扩展 `tests/golden_*.py` 框架。
-- [ ] **C5 规范**：`docs/design.md` 新增「多项式与级数」章节，明确正确舍入与
-      误差界要求。
+- [x] **C1 秦九韶（Horner）多项式求值**
+  - 已落地：`*_poly_eval` 覆盖 `bigint_bin`/`bigfrac`/`bigfloat`/`bigdecimal`；
+    精确（整数/有理数）或逐次正确舍入（浮点，按 `ctx`）；out 允许别名，强异常安全。
+  - 测试：`tests/test_poly.c`（`poly_horner`）。
+- [ ] **C2 幂级数**（进行中：`bigfrac` 精确版已落地）
+  - [x] `bigfrac_series_ty` + `from_array`/`copy`/`add`/`sub`/`mul`（截断
+        `order`）/`inv`（Laurent）/`eval`（含负幂）；测试 `tests/test_series.c`。
+  - [x] 广义二项式系数 `bigfrac_binom` + 二项式级数 `bigfrac_series_binom`；
+        测试 `tests/test_binom.c`；误差传播公式入 design §15.5。
+  - [x] 路线 A 底层：几何型全局尾界 `bigfrac_series_tail_geometric` +
+        自适应阶 `bigfrac_series_order_geometric`；测试 `tests/test_series_bound.c`；
+        design §15.6。
+  - [x] 路线 A 求值（`nex/series/`）：`nex_series_binom_model`（(A,B)）、
+        `nex_series_binom_order`、`nex_series_binom_eval_float` / `_decimal`
+        （bigfloat/bigdecimal 点自适应求值，精确部分和 + 终值一次舍入）；
+        测试 `tests/test_series_eval.c`；design §15.6。
+  - [x] 比值型尾界 + 阶乘核：`bigfrac_series_tail_ratio`；
+        `nex_series_exp/cos/sin_order` 与 `_eval_float`/`_decimal`；求值新增可选
+        `err_out` 输出截断尾上界（二项式版同步支持）；测试含十进制
+        `exp(1)/cos(1)/sin(1)` 已知值对照。
+  - [x] 逆幂核：`nex_series_ln1p_order`/`atan_order` 与
+        `nex_series_{ln1p,atan}_eval_float`/`_decimal`；测试含 `ln(1.5)`、
+        `atan(0.5)` 十进制已知值对照。
+  - [x] 路线 B：`nex/ball/` 的 `bigfloat_ball_ty` / `bigdecimal_ball_ty` +
+        `add/sub/mul/div/contains`（定向舍入严格区间）；实参规约
+        `bigfloat_ball_exp/sin/cos` 与 `bigdecimal_ball_exp/sin/cos`
+        （折半 + 球平方 / half-angle）；测试 `tests/test_ball.c`。待续：更大 |x|。
+  - [x] 数值类型（bigfloat/bigdecimal）严谨误差界 + 自适应截断（路线 A
+        `*_order` + `err_out`；路线 B 球式传播）。
+  - [ ] **可选**：通用数值系数级数类型（`bigfloat_series`/`bigdecimal_series`，
+        含四则/复合）——§D 逐点求值不需要，非 v1.3 阻塞项。
+  - [x] 复合与求导 / 积分：`bigfrac_series_deriv` / `integral`（前导零归一；
+        `z^{−1}` 项积分报错）/ `compose`（秦九韶式）；测试入 `tests/test_series.c`。
+- [x] **C3 Padé 逼近**：`nex_series_pade_frac`（bigfrac 高斯消元，[m/n] 系数
+      精确；`exp` [2/2] `(12+6z+z²)/(12−6z+z²)`）与求值
+      `nex_series_pade_eval_{frac,float,decimal}`（精确部分和 + 终值一次舍入）；
+      测试入 `tests/test_series_eval.c`；design §15.7。
+- [x] **C4 外部高精度黄金参考**：`tests/golden_series_driver.c` +
+      `tests/golden_series.py`（**mpmath** 参考；缺失时 SKIP）；CI/CTest 新增
+      `series_mpmath_golden`，覆盖 `exp/sin/cos/ln1p/atan` 的 64/128/256 bit。
+- [x] **C5 规范**：`docs/design.md` 新增「§15 多项式与级数」（含 Horner 舍入协定
+      与 Laurent/负幂级数设计）；级数误差界随 C2 细化。
 
 ---
 
@@ -135,14 +168,14 @@
 
 ---
 
-## E. P4 无穷列表（决策先行）
+## E. P4 无穷列表（已决策：不引入）
 
-- [ ] **E1 设计决策**：显式迭代器 / 回调 vs 惰性求值抽象。
-  - 结论倾向：C99 无生成器/协程，惰性求值（迭代式）需状态机、`setjmp/longjmp`
-    或线程，与本库「显式 `init`/`free` 句柄」风格及规范 §13 冲突；
-    **不将惰性无穷列表作为公开抽象**，仅允许作为内部实现细节。
-- [ ] **E2 若保留**：非迭代式（闭式/记忆化）＋ 子列表截取优先；迭代式最后评估。
-- [ ] **E3 决策记录**：无论采纳或否定，均写入 `docs/design.md` 修订记录。
+- [x] **E1 设计决策**：**不将惰性无穷列表作为公开抽象**。C99 无生成器/协程，
+      惰性求值需状态机、`setjmp/longjmp` 或线程，与本库句柄式风格及规范 §13
+      冲突；且对数值超越函数收益低（详见 `docs/design.md` §15.4）。
+- [x] **E2**：惰性思想的**算法化**优先（自适应截断 + 尾界、Ziv、binary
+      splitting、实参规约），均为有限循环，不依赖无穷列表。
+- [x] **E3 决策记录**：已写入 `docs/design.md` §15.4（并预留修订记录）。
 
 ---
 

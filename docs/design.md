@@ -1252,6 +1252,175 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 
 ---
 
+## 15. 多项式与级数（v1.3 起）
+
+本节规划多项式/幂级数基础设施（TODO §C），为超越函数（§13 #8）提供统一的
+求值与逼近内核。
+
+### 15.1 多项式求值（秦九韶 / Horner）
+
+各类型提供 `*_poly_eval(out, coeffs, degree, x[, ctx])`，计算
+`out = Σ_{i=0}^{degree} coeffs[i]·x^i`（`coeffs[i]` 为 `x^i` 的系数，共
+`degree + 1` 项）：
+
+- `bigint_bin`、`bigfrac`：**精确**，无舍入；
+- `bigfloat`、`bigdecimal`：每步乘加按 `ctx` **正确舍入**；整体是 Horner
+  递推结果，**不是**对精确多项式值的单次正确舍入（头文件 `note` 已注明）。
+
+约定：`out` 允许与 `x` 或 `coeffs` 元素别名（内部先算入局部量、最后一次
+`copy` 到 `out`）；任何失败时 `out` 保持调用前状态（强异常安全）。
+
+### 15.2 截断幂级数与 Laurent 级数
+
+级数表示为「**赋值（valuation）+ 系数数组**」：
+
+```
+S(z) = Σ_{i=0}^{N} a[i] · z^{k+i},   k ∈ ℤ
+```
+
+- `k ≥ 0`：普通（截断）幂级数；
+- `k < 0`：**Laurent 级数**（含负幂）。这在数学上正当且常见——极点附近的
+  展开，如 `cot(z) = 1/z − z/3 − z³/45 − …`、`1/sin(z)`、`ζ(s)` 在 `s = 1`
+  附近等。
+
+**运算与赋值规则**：
+
+| 运算 | 赋值 | 说明 |
+|------|------|------|
+| 加 / 减 | `min(k1, k2)` | 低位补零对齐 |
+| 乘 | `k1 + k2` | 卷积 |
+| 倒数 | `−k` | 要求 `f = z^k·g` 且 `g(0) ≠ 0`（单位级数） |
+| 求导 | `k − 1` | `(z^{k+i})' = (k+i)·z^{k+i−1}` |
+| 积分 | `k + 1` | 除 `k + i = −1`（对数项需单独处理） |
+| 复合 | 见下 | 内层正赋值可平移；负赋值可能无定义 |
+
+**类型范围**：Laurent 级数适用于 `bigfrac`（精确）与 `bigfloat`/`bigdecimal`
+（按 `ctx` 舍入）；`bigint_bin` **不适用**——整数对负幂不封闭（`x^{−1}` 一般
+非整数）。因此：整数只谈多项式（Horner），负幂只有有理数/浮点系数才有意义。
+
+### 15.3 实现状态与后续
+
+- **已落地（C2 第一阶段，`bigfrac` 精确）**：`bigfrac_series_ty`
+  `(val, coeffs, len, cap)`；`from_array` / `copy` / `add` / `sub` /
+  `mul`（截断到 `order`）/ `inv`（支持 Laurent，结果 `val = −src->val`）/
+  `eval`（`val < 0` 按除以 `x^{|val|}`，要求 `x ≠ 0`）。精确、允许别名、
+  OOM 时输出不变。测试 `tests/test_series.c`。
+  另已落地：`bigfrac_series_deriv` / `integral`（逐项，前导零归一；含
+  `z^{−1}` 项积分报 INVALID）与 `bigfrac_series_compose`（秦九韶式，
+  `f.val = 0`、`g.val ≥ 0`）。
+- **后续（C2 续 / C3）**：
+  - `bigfloat` / `bigdecimal` 级数 + 严谨**误差界**（数值类型，含自适应截断）；
+  - 级数复合与求导/积分（已落地，见上）。
+  - Padé 逼近（有理函数，作为 `exp`/`atan` 等的可选核）；
+  - `valuation` 字段从第一天即存在，非负幂级数即 `k ≥ 0` 特例（已按此实现）。
+
+### 15.4 关于惰性求值（无穷列表）的决策
+
+结论：**不为数值超越函数的幂级数近似引入惰性无穷列表抽象**（与 §E 一致）。
+惰性列表理论上提供「自适应截断 / 惰性组合 / 系数复用」，但对本库收益低、
+成本高：
+
+- 固定精度 `ctx` 一旦给定，所需项数由（规约后的）实参决定，本就是**有限
+  前缀**；惰性只是推迟同一批项的工作，不减少它；
+- 每项都是堆分配的 `bigfloat`/`bigdecimal` 且逐次正确舍入，惰性流再加一层
+  thunk 分配与间接调用，恶化常数因子；
+- 正确舍入依赖可证明的**尾界**，惰性流本身不提供；终止判据才是难点；
+- C99 无生成器/协程，实现惰性需状态机 / `setjmp` / 线程，与 §3.3「库内不加锁、
+  句柄式显式管理」冲突；
+- 有限循环更易做黄金对拍与误差分析。
+
+真正起作用的是「惰性思想」的**算法化**（均为有限算法）：
+
+- **自适应截断 + 严谨尾界**：累加至尾界低于目标精度；
+- **Ziv 精度升级**：先带校正位计算，落在舍入边界附近则提高精度重算（可复用
+  部分和）——正确舍入超越函数的关键；
+- **Binary splitting**：对 `Σ aₙ/bₙ` 型有理项把朴素 O(n²) 求和降到
+  O(M(n)·log n)；
+- 配合**实参规约**（sin/cos 的 Payne–Hanek、exp 的区间折叠）——通常是开销
+  大头。
+
+惰性幂级数仅在**符号/形式幂级数**（要系数本身而非某点数值，如复合、反演）
+且语言惰性廉价时有优势；C99 + 大数算术下不如上述有限算法。
+
+### 15.5 幂展开与误差界（(c+ε)^n）
+
+广义二项式展开（n 可为任意实数/有理数）：
+
+```
+(c+ε)^n − c^n = Σ_{k≥1} C(n,k) c^{n−k} ε^k,
+C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
+```
+
+- n 为非负整数时右边**有限**（k ≤ n），是精确恒等式；一阶项 `n·c^{n−1}·ε`
+  即线性（微分）近似；
+- `|ε| < |c|` 时右边收敛（比值判据）。
+
+用途：
+
+1. **二项式级数**（c = 1）：`(1+z)^n = Σ C(n,k) z^k`，由
+   `bigfrac_series_binom`（精确，任意有理 n）给出；是 `sqrt`、倒数、幂等
+   超越核的基础（n = 1/2, −1, …）。
+2. **严格误差传播 / 尾界**：若 `c` 带绝对误差 `ε`，则
+   `|(c+ε)^n − c^n| ≤ (|c|+ε)^n − |c|^n`（三角不等式）；对多项式
+   `p(x) = Σ a_i x^i`，`|p(c+ε) − p(c)| ≤ Σ |a_i|·((|c|+ε)^i − |c|^i)`。
+   这为数值级数的**截断尾界**与 Horner 求值的**前向误差界**提供了依据。
+3. **自适应截断**：数值类型下逐项累加至尾界 < 目标精度（§15.4）；非负整数
+   n 时多项式有限、无尾误差。
+
+### 15.6 数值级数的两条误差路线
+
+为 C2 续（`bigfloat`/`bigdecimal` 级数）提供两种（互补的）误差处理；两者
+共享「尾界」数学：
+
+- **路线 A：精确系数 + 全局尾界**（先做）
+  - 系数保持精确（`bigfrac`），只有**截断**引入误差；若 `|a_k| ≤ A·B^k`、
+    `|z| ≤ r` 且 `q = B·r < 1`，则
+    `|Σ_{k≥n} a_k z^k| ≤ A·q^n/(1−q)`（几何型全局尾界）。
+  - 自适应选阶：最小 n 使 `A·q^n ≤ eps·(1−q)`。
+  - 轻量、可在有理数上**精确**比较；适合系数增长已知的直接 Taylor 求值。
+  - 已落地：`bigfrac_series_tail_geometric` / `bigfrac_series_order_geometric`；
+    新模块 `nex/series/`：`nex_series_binom_model`（(A,B) 模型）、
+    `nex_series_binom_order`（自适应阶）、`nex_series_binom_eval_float` /
+    `_decimal`（在 bigfloat/bigdecimal 点的自适应截断求值，精确部分和 +
+    最终一次正确舍入，误差 ≤ eps + 舍入）。
+  - 已落地（续）：比值型尾界 `bigfrac_series_tail_ratio`（`t_n/(1−q_n)`）用于
+    阶乘型系数；`nex_series_exp/cos/sin_order` + `nex_series_{exp,cos,sin}_eval_float`
+    /`_decimal`（在数值点自适应求值，**可选 `err_out` 输出截断尾严格上界**）。
+  - 已落地（逆幂核）：`nex_series_ln1p_order`/`atan_order` 与
+    `nex_series_{ln1p,atan}_eval_float`/`_decimal`（`ln(1+z)`、`atan(z)`，
+    常数比值尾界 `r^step/(1−r^step)`；|z| ≲ 1/2）。
+- **路线 B：球式（中心 + 误差半径）**（第一阶段已落地）
+  - `nex/ball/`：`bigfloat_ball_ty` / `bigdecimal_ball_ty` = `{mid, rad}`（区间
+    `[mid−rad, mid+rad]`）；`add/sub/mul/div` 在端点间用**定向舍入**
+    （`TOWARD_POS/NEG`）求严格包含区间，再由中心化 `from_interval` 归一（半径
+    余量覆盖中心/减法舍入）；`contains` 向内舍入以避免假阳性。
+  - 实参规约（已落地）：`bigfloat_ball_exp/sin/cos`——k 次折半（2 的幂精确缩放）
+    → 路线 A 级数得初始球（尾界 + 舍入余量 + 输入半径膨胀）→ `exp` 反复
+    **球平方** / `sin/cos` half-angle 倍角；半径全程严格传播。|x| 过大
+    （k > 20）返回 INVALID。后续：`bigdecimal` 版；更大 |x|。
+- **关系**：路线 A 是路线 B 的轻量特例；B 在 A 之上加半径传播。分阶段交付，
+  B 作为可选层，避免一次性扩大公开面。
+
+---
+
+## 15.7 Padé 逼近（v1.3，TODO §C3）
+
+给定幂级数 `f(z) = Σ c_k z^k`（val = 0），[m/n] Padé 逼近求 `P`（次数 ≤ m）
+与 `Q`（次数 ≤ n，`Q(0) = 1`）使 `f − P/Q = O(z^{m+n+1})`：
+
+```
+Σ_{j=1}^{n} q_j c_{m+1+i−j} = −c_{m+1+i},  i = 0…n−1
+p_k = Σ_{j=0}^{min(k,n)} q_j c_{k−j}
+```
+
+实现：`nex_series_pade_frac` 对 `q` 用 **bigfrac 精确高斯消元**（首非零主元；
+精确运算无需选主），返回精确的 `P`、`Q` 系数。典型：`exp` 的 [2/2] 为
+`(12 + 6z + z²)/(12 − 6z + z²)`。求值 `nex_series_pade_eval_{frac,float,decimal}`：
+在 `bigfrac`/`bigfloat`/`bigdecimal` 点计算 `P(z)/Q(z)`（精确部分和 + 终值
+一次舍入）。后续：带误差的 Padé。
+
+---
+
 ## 附录 A：缩写与后缀登记增补建议
 
 以下条目已并入 `coding_standard.md` 附录 A（v1.2 / v1.3 / v1.4）：
@@ -1331,3 +1500,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 | v1.0.0 | 2026-10-14 | 首个正式发布。API/ABI 稳定性政策（§1.4）、公开 API 审计（§1.5）、已知限制与非目标（§14）定稿；参考手册 `docs/manual/` + `docs/manual.html`（头文件生成 + Pandoc，`scripts/docs.sh`）；性能报告 `docs/performance.md`（`scripts/bench.sh`）；安装与导出（`find_package`/pkg-config/共享库 `SOVERSION`）；CI 覆盖 Clang/MSVC/ASan-UBSan/覆盖率门槛/文档同步；建立 `CHANGELOG.md` |
 | v1.1.0 | 2026-10-14 | C++ 互操作与 C 标准矩阵：13 个公开头 + `nex_version.h` 补齐 `extern "C"` 守卫（C++11–C++26 可经 C ABI 链接消费）；新增 `NEX_C_STANDARD` 构建选项（默认 99，可切 11/17/23/2y）；CI 新增 `linux-cpp` / `linux-c-std` 标准矩阵；新增 `tests/test_cpp_consumer.cpp`；§1.3 增补标准兼容性；`.gitattributes` 补 C++ 源文件 LF 规则 |
 | v1.2.0 | 2026-10-14 | 模块子集与单文件组合：机器可读清单 `cmake/nex_modules.txt` + `NEX_MODULES` 依赖闭包（§2.4）；`scripts/amalgamate.py` 单 TU（`NEX_AMALGAM`，全量 CTest 验证等价）；`docs/modules.md`（§B5）；场景示例 `examples/amalgam/`；函数级子集与粗粒度特性宏经评审暂缓（§13 #11、§14） |
+| v1.3.0 | 2026-10-14 | 幂级数与超越函数基础设施（§C，新增 §15「多项式与级数」）：Horner 多项式求值；`bigfrac` 截断幂级数/Laurent（加减乘/倒数/求值/复合/求导/积分）；广义二项式系数与二项式级数；路线 A（精确系数 + 几何/比值尾界 + 自适应阶 + 数值点求值 `nex_series_*_eval`）；路线 B 球式（`bigfloat`/`bigdecimal`）+ `exp/sin/cos` 实参规约；Padé 精确版（高斯消元）与求值；mpmath 外部黄金参考 |

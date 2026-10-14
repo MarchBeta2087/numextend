@@ -61,9 +61,9 @@
 ### `bigint_bin`
 
 - 直接依赖：`bigint_common`, `bigint_conv`, `fft`, `ntt`, `nex_alloc`
-- 源文件：`nex/bigint/bin/nex_bigint_bin.c`, `nex/bigint/bin/nex_bigint_bin_mul.c`, `nex/bigint/bin/nex_bigint_bin_div.c`, `nex/bigint/bin/nex_bigint_bin_gcd.c`
+- 源文件：`nex/bigint/bin/nex_bigint_bin.c`, `nex/bigint/bin/nex_bigint_bin_mul.c`, `nex/bigint/bin/nex_bigint_bin_div.c`, `nex/bigint/bin/nex_bigint_bin_gcd.c`, `nex/bigint/bin/nex_bigint_bin_poly.c`
 - 公开头：`nex/bigint/bin/nex_bigint_bin.h`
-- 公开函数（36）：
+- 公开函数（37）：
   - `bigint_bin_abs`
   - `bigint_bin_add`
   - `bigint_bin_bit_and`
@@ -88,6 +88,7 @@
   - `bigint_bin_mul`
   - `bigint_bin_mul_ex`
   - `bigint_bin_neg`
+  - `bigint_bin_poly_eval`
   - `bigint_bin_popcount`
   - `bigint_bin_pow`
   - `bigint_bin_pow_mod`
@@ -170,10 +171,11 @@
 ### `bigfrac`
 
 - 直接依赖：`bigint_common`, `bigint_bin`
-- 源文件：`nex/bigfrac/nex_bigfrac.c`
+- 源文件：`nex/bigfrac/nex_bigfrac.c`, `nex/bigfrac/nex_bigfrac_poly.c`, `nex/bigfrac/nex_bigfrac_series.c`, `nex/bigfrac/nex_bigfrac_binom.c`, `nex/bigfrac/nex_bigfrac_series_bound.c`
 - 公开头：`nex/bigfrac/nex_bigfrac.h`
-- 公开函数（14）：
+- 公开函数（32）：
   - `bigfrac_add`
+  - `bigfrac_binom`
   - `bigfrac_cmp`
   - `bigfrac_copy`
   - `bigfrac_den`
@@ -186,14 +188,31 @@
   - `bigfrac_mul`
   - `bigfrac_neg`
   - `bigfrac_num`
+  - `bigfrac_poly_eval`
+  - `bigfrac_series_add`
+  - `bigfrac_series_binom`
+  - `bigfrac_series_compose`
+  - `bigfrac_series_copy`
+  - `bigfrac_series_deriv`
+  - `bigfrac_series_eval`
+  - `bigfrac_series_free`
+  - `bigfrac_series_from_array`
+  - `bigfrac_series_init`
+  - `bigfrac_series_integral`
+  - `bigfrac_series_inv`
+  - `bigfrac_series_mul`
+  - `bigfrac_series_order_geometric`
+  - `bigfrac_series_sub`
+  - `bigfrac_series_tail_geometric`
+  - `bigfrac_series_tail_ratio`
   - `bigfrac_sub`
 
 ### `bigfloat`
 
 - 直接依赖：`bigint_common`, `bigint_bin`, `nex_alloc`
-- 源文件：`nex/bigfloat/nex_bigfloat.c`, `nex/bigfloat/nex_bigfloat_str.c`
+- 源文件：`nex/bigfloat/nex_bigfloat.c`, `nex/bigfloat/nex_bigfloat_str.c`, `nex/bigfloat/nex_bigfloat_poly.c`
 - 公开头：`nex/bigfloat/nex_bigfloat.h`
-- 公开函数（26）：
+- 公开函数（27）：
   - `bigfloat_add`
   - `bigfloat_cmp`
   - `bigfloat_compose`
@@ -216,6 +235,7 @@
   - `bigfloat_is_zero`
   - `bigfloat_mul`
   - `bigfloat_neg`
+  - `bigfloat_poly_eval`
   - `bigfloat_sqrt`
   - `bigfloat_sub`
   - `bigfloat_to_f64`
@@ -224,9 +244,9 @@
 ### `bigdecimal`
 
 - 直接依赖：`bigint_common`, `bigint_bin`, `bigint_dec`, `bigint_conv`, `nex_alloc`
-- 源文件：`nex/bigdecimal/nex_bigdecimal.c`, `nex/bigdecimal/nex_bigdecimal_str.c`
+- 源文件：`nex/bigdecimal/nex_bigdecimal.c`, `nex/bigdecimal/nex_bigdecimal_str.c`, `nex/bigdecimal/nex_bigdecimal_poly.c`
 - 公开头：`nex/bigdecimal/nex_bigdecimal.h`
-- 公开函数（24）：
+- 公开函数（25）：
   - `bigdecimal_add`
   - `bigdecimal_cmp`
   - `bigdecimal_compose`
@@ -248,6 +268,7 @@
   - `bigdecimal_is_zero`
   - `bigdecimal_mul`
   - `bigdecimal_neg`
+  - `bigdecimal_poly_eval`
   - `bigdecimal_sqrt`
   - `bigdecimal_sub`
   - `bigdecimal_to_str`
@@ -315,3 +336,64 @@
   - `nex_convert_frac_to_dec`
   - `nex_convert_frac_to_decimal`
   - `nex_convert_frac_to_float`
+
+### `series`
+
+- 直接依赖：`bigfrac`, `bigfloat`, `bigdecimal`, `convert`
+- 源文件：`nex/series/nex_series.c`, `nex/series/nex_series_pade.c`
+- 公开头：`nex/series/nex_series.h`
+- 公开函数（23）：
+  - `nex_series_atan_eval_decimal`
+  - `nex_series_atan_eval_float`
+  - `nex_series_atan_order`
+  - `nex_series_binom_eval_decimal`
+  - `nex_series_binom_eval_float`
+  - `nex_series_binom_model`
+  - `nex_series_binom_order`
+  - `nex_series_cos_eval_decimal`
+  - `nex_series_cos_eval_float`
+  - `nex_series_cos_order`
+  - `nex_series_exp_eval_decimal`
+  - `nex_series_exp_eval_float`
+  - `nex_series_exp_order`
+  - `nex_series_ln1p_eval_decimal`
+  - `nex_series_ln1p_eval_float`
+  - `nex_series_ln1p_order`
+  - `nex_series_pade_eval_decimal`
+  - `nex_series_pade_eval_float`
+  - `nex_series_pade_eval_frac`
+  - `nex_series_pade_frac`
+  - `nex_series_sin_eval_decimal`
+  - `nex_series_sin_eval_float`
+  - `nex_series_sin_order`
+
+### `ball`
+
+- 直接依赖：`bigfloat`, `bigdecimal`, `series`
+- 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`
+- 公开头：`nex/ball/nex_ball.h`
+- 公开函数（24）：
+  - `bigdecimal_ball_add`
+  - `bigdecimal_ball_contains`
+  - `bigdecimal_ball_copy`
+  - `bigdecimal_ball_cos`
+  - `bigdecimal_ball_div`
+  - `bigdecimal_ball_exp`
+  - `bigdecimal_ball_free`
+  - `bigdecimal_ball_init`
+  - `bigdecimal_ball_mul`
+  - `bigdecimal_ball_set`
+  - `bigdecimal_ball_sin`
+  - `bigdecimal_ball_sub`
+  - `bigfloat_ball_add`
+  - `bigfloat_ball_contains`
+  - `bigfloat_ball_copy`
+  - `bigfloat_ball_cos`
+  - `bigfloat_ball_div`
+  - `bigfloat_ball_exp`
+  - `bigfloat_ball_free`
+  - `bigfloat_ball_init`
+  - `bigfloat_ball_mul`
+  - `bigfloat_ball_set`
+  - `bigfloat_ball_sin`
+  - `bigfloat_ball_sub`

@@ -464,4 +464,22 @@ bigint_err_ty bigint_bin_sqrt(bigint_bin_ty *out, const bigint_bin_ty *val);
 
 **备注**：Newton 迭代，负数返回 BIGINT_ERR_INVALID_E
 
+### `bigint_bin_poly_eval`
+
+```c
+bigint_err_ty bigint_bin_poly_eval(bigint_bin_ty *out, const bigint_bin_ty *coeffs, size_t degree, const bigint_bin_ty *x);
+```
+
+**说明**：多项式求值（秦九韶 / Horner 法）：out = Σ_{i=0}^{degree} coeffs[i]·x^i
+
+**参数**
+- `out`：输出对象
+- `coeffs`：系数数组，共 degree+1 项，coeffs[i] 为 x^i 的系数
+- `degree`：最高次幂（coeffs 长度须为 degree+1）
+- `x`：自变量
+
+**返回**：成功返回 BIGINT_OK_E；任一指针为 NULL 返回 BIGINT_ERR_INVALID_E； 内存不足返回 BIGINT_ERR_OOM_E（out 不变）
+
+**备注**：out 允许与 x 或 coeffs 元素别名；degree 为 0 时 out = coeffs[0]
+
 NEX_BIGINT_BIN_H

@@ -95,6 +95,48 @@ if(NOT MSVC)
 endif()
 add_test(NAME convert_unit COMMAND test_convert)
 
+add_executable(test_poly test_poly.c)
+target_link_libraries(test_poly PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_poly PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME poly_horner COMMAND test_poly)
+
+add_executable(test_series test_series.c)
+target_link_libraries(test_series PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_series PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigfrac_series COMMAND test_series)
+
+add_executable(test_binom test_binom.c)
+target_link_libraries(test_binom PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_binom PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigfrac_binom COMMAND test_binom)
+
+add_executable(test_series_bound test_series_bound.c)
+target_link_libraries(test_series_bound PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_series_bound PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigfrac_series_bound COMMAND test_series_bound)
+
+add_executable(test_series_eval test_series_eval.c)
+target_link_libraries(test_series_eval PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_series_eval PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME series_binom_eval COMMAND test_series_eval)
+
+add_executable(test_ball test_ball.c)
+target_link_libraries(test_ball PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_ball PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME ball_unit COMMAND test_ball)
+
 add_executable(convert_golden_driver golden_convert_driver.c)
 target_link_libraries(convert_golden_driver PRIVATE nex)
 
@@ -149,7 +191,14 @@ add_test(NAME bigint_bin64_unit COMMAND test_bigint_bin64)
 
 # Python 可用时注册黄金对拍；脚本自行定位驱动可执行文件
 find_package(Python3 COMPONENTS Interpreter)
+add_executable(series_golden_driver golden_series_driver.c)
+target_link_libraries(series_golden_driver PRIVATE nex)
+
 if(Python3_Interpreter_FOUND)
+    add_test(NAME series_mpmath_golden
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/golden_series.py
+                $<TARGET_FILE:series_golden_driver>)
     add_test(NAME bigint_bin_golden
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/golden_bigint_bin.py

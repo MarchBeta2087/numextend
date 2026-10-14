@@ -7,6 +7,64 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [1.3.0] - 2026-10-14
+
+### 新增
+
+- **多项式求值（秦九韶 / Horner，TODO §C1）**：`bigint_bin_poly_eval` /
+  `bigfrac_poly_eval` / `bigfloat_poly_eval` / `bigdecimal_poly_eval`，计算
+  `Σ coeffs[i]·x^i`；精确或逐次正确舍入，允许别名、强异常安全。
+- `docs/design.md` §15「多项式与级数」：Horner 舍入协定 + 截断幂级数/Laurent
+  （负幂）设计（TODO §C5）。
+- 测试 `tests/test_poly.c`（`poly_horner`）。
+- **截断幂级数 / Laurent（`bigfrac` 精确，TODO §C2）**：`bigfrac_series_ty`
+  （`val` / `coeffs` / `len` / `cap`）+ `from_array` / `copy` / `add` / `sub` /
+  `mul`（截断 `order`）/ `inv`（支持 Laurent）/ `eval`（含负幂）。精确、允许
+  别名、OOM 时输出不变；测试 `tests/test_series.c`。
+- **广义二项式系数与二项式级数（TODO §C2）**：`bigfrac_binom`（任意有理上
+  指标）与 `bigfrac_series_binom`（`(1+z)^n` 的精确截断）；`design §15.5` 记
+  录 `(c+ε)^n` 幂展开与误差传播/尾界公式。测试 `tests/test_binom.c`。
+- **级数误差路线 A（TODO §C2）**：几何型全局尾界
+  `bigfrac_series_tail_geometric`（`|a_k|≤A·B^k`、`|z|≤r`、`q=Br<1` 时
+  `≤A·qⁿ/(1−q)`）与自适应阶 `bigfrac_series_order_geometric`；`design §15.6`
+  规划路线 A（精确系数 + 全局尾界）与路线 B（球式）。测试 `tests/test_series_bound.c`。
+- **路线 A 数值求值（TODO §C2）**：新模块 `nex/series/`——`nex_series_binom_model`
+  （(A,B) 模型）、`nex_series_binom_order`（自适应阶）、
+  `nex_series_binom_eval_float` / `_decimal`（在 bigfloat/bigdecimal 点对
+  `(1+z)^α` 自适应截断求值：精确部分和 + 终值一次正确舍入）。测试
+  `tests/test_series_eval.c`。
+- **路线 A 续：比值尾界 + exp/cos/sin（TODO §C2）**：`bigfrac_series_tail_ratio`
+  （阶乘型系数，`t_n/(1−q_n)`）；`nex_series_exp/cos/sin_order` 与
+  `_eval_float`/`_decimal`；求值新增可选 `err_out`（截断尾严格上界），二项式版
+  同步支持。测试新增十进制 `exp(1)/cos(1)/sin(1)` 已知值对照。
+- **逆幂核 `ln(1+z)` / `atan(z)`（TODO §C2）**：`nex_series_ln1p_order` /
+  `atan_order` 与 `nex_series_{ln1p,atan}_eval_float` / `_decimal`（常数比值
+  尾界 `r^step/(1−r^step)`，含可选误差输出）；测试含 `ln(1.5)`、`atan(0.5)`
+  十进制已知值对照。
+- **路线 B 第一阶段：球式算术（TODO §C2）**：新模块 `nex/ball/`——
+  `bigfloat_ball_ty`（`mid`/`rad`，区间 `[mid−rad, mid+rad]`）+ `add/sub/mul/div`
+  （端点间定向舍入求严格包含区间 + 中心化半径余量）、`contains`（向内舍入，
+  无假阳性）。测试 `tests/test_ball.c`。
+- **路线 B：`bigdecimal` 球式（TODO §C2）**：`bigdecimal_ball_ty` +
+  `init/free/copy/set/contains/add/sub/mul/div`（十进制定向舍入严格区间）；测试
+  覆盖 `[1,1]+[2,2]`、区间乘/除/减法与除零区间。
+- **路线 B 实参规约（TODO §C2）**：`bigfloat_ball_exp/sin/cos`——折半（2 的幂
+  精确缩放）→ 路线 A 级数得初始球 → `exp` 反复球平方 / `sin/cos` half-angle
+  倍角；半径严格传播。测试含 `exp(1)≈e`、`exp(2)≈e²`、`sin(1)`、`cos(1)`、
+  过大 |x| 报错。
+- **路线 B：`bigdecimal` 球式实参规约（TODO §C2）**：`bigdecimal_ball_exp/sin/cos`
+  （折半 + 球平方 / half-angle；eps 用 `10^{−(p+10)}`）。
+- **C3 Padé 精确版（TODO §C3）**：`nex_series_pade_frac`——[m/n] Padé 逼近，
+  bigfrac 精确高斯消元；`exp` 的 [2/2] 为 `(12+6z+z²)/(12−6z+z²)`。
+- **C3 续 Padé 求值（TODO §C3）**：`nex_series_pade_eval_{frac,float,decimal}`
+  （精确部分和 + 终值一次舍入）。
+- **C4 mpmath 黄金参考（TODO §C4）**：`tests/golden_series_driver.c` +
+  `tests/golden_series.py`（mpmath 独立参考；缺失时 SKIP）；CTest 新增
+  `series_mpmath_golden`（`exp/sin/cos/ln1p/atan` × 64/128/256 bit）。
+- **C2 剩余：级数求导/积分/复合（TODO §C2）**：`bigfrac_series_deriv` /
+  `integral`（逐项，前导零归一；`z^{−1}` 项积分报 `INVALID`）与
+  `bigfrac_series_compose`（秦九韶式，`f.val = 0`、`g.val ≥ 0`）。
+
 ## [1.2.0] - 2026-10-14
 
 ### 新增
@@ -79,6 +137,7 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
+[1.3.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.3.0
 [1.2.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.2.0
 [1.1.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.1.0
 [1.0.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.0.0

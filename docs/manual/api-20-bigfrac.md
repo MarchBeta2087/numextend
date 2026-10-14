@@ -213,4 +213,266 @@ const bigint_bin_ty *bigfrac_den(const bigfrac_ty *frac);
 
 **说明**：读取分母（只读指针，恒为正；frac 为 NULL 返回 NULL）
 
+### `bigfrac_poly_eval`
+
+```c
+bigfrac_err_ty bigfrac_poly_eval(bigfrac_ty *out, const bigfrac_ty *coeffs, size_t degree, const bigfrac_ty *x);
+```
+
+**说明**：多项式求值（秦九韶 / Horner 法）：out = Σ_{i=0}^{degree} coeffs[i]·x^i
+
+**参数**
+- `out`：输出对象
+- `coeffs`：系数数组，共 degree+1 项，coeffs[i] 为 x^i 的系数
+- `degree`：最高次幂（coeffs 长度须为 degree+1）
+- `x`：自变量
+
+**返回**：成功返回 BIGFRAC_OK_E；任一指针为 NULL 返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：精确有理数运算，无舍入；out 允许与 x 或 coeffs 元素别名
+
+## 截断幂级数 / Laurent 级数（设计文档 §15）
+
+## bigfrac_series_ty：系数为 bigfrac_ty 的截断级数  S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}  val 为赋值 valuation（最低次幂指数，可为负 → Laurent）；coeffs 升幂排列。 规范化：len == 0 表示零级数（val 归 0）；否则末项 coeffs[len-1] != 0。
+
+```c
+typedef struct {
+int64_t val;         // 最低次幂指数，可为负（Laurent）
+bigfrac_ty *coeffs;  // coeffs[i] 对应 z^{val+i}
+size_t len;          // 有效系数个数
+size_t cap;          // 已分配容量
+} bigfrac_series_ty;
+```
+
+### `bigfrac_series_init`
+
+```c
+bigfrac_err_ty bigfrac_series_init(bigfrac_series_ty *s);
+```
+
+**说明**：初始化为零级数
+
+**返回**：成功返回 BIGFRAC_OK_E；s 为 NULL 返回 BIGFRAC_ERR_INVALID_E
+
+### `bigfrac_series_from_array`
+
+```c
+bigfrac_err_ty bigfrac_series_from_array(bigfrac_series_ty *dst, int64_t val, const bigfrac_ty *coeffs, size_t len);
+```
+
+**说明**：由系数数组构造（深拷贝，去尾零）
+
+**参数**
+- `dst`：输出（已初始化）
+- `val`：最低次幂指数
+- `coeffs`：系数数组，coeffs[i] 对应 z^{val+i}；len 为 0 时可为 NULL
+- `len`：系数个数
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+
+**备注**：全零输入归一为零级数（len = 0，val = 0）
+
+### `bigfrac_series_free`
+
+```c
+void bigfrac_series_free(bigfrac_series_ty *s);
+```
+
+**说明**：释放级数（s 可为 NULL 或零初始化对象）
+
+### `bigfrac_series_copy`
+
+```c
+bigfrac_err_ty bigfrac_series_copy(bigfrac_series_ty *dst, const bigfrac_series_ty *src);
+```
+
+**说明**：深拷贝
+
+**返回**：成功返回 BIGFRAC_OK_E；内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+
+### `bigfrac_series_add`
+
+```c
+bigfrac_err_ty bigfrac_series_add(bigfrac_series_ty *dst, const bigfrac_series_ty *lhs, const bigfrac_series_ty *rhs, size_t order);
+```
+
+**说明**：加法 dst = lhs + rhs，保留最低 order 项
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+
+**备注**：结果 val = min(lhs->val, rhs->val)；允许别名；order = 0 得零级数
+
+### `bigfrac_series_sub`
+
+```c
+bigfrac_err_ty bigfrac_series_sub(bigfrac_series_ty *dst, const bigfrac_series_ty *lhs, const bigfrac_series_ty *rhs, size_t order);
+```
+
+**说明**：减法 dst = lhs - rhs，保留最低 order 项
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+
+**备注**：结果 val = min(lhs->val, rhs->val)；允许别名；order = 0 得零级数
+
+### `bigfrac_series_mul`
+
+```c
+bigfrac_err_ty bigfrac_series_mul(bigfrac_series_ty *dst, const bigfrac_series_ty *lhs, const bigfrac_series_ty *rhs, size_t order);
+```
+
+**说明**：乘：dst = lhs × rhs（截断），保留最低 order 项
+
+**返回**：同 add
+
+**备注**：结果 val = lhs->val + rhs->val；允许别名
+
+### `bigfrac_series_inv`
+
+```c
+bigfrac_err_ty bigfrac_series_inv(bigfrac_series_ty *dst, const bigfrac_series_ty *src, size_t order);
+```
+
+**说明**：倒数 dst = 1 / src，保留最低 order 项
+
+**返回**：src 为空或首项为零返回 BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+
+**备注**：结果 val = -src->val（首项非零的“单位级数”），支持 Laurent
+
+### `bigfrac_series_eval`
+
+```c
+bigfrac_err_ty bigfrac_series_eval(bigfrac_ty *out, const bigfrac_series_ty *s, const bigfrac_ty *x);
+```
+
+**说明**：求值 out = Σ_{i=0}^{len-1} coeffs[i] · x^{val+i}
+
+**返回**：参数非法或（val < 0 时）x == 0 返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：精确；val < 0（Laurent）按除以 x^{|val|} 实现
+
+### `bigfrac_series_deriv`
+
+```c
+bigfrac_err_ty bigfrac_series_deriv(bigfrac_series_ty *dst, const bigfrac_series_ty *src);
+```
+
+**说明**：求导 dst = d/dz src（Laurent 亦适用；逐项 (val+i)·a_i z^{val+i−1}）
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 OOM（dst 不变）
+
+**备注**：去尾零；常数的导数为零级数
+
+### `bigfrac_series_integral`
+
+```c
+bigfrac_err_ty bigfrac_series_integral(bigfrac_series_ty *dst, const bigfrac_series_ty *src);
+```
+
+**说明**：不定积分（零常数项）dst = ∫ src dz
+
+**返回**：成功返回 BIGFRAC_OK_E；若含 z^{−1} 项（积分出对数）返回 BIGFRAC_ERR_INVALID_E；内存不足返回 OOM（dst 不变）
+
+**备注**：逐项 a_i/(val+i+1) z^{val+i+1}；结果 val = src->val + 1
+
+### `bigfrac_series_compose`
+
+```c
+bigfrac_err_ty bigfrac_series_compose(bigfrac_series_ty *dst, const bigfrac_series_ty *f, const bigfrac_series_ty *g, size_t order);
+```
+
+**说明**：复合 dst = f∘g = f(g(z))，保留最低 order 项（秦九韶式）
+
+**参数**
+- `f`：要求 val == 0（幂级数）
+- `g`：要求 val >= 0
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 OOM（dst 不变）
+
+### `bigfrac_binom`
+
+```c
+bigfrac_err_ty bigfrac_binom(bigfrac_ty *out, const bigfrac_ty *alpha, size_t k);
+```
+
+**说明**：广义二项式系数 C(alpha, k) = alpha(alpha−1)···(alpha−k+1)/k!
+
+**参数**
+- `out`：输出（已初始化）
+- `alpha`：上指标（任意有理数）
+- `k`：下指标
+
+**返回**：成功返回 BIGFRAC_OK_E；指针为 NULL 返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：k = 0 返回 1；alpha 为非负整数且 k > alpha 时返回 0
+
+### `bigfrac_series_binom`
+
+```c
+bigfrac_err_ty bigfrac_series_binom(bigfrac_series_ty *dst, const bigfrac_ty *alpha, size_t order);
+```
+
+**说明**：截断二项式级数 (1+z)^alpha = Σ_{k=0}^{order-1} C(alpha,k)·z^k
+
+**参数**
+- `dst`：输出（已初始化）
+- `alpha`：指数（任意有理数）
+- `order`：保留项数
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+
+**备注**：精确；order = 0 得零级数；alpha 为非负整数 n 时为 n 次多项式
+
+### `bigfrac_series_tail_geometric`
+
+```c
+bigfrac_err_ty bigfrac_series_tail_geometric(bigfrac_ty *out, const bigfrac_ty *A, const bigfrac_ty *B, const bigfrac_ty *r, size_t n);
+```
+
+**说明**：几何型全局尾界：若 |a_k| ≤ A·B^k（∀k）、|z| ≤ r 且 B·r < 1， 则 |Σ_{k≥n} a_k z^k| ≤ A·(B·r)^n / (1 − B·r)
+
+**参数**
+- `out`：输出上界（≥ 0）
+- `A`：系数幅度因子（≥ 0）
+- `B`：系数增长因子（≥ 0）
+- `r`：自变量幅度上界（≥ 0）
+- `n`：截断阶（保留 k < n 的项）
+
+**返回**：成功返回 BIGFRAC_OK_E；指针为 NULL 返回 BIGFRAC_ERR_INVALID_E； B·r ≥ 1 或任一参数为负返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：精确有理数上界；用于“精确系数 + 全局尾界”路线（design §15.6）
+
+### `bigfrac_series_order_geometric`
+
+```c
+bigfrac_err_ty bigfrac_series_order_geometric(size_t *out, const bigfrac_ty *A, const bigfrac_ty *B, const bigfrac_ty *r, const bigfrac_ty *eps);
+```
+
+**说明**：自适应截断阶：最小的 n 使 tail_geometric(A,B,r,n) ≤ eps
+
+**参数**
+- `out`：输出阶 n
+- `A,`：B, r 同 tail_geometric
+- `eps`：目标绝对误差上界（≥ 0）
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法或 B·r ≥ 1 返回 BIGFRAC_ERR_INVALID_E；超出内部迭代上限（q 极接近 1）返回 BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：精确比较 A·(B·r)^n ≤ eps·(1−B·r) 逐步确定 n；上限 1 000 000 阶
+
+### `bigfrac_series_tail_ratio`
+
+```c
+bigfrac_err_ty bigfrac_series_tail_ratio(bigfrac_ty *out, const bigfrac_ty *first_omitted, const bigfrac_ty *q);
+```
+
+**说明**：比值型尾界：若自首个略去项起相邻项幅度比 ≤ q（q < 1），则 尾部之和 ≤ first_omitted / (1 − q)
+
+**参数**
+- `out`：输出上界（≥ 0）
+- `first_omitted`：首个略去项的幅度（≥ 0）
+- `q`：相邻项幅度比上界（0 ≤ q < 1）
+
+**返回**：成功返回 BIGFRAC_OK_E；指针为 NULL / 参数为负 / q ≥ 1 返回 BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：适合阶乘型系数（exp/sin/cos），比几何型界更紧；用于 design §15.6 路线 A
+
 NEX_BIGFRAC_H
