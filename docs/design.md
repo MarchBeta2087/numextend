@@ -1375,7 +1375,11 @@ C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
     `|Σ_{k≥n} a_k z^k| ≤ A·q^n/(1−q)`（几何型全局尾界）。
   - 自适应选阶：最小 n 使 `A·q^n ≤ eps·(1−q)`。
   - 轻量、可在有理数上**精确**比较；适合系数增长已知的直接 Taylor 求值。
-  - 已落地：`bigfrac_series_tail_geometric` / `bigfrac_series_order_geometric`。
+  - 已落地：`bigfrac_series_tail_geometric` / `bigfrac_series_order_geometric`；
+    新模块 `nex/series/`：`nex_series_binom_model`（(A,B) 模型）、
+    `nex_series_binom_order`（自适应阶）、`nex_series_binom_eval_float` /
+    `_decimal`（在 bigfloat/bigdecimal 点的自适应截断求值，精确部分和 +
+    最终一次正确舍入，误差 ≤ eps + 舍入）。
 - **路线 B：球式（中心 + 误差半径）**（后做）
   - 每个系数/结果携带误差半径，运算传播半径；系数自身的舍入误差与复合、
     累加误差都被覆盖。

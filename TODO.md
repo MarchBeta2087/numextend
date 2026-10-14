@@ -122,7 +122,10 @@
   - [x] 路线 A 底层：几何型全局尾界 `bigfrac_series_tail_geometric` +
         自适应阶 `bigfrac_series_order_geometric`；测试 `tests/test_series_bound.c`；
         design §15.6。
-  - [ ] 数值类型（`bigfloat`/`bigdecimal`）级数 + 自适应截断求值。
+  - [x] 路线 A 求值（`nex/series/`）：`nex_series_binom_model`（(A,B)）、
+        `nex_series_binom_order`、`nex_series_binom_eval_float` / `_decimal`
+        （bigfloat/bigdecimal 点自适应求值，精确部分和 + 终值一次舍入）；
+        测试 `tests/test_series_eval.c`；design §15.6。
   - [ ] 路线 B：球式（中心 + 误差半径）表示与半径传播。
   - [ ] `bigfloat`/`bigdecimal` 级数 + **严谨误差界** + 自适应截断。
   - [ ] 级数复合与求导 / 积分。

@@ -332,3 +332,14 @@
   - `nex_convert_frac_to_dec`
   - `nex_convert_frac_to_decimal`
   - `nex_convert_frac_to_float`
+
+### `series`
+
+- 直接依赖：`bigfrac`, `bigfloat`, `bigdecimal`, `convert`
+- 源文件：`nex/series/nex_series.c`
+- 公开头：`nex/series/nex_series.h`
+- 公开函数（4）：
+  - `nex_series_binom_eval_decimal`
+  - `nex_series_binom_eval_float`
+  - `nex_series_binom_model`
+  - `nex_series_binom_order`
