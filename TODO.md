@@ -138,8 +138,8 @@
         （折半 + 球平方 / half-angle）；测试 `tests/test_ball.c`。待续：更大 |x|。
   - [x] 数值类型（bigfloat/bigdecimal）严谨误差界 + 自适应截断（路线 A
         `*_order` + `err_out`；路线 B 球式传播）。
-  - [ ] **可选**：通用数值系数级数类型（`bigfloat_series`/`bigdecimal_series`，
-        含四则/复合）——§D 逐点求值不需要，非 v1.3 阻塞项。
+  - [ ] 通用（球系数）数值级数 `bigfloat_ball_series` / `bigdecimal_ball_series`
+        ——见 §I（v1.5.0 候选；§D 逐点求值不需要）。
   - [x] 复合与求导 / 积分：`bigfrac_series_deriv` / `integral`（前导零归一；
         `z^{−1}` 项积分报错）/ `compose`（秦九韶式）；测试入 `tests/test_series.c`。
 - [x] **C3 Padé 逼近**：`nex_series_pade_frac`（bigfrac 高斯消元，[m/n] 系数
@@ -194,9 +194,9 @@
 
 ## G. 已知技术债 / 风险（v1.4.0 后）
 
-- **`bigint_dec` 无亚二次除法**：⏳ **延后**——仅性能（`bigint_dec` 仍 Knuth D
-  O(n²)），不影响语义正确性；bin 侧已有 BZ。列为后续性能方向（§13），
-  非 v1.4.0 阻塞。
+- **`bigint_dec` 无亚二次除法**：⏳ **延后至 v1.5.0（候选）**——实测万位除法
+  1.6 ms（基 10⁹，n≈555），O(n²) 在常规规模不是瓶颈；先用 `bench_sweep`
+  量化再决定（见 §I）。
 
 ### v1.4.0 已关闭
 
@@ -226,6 +226,19 @@ Montgomery 模幂（v0.16）· Newton 整数除法（v0.16）· NTT 三模数（
 
 SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发布 ·
 次正规浮点（§7.3）· 公开惰性无穷列表抽象（§E）。
+
+---
+
+## I. v1.5.0 规划（候选）
+
+- **通用（球系数）数值级数**：`bigfloat_ball_series` / `bigdecimal_ball_series`
+  （含四则 / 复合 / 求导 / 积分），复用路线 B 的半径传播，提供**严谨的数值
+  级数**。前置：§D 出现“级数复合 / 函数级求导”的真实需求；**普通**
+  `bigfloat_series`（无误差跟踪）不做。
+- **`bigint_dec` 亚二次除法**：镜像 bin 侧 Burnikel–Ziegler（基 10⁹）。前置：
+  先给 `bench_sweep` 加 `dec` 除法扫描，确认在目标规模确为瓶颈。
+- **退役一次性会话备忘 `MEMO.md`**（本 chore 完成）：耐久内容并入
+  `docs/maintenance.md` §8（本地环境与基准纪律）与 `design §3.4/§G`。
 
 ---
 

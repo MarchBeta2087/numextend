@@ -126,3 +126,22 @@ git push -u origin hotfix/<name>
 - 新前缀/新类型须登记 `coding_standard.md` 附录 A 缩写表；
 - 发版前必须执行 §4.1 文档同步清单；`sh scripts/docs.sh` 重新生成后
   `git diff` 应仅包含本次有意的变更（CI `docs` job 会拦截漂移）。
+
+## 8. 本地开发环境与基准纪律
+
+- **构建目录**：`build/`（本地主构建）；`scripts/build-msvc-debug.bat` 生成
+  `build-dbg/`（MSVC Debug + CRT 调试堆）。
+- **默认优化级别**：`CMakeLists.txt` 在未指定 `CMAKE_BUILD_TYPE` 时默认
+  `RelWithDebInfo`（`-O2 -g`）。历史/手工构建目录若显式配成空 build type 会是
+  `-O0`（性能差数倍）。
+- **基准纪律**：任何性能对比（`bench_sweep`）都必须与对比基线**同优化级别**；
+  否则会得出相反结论（例：`-O0` 下 8-bit FFT 看似胜 Toom-3，`-O2` 下全程落败）。
+- **测试/黄金对拍**：`ctest --test-dir build`（含 Python/mpmath 黄金对拍）；
+  大数黄金对拍脚本运行前设 `sys.set_int_max_str_digits(...)`。
+- **工具链**：以环境变量 `CC`/`CXX` 或 `-DCMAKE_C_COMPILER` 指定；Windows 下
+  MinGW/MSVC 路径按本机配置，**不写入仓库**。
+- **过程教训（速记）**：
+  - 值相关缺陷（稀疏值 `2^k±1`、`10` 的幂）是随机测试盲区 → 定向用例 + 外部
+    黄金对拍；
+  - 内部未规范化视图的**长度比较**是反复出现的 bug 模式 → 先裁剪前导零再比较
+    （详见 `docs/design.md` §3.4）。
