@@ -42,3 +42,25 @@ bigint_bin_free(&c);
 
 每个值的生命周期遵循 `_init` → 运算 → `_free`；`_move` 可转移所有权，
 `_copy` 深拷贝。
+
+## 1.4 语言与标准兼容性
+
+- **C**：默认以 C99 构建（项目承诺基准）；C11 / C17 / C23（及 C2y）实测通过。
+  可用 `-DNEX_C_STANDARD=11/17/23` 切换构建标准做验证。
+- **C++**：全部公开头文件带 `extern "C"` 守卫，C++11–C++26 可经 C ABI 直接
+  链接消费，无需包装或单独绑定。
+
+C++ 中使用示例：
+
+```cpp
+#include "nex/bigint/bin/nex_bigint_bin.h"
+
+int main() {
+    bigint_bin_ty a{};
+    bigint_bin_init(&a);
+    bigint_bin_from_u64(&a, 123456789u);
+    /* ... */
+    bigint_bin_free(&a);
+    return 0;
+}
+```

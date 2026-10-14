@@ -13,7 +13,8 @@ cmake --install build
 
 - 默认构建**静态库**；追加 `-DBUILD_SHARED_LIBS=ON` 构建**共享库**
   （Linux/macOS 带 `SOVERSION`，如 `libnex.so.1`）。
-- 要求：C99 编译器（GCC / Clang / MSVC）与 CMake ≥ 3.16。
+- 要求：C99 编译器（GCC / Clang / MSVC）与 CMake ≥ 3.16；默认标准 C99，
+  可用 `-DNEX_C_STANDARD=11/17/23` 切换验证。C++（11–26）可直接链接（§3.6）。
 
 ## 3.2 在 CMake 工程中使用
 
@@ -23,7 +24,8 @@ target_link_libraries(app PRIVATE nex::nex)
 ```
 
 配合 `-DCMAKE_PREFIX_PATH=/your/prefix` 指定安装位置。完整示例见仓库
-`examples/downstream/`。
+`examples/downstream/`。C++ 工程同样使用 `find_package(nex CONFIG REQUIRED)`
+与 `nex::nex`；公开头文件已带 `extern "C"`，无需额外包装。
 
 ## 3.3 使用 pkg-config
 
@@ -65,3 +67,22 @@ int main(void) {
 
 库无外部依赖，也可直接 `add_subdirectory(numextend)` 并链接目标 `nex`，
 无需安装。
+
+## 3.6 在 C++ 中使用
+
+公开头文件均带 `extern "C"` 守卫，C++ 直接包含即可：
+
+```cpp
+#include "nex/bigint/bin/nex_bigint_bin.h"
+
+int main() {
+    bigint_bin_ty a{};
+    bigint_bin_init(&a);
+    /* ... */
+    bigint_bin_free(&a);
+    return 0;
+}
+```
+
+无需 `extern "C"` 包装或单独的语言绑定；库本身可继续以 C 编译，C++ 消费者
+经 C ABI 链接（已由 `tests/test_cpp_consumer.cpp` 回归）。

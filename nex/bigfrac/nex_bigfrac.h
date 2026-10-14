@@ -3,6 +3,10 @@
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * bigfrac_ty：任意精度有理数（既约分数）（设计文档 §6）。
  *
@@ -172,5 +176,9 @@ const bigint_bin_ty *bigfrac_num(const bigfrac_ty *frac);
  * brief: 读取分母（只读指针，恒为正；frac 为 NULL 返回 NULL）
  */
 const bigint_bin_ty *bigfrac_den(const bigfrac_ty *frac);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGFRAC_H */

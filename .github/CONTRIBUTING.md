@@ -113,7 +113,11 @@ A change is not done until **all** of the following are true:
 4. **Documentation sync**:
    - `docs/design.md`: revision-log entry, §10 matrix / §N updates,
      appendix-A abbreviation registration for new prefixes;
-   - `README.md` if the public surface changes.
+   - `README.md` if the public surface changes;
+   - `CHANGELOG.md` entry (Keep a Changelog);
+   - regenerate the manual: `sh scripts/docs.sh` (API pages from headers +
+     `docs/manual.html`); the `docs` CI job verifies `docs/manual/` is in sync;
+   - hand-written manual pages (`docs/manual/0*.md`) when behavior changes.
 5. **Full suite green**: `ctest` 26/26 (or more), plus at least 2 extra
    golden seeds.
 
