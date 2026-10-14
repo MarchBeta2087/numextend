@@ -89,8 +89,9 @@ int main() {
     bigcomplex_float_free(&cf);
     bigcomplex_decimal_free(&cd);
 
-    /* fft / ntt：公共算法模块符号 */
-    double coeffs[8] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    /* fft / ntt：公共算法模块符号。
+     * FFT 系数为交错复数组：N = 2^log2n 个复数 = 2N 个 double。 */
+    double coeffs[16] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     CHECK(fft_forward(coeffs, 3) == FFT_OK_E);
     CHECK(ntt_mod_count() > 0u);
     CHECK(ntt_mod_get(0) != nullptr);
