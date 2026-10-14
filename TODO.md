@@ -167,7 +167,10 @@
       ✅ `bigfloat_atan2` / `bigdecimal_atan2`（直角分象限 + π 球，避大参数与
       灾难抵消）与复数辐角 `bigcomplex_float_arg` / `bigcomplex_decimal_arg`
       （重新引入，§9.2）；单元测试（含象限/轴/负实轴）+ 随机 mpmath 压测。
-- [ ] **D2 `exp` / `log` / `ln`**（二进制 + 十进制各一套）。
+- [~] **D2 `exp` / `log` / `ln`**（二进制 + 十进制各一套）：✅ `bigfloat_exp` /
+      `bigdecimal_exp`（球式折半 + 路线 A 级数 + k 次球平方 + Ziv 正确舍入；
+      测试 + mpmath 黄金 `exppub`/`exppubdec`）；待续：`log`/`ln`（需球式 log：
+      分解 + √ 归约 + `ln1p` 级数 + log2）。
 - [ ] **D3 `sin` / `cos` / `tan`**：含**大参数 Payne–Hanek 规约**（需高精度 π）。
 - [ ] **D4 `asin` / `acos` / `atan`**。
 - [ ] **D5 复数超越函数**（`bigcomplex_float` / `bigcomplex_decimal`）。

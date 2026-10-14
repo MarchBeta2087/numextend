@@ -64,6 +64,52 @@ static void check_atan_dec(const char *in, const char *want,
     bigdecimal_free(&x);
 }
 
+static void check_exp(const char *in, const char *want,
+        const bigfloat_ctx_ty *ctx) {
+    bigfloat_ty x;
+    bigfloat_ty out;
+    bigfloat_ty w;
+    bigfloat_init(&x);
+    bigfloat_init(&out);
+    bigfloat_init(&w);
+    (void)bigfloat_from_str(&x, in, ctx, NULL);
+    (void)bigfloat_from_str(&w, want, ctx, NULL);
+    bigfloat_err_ty err = bigfloat_exp(&out, &x, ctx);
+    if (err != BIGFLOAT_OK_E) {
+        printf("FAIL exp(%s) err=%d\n", in, (int)err);
+        ++failures;
+    } else if (!bigfloat_eq(&out, &w)) {
+        printf("FAIL exp(%s) != %s\n", in, want);
+        ++failures;
+    }
+    bigfloat_free(&w);
+    bigfloat_free(&out);
+    bigfloat_free(&x);
+}
+
+static void check_exp_dec(const char *in, const char *want,
+        const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ty x;
+    bigdecimal_ty out;
+    bigdecimal_ty w;
+    bigdecimal_init(&x);
+    bigdecimal_init(&out);
+    bigdecimal_init(&w);
+    (void)bigdecimal_from_str(&x, in, ctx, NULL);
+    (void)bigdecimal_from_str(&w, want, ctx, NULL);
+    bigdecimal_err_ty err = bigdecimal_exp(&out, &x, ctx);
+    if (err != BIGDECIMAL_OK_E) {
+        printf("FAIL dec exp(%s) err=%d\n", in, (int)err);
+        ++failures;
+    } else if (!bigdecimal_eq(&out, &w)) {
+        printf("FAIL dec exp(%s) != %s\n", in, want);
+        ++failures;
+    }
+    bigdecimal_free(&w);
+    bigdecimal_free(&out);
+    bigdecimal_free(&x);
+}
+
 int main(void) {
     const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
 
@@ -108,6 +154,19 @@ int main(void) {
     check_atan_dec("3", "1.249045772398254", &dctx);
     check_atan_dec("0.25", "0.2449786631268642", &dctx);
     check_atan_dec("10", "1.471127674303735", &dctx);
+
+    /* exp：正确舍入（binary64 / decimal64） */
+    check_exp("0", "1", &ctx);
+    check_exp("1", "2.718281828459045", &ctx);
+    check_exp("-1", "0.36787944117144233", &ctx);
+    check_exp("0.5", "1.6487212707001282", &ctx);
+    check_exp("2", "7.38905609893065", &ctx);
+    check_exp("10", "22026.465794806718", &ctx);
+    check_exp_dec("0", "1", &dctx);
+    check_exp_dec("1", "2.718281828459045", &dctx);
+    check_exp_dec("-1", "0.3678794411714423", &dctx);
+    check_exp_dec("0.5", "1.648721270700128", &dctx);
+    check_exp_dec("10", "22026.46579480672", &dctx);
 
     /* 非法参数（十进制） */
     {

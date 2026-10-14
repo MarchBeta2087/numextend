@@ -7,7 +7,9 @@
  *   cos  <prec_bits> <z>
  *   ln1p <prec_bits> <z>
  *   atan <prec_bits> <z>
+ *   exppub <prec_bits> <z>        （bigfloat_exp，正确舍入）
  *   atanpubdec <mant_digits> <z>   （十进制正确舍入）
+ *   exppubdec <mant_digits> <z>
  * 失败输出 "ERR"。参考实现见 golden_series.py（mpmath）。
  */
 
@@ -47,7 +49,7 @@ int main(void) {
         if (sscanf(line, "%31s %lu %511s", cmd, &prec, zstr) != 3) {
             continue;
         }
-        if (strcmp(cmd, "atanpubdec") == 0) {
+        if (strcmp(cmd, "atanpubdec") == 0 || strcmp(cmd, "exppubdec") == 0) {
             bigdecimal_ctx_ty dctx;
             bigdecimal_ty dz;
             bigdecimal_ty dout;
@@ -61,7 +63,9 @@ int main(void) {
                 derr = BIGDECIMAL_ERR_PARSE_E;
             }
             if (derr == BIGDECIMAL_OK_E) {
-                derr = bigdecimal_atan(&dout, &dz, &dctx);
+                derr = (strcmp(cmd, "exppubdec") == 0)
+                        ? bigdecimal_exp(&dout, &dz, &dctx)
+                        : bigdecimal_atan(&dout, &dz, &dctx);
             }
             if (derr == BIGDECIMAL_OK_E) {
                 char buf[8192];
@@ -99,6 +103,8 @@ int main(void) {
                 err = nex_series_atan_eval_float(&out, NULL, &z, &g_eps, &g_ctx);
             } else if (strcmp(cmd, "atanpub") == 0) {
                 err = bigfloat_atan(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "exppub") == 0) {
+                err = bigfloat_exp(&out, &z, &g_ctx);
             }
         }
 

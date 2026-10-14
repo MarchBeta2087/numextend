@@ -427,8 +427,10 @@
 - 直接依赖：`bigfloat`, `bigdecimal`, `ball`
 - 源文件：`nex/transcend/nex_transcend.c`, `nex/transcend/nex_transcend_dec.c`
 - 公开头：`nex/transcend/nex_transcend.h`
-- 公开函数（4）：
+- 公开函数（6）：
   - `bigdecimal_atan`
   - `bigdecimal_atan2`
+  - `bigdecimal_exp`
   - `bigfloat_atan`
   - `bigfloat_atan2`
+  - `bigfloat_exp`
