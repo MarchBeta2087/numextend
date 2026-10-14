@@ -214,12 +214,55 @@ static void test_fact_eval_decimal(void) {
     bigfrac_free(&eps);
 }
 
+static void test_invpow_eval(void) {
+    bigfloat_ty z, out;
+    bigfloat_init(&z);
+    bigfloat_init(&out);
+    bigfrac_ty eps;
+    bigfrac_init(&eps);
+    bigfrac_from_str(&eps, "1/100000000000000000000", NULL);
+
+    /* bigfloat：z=0 -> ln1p=0, atan=0 */
+    const bigfloat_ctx_ty fctx = bigfloat_ctx_binary64();
+    bigfloat_ty zero;
+    bigfloat_init(&zero);
+    bigfloat_from_f64(&z, 0.0);
+    bigfloat_from_f64(&zero, 0.0);
+    CHECK(nex_series_ln1p_eval_float(&out, NULL, &z, &eps, &fctx) ==
+          BIGFLOAT_OK_E);
+    CHECK(bigfloat_eq(&out, &zero));
+    CHECK(nex_series_atan_eval_float(&out, NULL, &z, &eps, &fctx) ==
+          BIGFLOAT_OK_E);
+    CHECK(bigfloat_eq(&out, &zero));
+
+    /* decimal64 已知值：ln(1.5)、atan(0.5) */
+    const bigdecimal_ctx_ty dctx = bigdecimal_ctx_decimal64();
+    bigdecimal_ty dz, dout;
+    bigdecimal_init(&dz);
+    bigdecimal_init(&dout);
+    bigdecimal_from_str(&dz, "0.5", &dctx, NULL);
+    CHECK(nex_series_ln1p_eval_decimal(&dout, NULL, &dz, &eps, &dctx) ==
+          BIGDECIMAL_OK_E);
+    CHECK(dec_eq_str(&dout, "0.4054651081081644", &dctx));
+    CHECK(nex_series_atan_eval_decimal(&dout, NULL, &dz, &eps, &dctx) ==
+          BIGDECIMAL_OK_E);
+    CHECK(dec_eq_str(&dout, "0.4636476090008061", &dctx));
+
+    bigdecimal_free(&dout);
+    bigdecimal_free(&dz);
+    bigfloat_free(&zero);
+    bigfloat_free(&out);
+    bigfloat_free(&z);
+    bigfrac_free(&eps);
+}
+
 int main(void) {
     test_binom_model_order();
     test_fact_orders();
     test_binom_eval_float();
     test_fact_eval_float();
     test_fact_eval_decimal();
+    test_invpow_eval();
 
     if (failures == 0) {
         printf("test_series_eval: all checks passed\n");

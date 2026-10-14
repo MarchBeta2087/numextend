@@ -705,3 +705,300 @@ bigdecimal_err_ty nex_series_sin_eval_decimal(bigdecimal_ty *out,
         const bigdecimal_ctx_ty *ctx) {
     return fact_eval_decimal(out, err_out, z, eps, ctx, 1, 2, 1);
 }
+
+/* ------------------------------------------------------------------ */
+/* 逆幂型级数 ln(1+z) / atan(z)（常数比值尾界）                        */
+/*   t_j = z^{start+step·j}/(den0+step·j) · (−1)^{alt·j}               */
+/*   ln1p: (1,1,1,1)   atan: (1,2,1,1)                                 */
+/* ------------------------------------------------------------------ */
+
+static bigfrac_err_ty invpow_order_tail(size_t *out_n, bigfrac_ty *out_tail,
+        const bigfrac_ty *r, const bigfrac_ty *eps, int start, int step,
+        int den0) {
+    if (out_n == NULL || r == NULL || eps == NULL) {
+        return BIGFRAC_ERR_INVALID_E;
+    }
+    bigfrac_ty zero;
+    bigfrac_init(&zero);
+    bigfrac_err_ty err = BIGFRAC_OK_E;
+    if (bigfrac_cmp(r, &zero) < 0 || bigfrac_cmp(eps, &zero) < 0) {
+        err = BIGFRAC_ERR_INVALID_E;
+    }
+    if (err != BIGFRAC_OK_E) {
+        bigfrac_free(&zero);
+        return err;
+    }
+
+    bigfrac_ty q;
+    bigfrac_ty one;
+    bigfrac_ty one_minus_q;
+    bigfrac_ty term;
+    bigfrac_init(&q);
+    bigfrac_init(&one);
+    bigfrac_init(&one_minus_q);
+    bigfrac_init(&term);
+
+    /* q = r^step */
+    err = bigfrac_copy(&q, r);
+    for (int i = 1; i < step && err == BIGFRAC_OK_E; i++) {
+        err = bigfrac_mul(&q, &q, r);
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = frac_u64(&one, 1U);
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_sub(&one_minus_q, &one, &q);
+        if (bigfrac_cmp(&one_minus_q, &zero) <= 0) {
+            err = BIGFRAC_ERR_INVALID_E;     /* 需 r < 1 */
+        }
+    }
+    /* term = r^start / den0（start ∈ {0,1}） */
+    if (err == BIGFRAC_OK_E) {
+        if (start == 0) {
+            err = frac_u64(&term, 1U);
+        } else {
+            err = bigfrac_copy(&term, r);
+        }
+        if (err == BIGFRAC_OK_E) {
+            bigfrac_ty den;
+            bigfrac_init(&den);
+            err = frac_u64(&den, (uint64_t)den0);
+            if (err == BIGFRAC_OK_E) {
+                err = bigfrac_div(&term, &term, &den);
+            }
+            bigfrac_free(&den);
+        }
+    }
+
+    for (size_t n = 0U; n <= NEX_SERIES_ORDER_CAP && err == BIGFRAC_OK_E; n++) {
+        bigfrac_ty tail;
+        bigfrac_init(&tail);
+        err = bigfrac_div(&tail, &term, &one_minus_q);
+        if (err == BIGFRAC_OK_E && bigfrac_cmp(&tail, eps) <= 0) {
+            *out_n = n;
+            if (out_tail != NULL) {
+                err = bigfrac_copy(out_tail, &tail);
+            }
+            bigfrac_free(&tail);
+            break;
+        }
+        bigfrac_free(&tail);
+        /* term *= q·(den0+step·n)/(den0+step·(n+1)) */
+        bigfrac_ty num;
+        bigfrac_ty dn;
+        bigfrac_init(&num);
+        bigfrac_init(&dn);
+        err = frac_u64(&dn, (uint64_t)(den0 + step * (int)(n + 1U)));
+        if (err == BIGFRAC_OK_E) {
+            err = frac_u64(&num, (uint64_t)(den0 + step * (int)n));
+        }
+        if (err == BIGFRAC_OK_E) {
+            err = bigfrac_mul(&num, &num, &q);
+        }
+        if (err == BIGFRAC_OK_E) {
+            err = bigfrac_mul(&term, &term, &num);
+        }
+        if (err == BIGFRAC_OK_E) {
+            err = bigfrac_div(&term, &term, &dn);
+        }
+        bigfrac_free(&dn);
+        bigfrac_free(&num);
+        if (err != BIGFRAC_OK_E) {
+            break;
+        }
+        if (n == NEX_SERIES_ORDER_CAP) {
+            err = BIGFRAC_ERR_INVALID_E;     /* 超出上限 */
+        }
+    }
+
+    bigfrac_free(&term);
+    bigfrac_free(&one_minus_q);
+    bigfrac_free(&one);
+    bigfrac_free(&q);
+    bigfrac_free(&zero);
+    return err;
+}
+
+/* 精确部分和 Σ_{j<n} (−1)^{alt·j} z^{start+step·j}/(den0+step·j) */
+static bigfrac_err_ty invpow_eval_frac(bigfrac_ty *out, const bigfrac_ty *z,
+        size_t n, int start, int step, int den0, int alt) {
+    if (n == 0U) {
+        bigfrac_ty zero;
+        bigfrac_init(&zero);
+        bigfrac_err_ty e = bigfrac_copy(out, &zero);
+        bigfrac_free(&zero);
+        return e;
+    }
+    size_t len = (size_t)step * (n - 1U) + 1U;
+    bigfrac_ty *coeffs = (bigfrac_ty *)nex_malloc(len * sizeof(bigfrac_ty));
+    if (coeffs == NULL) {
+        return BIGFRAC_ERR_OOM_E;
+    }
+    for (size_t i = 0U; i < len; i++) {
+        bigfrac_init(&coeffs[i]);
+    }
+    bigfrac_err_ty err = BIGFRAC_OK_E;
+    for (size_t j = 0U; j < n && err == BIGFRAC_OK_E; j++) {
+        size_t idx = (size_t)step * j;
+        bigfrac_ty den;
+        bigfrac_ty one;
+        bigfrac_init(&den);
+        bigfrac_init(&one);
+        err = frac_u64(&den, (uint64_t)(den0 + step * (int)j));
+        if (err == BIGFRAC_OK_E) {
+            err = frac_u64(&one, 1U);
+        }
+        if (err == BIGFRAC_OK_E) {
+            err = bigfrac_div(&coeffs[idx], &one, &den);
+        }
+        if (err == BIGFRAC_OK_E && alt != 0 && (j & 1U) != 0U) {
+            err = bigfrac_neg(&coeffs[idx]);
+        }
+        bigfrac_free(&one);
+        bigfrac_free(&den);
+    }
+    bigfrac_series_ty s;
+    bigfrac_series_init(&s);
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_series_from_array(&s, (int64_t)start, coeffs, len);
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_series_eval(out, &s, z);
+    }
+    bigfrac_series_free(&s);
+    for (size_t i = 0U; i < len; i++) {
+        bigfrac_free(&coeffs[i]);
+    }
+    free(coeffs);
+    return err;
+}
+
+bigfrac_err_ty nex_series_ln1p_order(size_t *out_n, const bigfrac_ty *r,
+        const bigfrac_ty *eps) {
+    return invpow_order_tail(out_n, NULL, r, eps, 1, 1, 1);
+}
+
+bigfrac_err_ty nex_series_atan_order(size_t *out_n, const bigfrac_ty *r,
+        const bigfrac_ty *eps) {
+    return invpow_order_tail(out_n, NULL, r, eps, 1, 2, 1);
+}
+
+static bigfloat_err_ty invpow_eval_float(bigfloat_ty *out,
+        bigfloat_ty *err_out, const bigfloat_ty *z, const bigfrac_ty *eps,
+        const bigfloat_ctx_ty *ctx, int start, int step, int den0, int alt) {
+    if (out == NULL || z == NULL || eps == NULL || ctx == NULL) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfrac_ty zf;
+    bigfrac_init(&zf);
+    nex_convert_err_ty conv = nex_convert_float_to_frac(&zf, z);
+    if (conv != NEX_CONVERT_OK_E) {
+        bigfrac_free(&zf);
+        return (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                               : BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfrac_ty r;
+    bigfrac_ty tail;
+    bigfrac_init(&r);
+    bigfrac_init(&tail);
+    bigfrac_err_ty err = frac_abs(&r, &zf);
+    size_t n = 0U;
+    if (err == BIGFRAC_OK_E) {
+        err = invpow_order_tail(&n, &tail, &r, eps, start, step, den0);
+    }
+    bigfrac_ty partial;
+    bigfrac_init(&partial);
+    if (err == BIGFRAC_OK_E) {
+        err = invpow_eval_frac(&partial, &zf, n, start, step, den0, alt);
+    }
+    bigfloat_err_ty result = BIGFLOAT_OK_E;
+    if (err != BIGFRAC_OK_E) {
+        result = map_frac_err(err);
+    } else {
+        conv = nex_convert_frac_to_float(out, &partial, ctx);
+        if (conv == NEX_CONVERT_OK_E) {
+            conv = emit_bound_float(err_out, &tail, ctx);
+        }
+        if (conv != NEX_CONVERT_OK_E) {
+            result = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                                     : BIGFLOAT_ERR_INVALID_E;
+        }
+    }
+    bigfrac_free(&partial);
+    bigfrac_free(&tail);
+    bigfrac_free(&r);
+    bigfrac_free(&zf);
+    return result;
+}
+
+static bigdecimal_err_ty invpow_eval_decimal(bigdecimal_ty *out,
+        bigdecimal_ty *err_out, const bigdecimal_ty *z, const bigfrac_ty *eps,
+        const bigdecimal_ctx_ty *ctx, int start, int step, int den0, int alt) {
+    if (out == NULL || z == NULL || eps == NULL || ctx == NULL) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigfrac_ty zf;
+    bigfrac_init(&zf);
+    nex_convert_err_ty conv = nex_convert_decimal_to_frac(&zf, z);
+    if (conv != NEX_CONVERT_OK_E) {
+        bigfrac_free(&zf);
+        return (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                               : BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigfrac_ty r;
+    bigfrac_ty tail;
+    bigfrac_init(&r);
+    bigfrac_init(&tail);
+    bigfrac_err_ty err = frac_abs(&r, &zf);
+    size_t n = 0U;
+    if (err == BIGFRAC_OK_E) {
+        err = invpow_order_tail(&n, &tail, &r, eps, start, step, den0);
+    }
+    bigfrac_ty partial;
+    bigfrac_init(&partial);
+    if (err == BIGFRAC_OK_E) {
+        err = invpow_eval_frac(&partial, &zf, n, start, step, den0, alt);
+    }
+    bigdecimal_err_ty result = BIGDECIMAL_OK_E;
+    if (err != BIGFRAC_OK_E) {
+        result = map_frac_err_dec(err);
+    } else {
+        conv = nex_convert_frac_to_decimal(out, &partial, ctx);
+        if (conv == NEX_CONVERT_OK_E) {
+            conv = emit_bound_decimal(err_out, &tail, ctx);
+        }
+        if (conv != NEX_CONVERT_OK_E) {
+            result = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                                     : BIGDECIMAL_ERR_INVALID_E;
+        }
+    }
+    bigfrac_free(&partial);
+    bigfrac_free(&tail);
+    bigfrac_free(&r);
+    bigfrac_free(&zf);
+    return result;
+}
+
+bigfloat_err_ty nex_series_ln1p_eval_float(bigfloat_ty *out,
+        bigfloat_ty *err_out, const bigfloat_ty *z, const bigfrac_ty *eps,
+        const bigfloat_ctx_ty *ctx) {
+    return invpow_eval_float(out, err_out, z, eps, ctx, 1, 1, 1, 1);
+}
+
+bigfloat_err_ty nex_series_atan_eval_float(bigfloat_ty *out,
+        bigfloat_ty *err_out, const bigfloat_ty *z, const bigfrac_ty *eps,
+        const bigfloat_ctx_ty *ctx) {
+    return invpow_eval_float(out, err_out, z, eps, ctx, 1, 2, 1, 1);
+}
+
+bigdecimal_err_ty nex_series_ln1p_eval_decimal(bigdecimal_ty *out,
+        bigdecimal_ty *err_out, const bigdecimal_ty *z,
+        const bigfrac_ty *eps, const bigdecimal_ctx_ty *ctx) {
+    return invpow_eval_decimal(out, err_out, z, eps, ctx, 1, 1, 1, 1);
+}
+
+bigdecimal_err_ty nex_series_atan_eval_decimal(bigdecimal_ty *out,
+        bigdecimal_ty *err_out, const bigdecimal_ty *z,
+        const bigfrac_ty *eps, const bigdecimal_ctx_ty *ctx) {
+    return invpow_eval_decimal(out, err_out, z, eps, ctx, 1, 2, 1, 1);
+}

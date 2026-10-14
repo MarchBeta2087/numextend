@@ -1383,6 +1383,9 @@ C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
   - 已落地（续）：比值型尾界 `bigfrac_series_tail_ratio`（`t_n/(1−q_n)`）用于
     阶乘型系数；`nex_series_exp/cos/sin_order` + `nex_series_{exp,cos,sin}_eval_float`
     /`_decimal`（在数值点自适应求值，**可选 `err_out` 输出截断尾严格上界**）。
+  - 已落地（逆幂核）：`nex_series_ln1p_order`/`atan_order` 与
+    `nex_series_{ln1p,atan}_eval_float`/`_decimal`（`ln(1+z)`、`atan(z)`，
+    常数比值尾界 `r^step/(1−r^step)`；|z| ≲ 1/2）。
 - **路线 B：球式（中心 + 误差半径）**（后做）
   - 每个系数/结果携带误差半径，运算传播半径；系数自身的舍入误差与复合、
     累加误差都被覆盖。

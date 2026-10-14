@@ -141,6 +141,57 @@ bigdecimal_err_ty nex_series_sin_eval_decimal(bigdecimal_ty *out,
         bigdecimal_ty *err_out, const bigdecimal_ty *z, const bigfrac_ty *eps,
         const bigdecimal_ctx_ty *ctx);
 
+/*
+ * brief: ln(1+z) = Σ_{k≥1} (−1)^{k+1} z^k/k 的自适应阶（|z| ≤ r < 1）
+ * param: out_n 输出阶；r 自变量幅度上界（需 r < 1）；eps 目标误差
+ * return: 成功返回 BIGFRAC_OK_E；参数非法或 r ≥ 1 返回 BIGFRAC_ERR_INVALID_E；
+ *         超出迭代上限返回 BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E
+ */
+bigfrac_err_ty nex_series_ln1p_order(size_t *out_n, const bigfrac_ty *r,
+        const bigfrac_ty *eps);
+
+/*
+ * brief: 在 bigfloat 点求值 ln(1+z)（精确系数 + 比值尾界 + 可选误差输出）
+ * param: out/err_out/z/eps/ctx 语义同 binom_eval_float
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法、z 非有限或 |z| ≥ 1 返回
+ *         BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E（out 不变）
+ * note: 未做实参规约，建议 |z| ≲ 1/2；总误差 ≤ eps + 终值一次舍入
+ */
+bigfloat_err_ty nex_series_ln1p_eval_float(bigfloat_ty *out,
+        bigfloat_ty *err_out, const bigfloat_ty *z, const bigfrac_ty *eps,
+        const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 在 bigdecimal 点求值 ln(1+z)（语义同 bigfloat 版）
+ * return: 成功返回 BIGDECIMAL_OK_E；其余同 bigfloat 版（错误码对应更换）
+ */
+bigdecimal_err_ty nex_series_ln1p_eval_decimal(bigdecimal_ty *out,
+        bigdecimal_ty *err_out, const bigdecimal_ty *z,
+        const bigfrac_ty *eps, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: atan(z) = Σ_{k≥0} (−1)^k z^{2k+1}/(2k+1) 的自适应阶（|z| ≤ r < 1）
+ * return: 同 ln1p_order
+ */
+bigfrac_err_ty nex_series_atan_order(size_t *out_n, const bigfrac_ty *r,
+        const bigfrac_ty *eps);
+
+/*
+ * brief: 在 bigfloat 点求值 atan(z)（语义同 ln1p_eval_float）
+ * return: 成功返回 BIGFLOAT_OK_E；其余同 ln1p_eval_float
+ */
+bigfloat_err_ty nex_series_atan_eval_float(bigfloat_ty *out,
+        bigfloat_ty *err_out, const bigfloat_ty *z, const bigfrac_ty *eps,
+        const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 在 bigdecimal 点求值 atan(z)（语义同 ln1p_eval_decimal）
+ * return: 成功返回 BIGDECIMAL_OK_E；其余同 ln1p_eval_float（错误码对应更换）
+ */
+bigdecimal_err_ty nex_series_atan_eval_decimal(bigdecimal_ty *out,
+        bigdecimal_ty *err_out, const bigdecimal_ty *z,
+        const bigfrac_ty *eps, const bigdecimal_ctx_ty *ctx);
+
 #ifdef __cplusplus
 }
 #endif

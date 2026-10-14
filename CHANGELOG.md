@@ -37,6 +37,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   （阶乘型系数，`t_n/(1−q_n)`）；`nex_series_exp/cos/sin_order` 与
   `_eval_float`/`_decimal`；求值新增可选 `err_out`（截断尾严格上界），二项式版
   同步支持。测试新增十进制 `exp(1)/cos(1)/sin(1)` 已知值对照。
+- **逆幂核 `ln(1+z)` / `atan(z)`（TODO §C2）**：`nex_series_ln1p_order` /
+  `atan_order` 与 `nex_series_{ln1p,atan}_eval_float` / `_decimal`（常数比值
+  尾界 `r^step/(1−r^step)`，含可选误差输出）；测试含 `ln(1.5)`、`atan(0.5)`
+  十进制已知值对照。
 
 ## [1.2.0] - 2026-10-14
 

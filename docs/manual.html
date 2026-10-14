@@ -546,6 +546,12 @@ ctx、单次舍入；超范围按目标 ctx 产生 ±∞/flush）</a>
 <li><a href="#nex_series_exp_eval_decimal" id="toc-nex_series_exp_eval_decimal"><code>nex_series_exp_eval_decimal</code></a></li>
 <li><a href="#nex_series_cos_eval_decimal" id="toc-nex_series_cos_eval_decimal"><code>nex_series_cos_eval_decimal</code></a></li>
 <li><a href="#nex_series_sin_eval_decimal" id="toc-nex_series_sin_eval_decimal"><code>nex_series_sin_eval_decimal</code></a></li>
+<li><a href="#nex_series_ln1p_order" id="toc-nex_series_ln1p_order"><code>nex_series_ln1p_order</code></a></li>
+<li><a href="#nex_series_ln1p_eval_float" id="toc-nex_series_ln1p_eval_float"><code>nex_series_ln1p_eval_float</code></a></li>
+<li><a href="#nex_series_ln1p_eval_decimal" id="toc-nex_series_ln1p_eval_decimal"><code>nex_series_ln1p_eval_decimal</code></a></li>
+<li><a href="#nex_series_atan_order" id="toc-nex_series_atan_order"><code>nex_series_atan_order</code></a></li>
+<li><a href="#nex_series_atan_eval_float" id="toc-nex_series_atan_eval_float"><code>nex_series_atan_eval_float</code></a></li>
+<li><a href="#nex_series_atan_eval_decimal" id="toc-nex_series_atan_eval_decimal"><code>nex_series_atan_eval_decimal</code></a></li>
 </ul></li>
 <li><a href="#fft--浮点复数-fft-核心低层" id="toc-fft--浮点复数-fft-核心低层">fft —— 浮点复数 FFT 核心（低层）</a>
 <ul>
@@ -2884,6 +2890,54 @@ exp_eval_float）</p>
 版）</p>
 <p><strong>返回</strong>：成功返回 BIGDECIMAL_OK_E；其余同 bigfloat
 版（错误码对应更换）</p>
+<h3 id="nex_series_ln1p_order"><code>nex_series_ln1p_order</code></h3>
+<div class="sourceCode" id="cb261"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb261-1"><a href="#cb261-1" aria-hidden="true" tabindex="-1"></a>bigfrac_err_ty nex_series_ln1p_order<span class="op">(</span><span class="dt">size_t</span> <span class="op">*</span>out_n<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>r<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：ln(1+z) = Σ_{k≥1} (−1)^{k+1} z^k/k
+的自适应阶（|z| ≤ r &lt; 1）</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>out_n</code>：输出阶；r 自变量幅度上界（需 r &lt; 1）；eps
+目标误差</li>
+</ul>
+<p><strong>返回</strong>：成功返回 BIGFRAC_OK_E；参数非法或 r ≥ 1 返回
+BIGFRAC_ERR_INVALID_E； 超出迭代上限返回
+BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E</p>
+<h3 id="nex_series_ln1p_eval_float"><code>nex_series_ln1p_eval_float</code></h3>
+<div class="sourceCode" id="cb262"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb262-1"><a href="#cb262-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty nex_series_ln1p_eval_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>out<span class="op">,</span> bigfloat_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：在 bigfloat 点求值 ln(1+z)（精确系数 +
+比值尾界 + 可选误差输出）</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>out/err_out/z/eps/ctx</code>：语义同 binom_eval_float</li>
+</ul>
+<p><strong>返回</strong>：成功返回 BIGFLOAT_OK_E；参数非法、z 非有限或
+|z| ≥ 1 返回 BIGFLOAT_ERR_INVALID_E；内存不足返回
+BIGFLOAT_ERR_OOM_E（out 不变）</p>
+<p><strong>备注</strong>：未做实参规约，建议 |z| ≲ 1/2；总误差 ≤ eps +
+终值一次舍入</p>
+<h3 id="nex_series_ln1p_eval_decimal"><code>nex_series_ln1p_eval_decimal</code></h3>
+<div class="sourceCode" id="cb263"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb263-1"><a href="#cb263-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty nex_series_ln1p_eval_decimal<span class="op">(</span>bigdecimal_ty <span class="op">*</span>out<span class="op">,</span> bigdecimal_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：在 bigdecimal 点求值 ln(1+z)（语义同 bigfloat
+版）</p>
+<p><strong>返回</strong>：成功返回 BIGDECIMAL_OK_E；其余同 bigfloat
+版（错误码对应更换）</p>
+<h3 id="nex_series_atan_order"><code>nex_series_atan_order</code></h3>
+<div class="sourceCode" id="cb264"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb264-1"><a href="#cb264-1" aria-hidden="true" tabindex="-1"></a>bigfrac_err_ty nex_series_atan_order<span class="op">(</span><span class="dt">size_t</span> <span class="op">*</span>out_n<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>r<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：atan(z) = Σ_{k≥0} (−1)^k z^{2k+1}/(2k+1)
+的自适应阶（|z| ≤ r &lt; 1）</p>
+<p><strong>返回</strong>：同 ln1p_order</p>
+<h3 id="nex_series_atan_eval_float"><code>nex_series_atan_eval_float</code></h3>
+<div class="sourceCode" id="cb265"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb265-1"><a href="#cb265-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty nex_series_atan_eval_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>out<span class="op">,</span> bigfloat_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：在 bigfloat 点求值 atan(z)（语义同
+ln1p_eval_float）</p>
+<p><strong>返回</strong>：成功返回 BIGFLOAT_OK_E；其余同
+ln1p_eval_float</p>
+<h3 id="nex_series_atan_eval_decimal"><code>nex_series_atan_eval_decimal</code></h3>
+<div class="sourceCode" id="cb266"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb266-1"><a href="#cb266-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty nex_series_atan_eval_decimal<span class="op">(</span>bigdecimal_ty <span class="op">*</span>out<span class="op">,</span> bigdecimal_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：在 bigdecimal 点求值 atan(z)（语义同
+ln1p_eval_decimal）</p>
+<p><strong>返回</strong>：成功返回 BIGDECIMAL_OK_E；其余同
+ln1p_eval_float（错误码对应更换）</p>
 <p>NEX_SERIES_H</p>
 <h1 id="fft--浮点复数-fft-核心低层">fft —— 浮点复数 FFT
 核心（低层）</h1>
@@ -2906,12 +2960,12 @@ fft_forward(buf_a, log2n); fft_forward(buf_b, log2n);
 fft_pointwise_mul(buf_a, buf_a, buf_b, n); fft_inverse(buf_a, log2n); //
 buf_a 为循环卷积结果</p>
 <p>FFT 模块错误码</p>
-<div class="sourceCode" id="cb261"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb261-1"><a href="#cb261-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb261-2"><a href="#cb261-2" aria-hidden="true" tabindex="-1"></a>FFT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>       <span class="co">// 成功</span></span>
-<span id="cb261-3"><a href="#cb261-3" aria-hidden="true" tabindex="-1"></a>FFT_ERR_INVALID_E   <span class="co">// 非法参数（空指针、log2n 越界等）</span></span>
-<span id="cb261-4"><a href="#cb261-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> fft_err_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb267"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb267-1"><a href="#cb267-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb267-2"><a href="#cb267-2" aria-hidden="true" tabindex="-1"></a>FFT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>       <span class="co">// 成功</span></span>
+<span id="cb267-3"><a href="#cb267-3" aria-hidden="true" tabindex="-1"></a>FFT_ERR_INVALID_E   <span class="co">// 非法参数（空指针、log2n 越界等）</span></span>
+<span id="cb267-4"><a href="#cb267-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> fft_err_ty<span class="op">;</span></span></code></pre></div>
 <h3 id="fft_forward"><code>fft_forward</code></h3>
-<div class="sourceCode" id="cb262"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb262-1"><a href="#cb262-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_forward<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb268"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb268-1"><a href="#cb268-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_forward<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地正变换（DIF 蝶形；自然序输入 →
 位反转输出）</p>
 <p><strong>参数</strong></p>
@@ -2921,11 +2975,11 @@ double，就地改写）</li>
 <li><code>log2n</code>：变换长度对数，须满足 log2n ≤ 30</li>
 </ul>
 <h3 id="fft_inverse"><code>fft_inverse</code></h3>
-<div class="sourceCode" id="cb263"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb263-1"><a href="#cb263-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_inverse<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb269"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb269-1"><a href="#cb269-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_inverse<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地逆变换（DIT 蝶形；位反转输入 →
 自然序输出，含 1/N 归一化）</p>
 <h3 id="fft_pointwise_mul"><code>fft_pointwise_mul</code></h3>
-<div class="sourceCode" id="cb264"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb264-1"><a href="#cb264-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_pointwise_mul<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">double</span> <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> <span class="dt">double</span> <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb270"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb270-1"><a href="#cb270-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_pointwise_mul<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">double</span> <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> <span class="dt">double</span> <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：频域点乘 dst = lhs·rhs（逐元素复乘）</p>
 <p><strong>备注</strong>：dst 允许与 lhs / rhs 别名</p>
 <p>NEX_FFT_H</p>
@@ -2952,24 +3006,24 @@ log2n, mod); ntt_forward(buf_b, log2n, mod); ntt_pointwise_mul(buf_a,
 buf_a, buf_b, n, mod); ntt_inverse(buf_a, log2n, mod); // buf_a
 为循环卷积结果</p>
 <p>NTT 模数：素数 p = k·2^c + 1 及其 2^c 次本原单位根</p>
-<div class="sourceCode" id="cb265"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb265-1"><a href="#cb265-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
-<span id="cb265-2"><a href="#cb265-2" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> p<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb271"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb271-1"><a href="#cb271-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb271-2"><a href="#cb271-2" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> p<span class="op">;</span></span></code></pre></div>
 <p>素数，p = k·2^c + 1</p>
 <p>奇部，k = (p−1) / 2^c</p>
 <p>p−1 中 2 的最大幂指数（2^c || p−1，= 最大变换长度对数）</p>
 <p>2^c 次本原单位根：w^(2^(c−1)) ≡ −1 (mod p)</p>
 <p>NTT 模块错误码</p>
-<div class="sourceCode" id="cb266"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb266-1"><a href="#cb266-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb266-2"><a href="#cb266-2" aria-hidden="true" tabindex="-1"></a>NTT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>       <span class="co">// 成功</span></span>
-<span id="cb266-3"><a href="#cb266-3" aria-hidden="true" tabindex="-1"></a>NTT_ERR_INVALID_E<span class="op">,</span>  <span class="co">// 非法参数（空指针、log2n 超出模数能力等）</span></span>
-<span id="cb266-4"><a href="#cb266-4" aria-hidden="true" tabindex="-1"></a>NTT_ERR_MODULUS_E   <span class="co">// 模数校验失败（合数、根阶不符等）</span></span>
-<span id="cb266-5"><a href="#cb266-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> ntt_err_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb272"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb272-1"><a href="#cb272-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb272-2"><a href="#cb272-2" aria-hidden="true" tabindex="-1"></a>NTT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>       <span class="co">// 成功</span></span>
+<span id="cb272-3"><a href="#cb272-3" aria-hidden="true" tabindex="-1"></a>NTT_ERR_INVALID_E<span class="op">,</span>  <span class="co">// 非法参数（空指针、log2n 超出模数能力等）</span></span>
+<span id="cb272-4"><a href="#cb272-4" aria-hidden="true" tabindex="-1"></a>NTT_ERR_MODULUS_E   <span class="co">// 模数校验失败（合数、根阶不符等）</span></span>
+<span id="cb272-5"><a href="#cb272-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> ntt_err_ty<span class="op">;</span></span></code></pre></div>
 <h3 id="ntt_mod_count"><code>ntt_mod_count</code></h3>
-<div class="sourceCode" id="cb267"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb267-1"><a href="#cb267-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> ntt_mod_count<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb273"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb273-1"><a href="#cb273-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> ntt_mod_count<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：内置模数个数（设计文档 §4.3 素数表）</p>
 <p><strong>返回</strong>：内置表长度</p>
 <h3 id="ntt_mod_get"><code>ntt_mod_get</code></h3>
-<div class="sourceCode" id="cb268"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb268-1"><a href="#cb268-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>ntt_mod_get<span class="op">(</span><span class="dt">size_t</span> idx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb274"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb274-1"><a href="#cb274-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>ntt_mod_get<span class="op">(</span><span class="dt">size_t</span> idx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：取第 idx 个内置模数</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2977,7 +3031,7 @@ buf_a, buf_b, n, mod); ntt_inverse(buf_a, log2n, mod); // buf_a
 </ul>
 <p><strong>返回</strong>：指向内置表中元素的指针；idx 越界返回 NULL</p>
 <h3 id="ntt_mod_validate"><code>ntt_mod_validate</code></h3>
-<div class="sourceCode" id="cb269"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb269-1"><a href="#cb269-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_mod_validate<span class="op">(</span><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb275"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb275-1"><a href="#cb275-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_mod_validate<span class="op">(</span><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：校验模数合法性（纯函数，无副作用）</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2992,20 +3046,20 @@ NTT_ERR_INVALID_E</p>
 为素数时等价于 w 的阶 恰为 2^c。合数模下 Z/mZ 单位群非循环，不存在 2^c
 阶根， radix-2 NTT 无正确性保证，故合数一律不可用</p>
 <h3 id="ntt_mod_mul"><code>ntt_mod_mul</code></h3>
-<div class="sourceCode" id="cb270"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb270-1"><a href="#cb270-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_mul<span class="op">(</span><span class="dt">uint32_t</span> a<span class="op">,</span> <span class="dt">uint32_t</span> b<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb276"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb276-1"><a href="#cb276-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_mul<span class="op">(</span><span class="dt">uint32_t</span> a<span class="op">,</span> <span class="dt">uint32_t</span> b<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：模乘 a·b mod p</p>
 <p><strong>备注</strong>：中间量经 uint64_t（C99 无 128 位扩展，设计文档
 §4.3）；a、b 无须小于 p，结果恒在 [0, p)</p>
 <h3 id="ntt_mod_pow"><code>ntt_mod_pow</code></h3>
-<div class="sourceCode" id="cb271"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb271-1"><a href="#cb271-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_pow<span class="op">(</span><span class="dt">uint32_t</span> base<span class="op">,</span> <span class="dt">uint32_t</span> exp<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb277"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb277-1"><a href="#cb277-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_pow<span class="op">(</span><span class="dt">uint32_t</span> base<span class="op">,</span> <span class="dt">uint32_t</span> exp<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：模幂 base^exp mod p（平方-乘）</p>
 <h3 id="ntt_mod_inv"><code>ntt_mod_inv</code></h3>
-<div class="sourceCode" id="cb272"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb272-1"><a href="#cb272-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_inv<span class="op">(</span><span class="dt">uint32_t</span> a<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb278"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb278-1"><a href="#cb278-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_inv<span class="op">(</span><span class="dt">uint32_t</span> a<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：模逆 a^(p−2) mod p（Fermat 小定理）</p>
 <p><strong>备注</strong>：要求 p 为素数且 a 非零（调用方契约；a 无须小于
 p）</p>
 <h3 id="ntt_forward"><code>ntt_forward</code></h3>
-<div class="sourceCode" id="cb273"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb273-1"><a href="#cb273-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_forward<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb279"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb279-1"><a href="#cb279-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_forward<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地正变换（DIF 蝶形；自然序输入 →
 位反转输出）</p>
 <p><strong>参数</strong></p>
@@ -3014,16 +3068,16 @@ p）</p>
 <li><code>log2n</code>：变换长度对数，须满足 log2n ≤ mod-&gt;c</li>
 </ul>
 <h3 id="ntt_inverse"><code>ntt_inverse</code></h3>
-<div class="sourceCode" id="cb274"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb274-1"><a href="#cb274-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_inverse<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb280"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb280-1"><a href="#cb280-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_inverse<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地逆变换（DIT 蝶形；位反转输入 →
 自然序输出，含 N^-1 归一化）</p>
 <h3 id="ntt_pointwise_mul"><code>ntt_pointwise_mul</code></h3>
-<div class="sourceCode" id="cb275"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb275-1"><a href="#cb275-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_pointwise_mul<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb281"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb281-1"><a href="#cb281-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_pointwise_mul<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：频域点乘 dst[i] = lhs[i]·rhs[i] mod
 p（逐元素）</p>
 <p><strong>备注</strong>：dst 允许与 lhs / rhs 别名</p>
 <h3 id="ntt_crt_reconstruct_one"><code>ntt_crt_reconstruct_one</code></h3>
-<div class="sourceCode" id="cb276"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb276-1"><a href="#cb276-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint64_t</span> ntt_crt_reconstruct_one<span class="op">(</span><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>residues<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span><span class="dt">const</span> <span class="op">*</span>mods<span class="op">,</span> <span class="dt">size_t</span> mod_count<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb282"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb282-1"><a href="#cb282-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint64_t</span> ntt_crt_reconstruct_one<span class="op">(</span><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>residues<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span><span class="dt">const</span> <span class="op">*</span>mods<span class="op">,</span> <span class="dt">size_t</span> mod_count<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：单系数 CRT 重构（Garner 递推），恢复精确系数
 v（0 ≤ v &lt; Πp）</p>
 <p><strong>参数</strong></p>
@@ -3053,11 +3107,11 @@ v（0 ≤ v &lt; Πp）</p>
 </ul>
 <p>分配失败注入计数器（SIZE_MAX = 不注入，默认）。测试直接赋值。</p>
 <h3 id="nex_malloc"><code>nex_malloc</code></h3>
-<div class="sourceCode" id="cb277"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb277-1"><a href="#cb277-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> <span class="op">*</span>nex_malloc<span class="op">(</span><span class="dt">size_t</span> size<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb283"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb283-1"><a href="#cb283-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> <span class="op">*</span>nex_malloc<span class="op">(</span><span class="dt">size_t</span> size<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：分配 size 字节；失败返回
 NULL（与标准库一致）</p>
 <h3 id="nex_realloc"><code>nex_realloc</code></h3>
-<div class="sourceCode" id="cb278"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb278-1"><a href="#cb278-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> <span class="op">*</span>nex_realloc<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>ptr<span class="op">,</span> <span class="dt">size_t</span> size<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb284"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb284-1"><a href="#cb284-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> <span class="op">*</span>nex_realloc<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>ptr<span class="op">,</span> <span class="dt">size_t</span> size<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：重分配 ptr 为 size 字节；失败返回 NULL（ptr
 仍有效）</p>
 <p>NEX_ALLOC_H</p>
