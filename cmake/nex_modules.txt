@@ -1,0 +1,26 @@
+# Numextend 模块清单（TODO §B1）
+#
+# 每行一个模块，字段以 '|' 分隔，字段内以 ',' 分隔多项：
+#   <module>|<deps>|<sources>|<public_headers>
+# 空字段允许。deps 为**直接**模块依赖（由各 .c / 内部头的 #include 推导）；
+# 子集构建时按依赖闭包展开（TODO §B2），故允许依赖成环
+# （如 bigint_bin ↔ bigint_conv：bin 的十进制字符串快速路径调用 conv）。
+#
+# 本文件同时供 CMake（cmake/nex_modules.cmake）与 scripts/modules.py 使用，
+# 是子集构建与子集文档生成的单一来源。
+#
+# module|deps|sources|public_headers
+nex_alloc||nex/nex_alloc.c|nex/nex_alloc.h
+fft||nex/fft/nex_fft.c|nex/fft/nex_fft.h
+ntt||nex/ntt/nex_ntt.c|nex/ntt/nex_ntt.h
+bigint_common|||nex/bigint/nex_bigint_common.h
+bigint_bin|bigint_common,bigint_conv,fft,ntt,nex_alloc|nex/bigint/bin/nex_bigint_bin.c,nex/bigint/bin/nex_bigint_bin_mul.c,nex/bigint/bin/nex_bigint_bin_div.c,nex/bigint/bin/nex_bigint_bin_gcd.c|nex/bigint/bin/nex_bigint_bin.h
+bigint_dec|bigint_common,nex_alloc|nex/bigint/dec/nex_bigint_dec.c,nex/bigint/dec/nex_bigint_dec_mul.c,nex/bigint/dec/nex_bigint_dec_div.c|nex/bigint/dec/nex_bigint_dec.h
+bigint_conv|bigint_common,bigint_bin,bigint_dec,nex_alloc|nex/bigint/nex_bigint_conv.c|nex/bigint/nex_bigint_conv.h
+bigint_bin64|bigint_common,bigint_bin,nex_alloc|nex/bigint/bin64/nex_bigint_bin64.c|nex/bigint/bin64/nex_bigint_bin64.h
+bigfrac|bigint_common,bigint_bin|nex/bigfrac/nex_bigfrac.c|nex/bigfrac/nex_bigfrac.h
+bigfloat|bigint_common,bigint_bin,nex_alloc|nex/bigfloat/nex_bigfloat.c,nex/bigfloat/nex_bigfloat_str.c|nex/bigfloat/nex_bigfloat.h
+bigdecimal|bigint_common,bigint_bin,bigint_dec,bigint_conv,nex_alloc|nex/bigdecimal/nex_bigdecimal.c,nex/bigdecimal/nex_bigdecimal_str.c|nex/bigdecimal/nex_bigdecimal.h
+bigcomplex_float|bigint_common,bigint_bin,bigfloat,nex_alloc|nex/bigcomplex/float/nex_bigcomplex_float.c|nex/bigcomplex/float/nex_bigcomplex_float.h
+bigcomplex_decimal|bigdecimal,nex_alloc|nex/bigcomplex/decimal/nex_bigcomplex_decimal.c|nex/bigcomplex/decimal/nex_bigcomplex_decimal.h
+convert|nex_alloc,bigint_bin,bigint_dec,bigint_conv,bigfrac,bigfloat,bigdecimal,bigcomplex_float,bigcomplex_decimal|nex/convert/nex_convert.c|nex/convert/nex_convert.h

@@ -46,48 +46,65 @@
 
 ## B. P1 子集化与单文件组合（目标 v1.2）
 
-### B1 模块依赖清单（机器可读）
+### B1 模块依赖清单（机器可读）— ✅ 已完成
 
-- [ ] 建立 `tools/modules.toml`（或 JSON）：每个源文件/头文件的**公开符号**与
-      **内部依赖**，作为子集与文档生成的单一来源。
-- [ ] 脚本校验：每个模块的依赖闭包完整、无悬空符号。
-- 依据：`nex/bigint/bin`、`nex/bigint/dec`、`nex/fft`、`nex/ntt` 为叶子；
-  `bigfrac`/`bigfloat`→`bigint_bin`，`bigdecimal`→`bigint_dec`，
-  `bigcomplex`→`bigfloat`/`bigdecimal`，`convert`→几乎全部。
+- [x] `cmake/nex_modules.txt`：每行 `<module>|<deps>|<sources>|<public_headers>`，
+      依赖由各 `.c`/内部头的 `#include` 推导（允许成环，如
+      `bigint_bin ↔ bigint_conv`）。供 CMake 与 `scripts/modules.py` 共用。
+- [x] `scripts/modules.py check` 校验清单与源码树一致（每个 `.c` / 公开头恰好
+      登记一次、依赖已知），已接入 `scripts/api_audit.sh`（CI 运行）。
+- 实测依赖：`nex_alloc`/`fft`/`ntt` 为叶子；`bigint_bin`→conv（十进制字符串
+  快速路径）故整数层闭包连带 dec/conv。
 
-### B2 文件级子集（一期）
+### B2 文件级子集（一期）— ✅ 已完成
 
-- [ ] CMake 选项 `-DNEX_MODULES=bigint_bin,bigfloat,...`，自动带入依赖闭包，
-      只编译选中模块并只导出其符号。
-- [ ] 可选：`NEX_MINIMAL` 预设（仅 `bigint_bin` + `nex_alloc`）。
-- 验收：至少一个真子集构建通过其自身的 CTest 子集；`api_audit.sh` 对子集重跑。
+- [x] CMake 选项 `-DNEX_MODULES=bigint_bin,bigfloat,...`（默认 `all`），按依赖
+      闭包自动补齐源文件与公开头；只编译、只安装闭包内容。
+- [x] 子集构建跳过全量测试/演示/基准，仅构建 `subset_smoke`（闭包含
+      `bigint_bin` 时）；CI 新增 `linux-subset` 矩阵。
+- [x] 验收：`bigint_bin,bigfrac` / `bigfloat` / `fft,ntt` / `convert` 均通过；
+      `convert` 闭包正确排除无依赖的 `bigint_bin64`。
+- 未做：`NEX_MINIMAL` 预设（价值有限，暂缓）。
 
-### B3 函数级子集（二期，需评审）
+### B3 函数级子集 — ⏸ 暂缓（不承诺），改为低成本替代
 
-- [ ] 基于 B1 做**调用图闭包**裁剪；处理跨模块依赖（如
-      `bigcomplex_*_abs`→`sqrt`，删 `sqrt` 必须拒绝或连带裁剪）。
-- [ ] 复用现有条件编译先例：`NEX_DIV_NEWTON_PATH`、`NEX_POW_MOD_MONT`、
-      `NEX_BIN64_FORCE_PORTABLE`。
-- 风险/门槛：函数级 ABI 与 §1.4 稳定性政策的关系须先写明；维护成本高，
-  未定案前不进入实现。
+**评审结论（2026-10-14）**：
 
-### B4 单文件组合（amalgamation）
+- **裁剪不减小最终可执行文件**：同口径静态链接，全量库与 `bigint_bin` 子集库
+  产出**相同** text（90 068 B）；子集只减小归档/分发体积与构建面
+  （230 KB → 111 KB → 9 KB 等）。
+- **工具链 DCE 可近似函数级裁剪**：消费者用
+  `-ffunction-sections -fdata-sections` + `-Wl,--gc-sections`（ELF 有效；
+  PE/MinGW 基本无效），无需源码改动。
+- **成本高**：需精确函数级调用图（文件粒度是伪稠密）+ 定义/调用点条件编译
+  + 组合测试（2^203 不可测）+ ABI 政策调整（§1.4）。收益远不及成本。
 
-- [ ] 生成 `nex_amalgam.c` / `nex_amalgam.h`（单 TU）。
-- **已知硬障碍（实测）**：202 个 `static` 定义、141 个唯一名、**44 个跨文件重名**
-  （`valid_ctx`×4、`mag_add`/`mag_sub`×4、`mul_schoolbook`、`map_bigint_err` …）。
-  单 TU 直接拼接会「重复定义」。
-- [ ] 必备步骤：`static` 符号改名（按文件名加前缀）、内部 `#include` 剥离、
-      拼接拓扑排序、宏/`static const` 表冲突检测、`NEX_*` 配置宏透传。
-- [ ] 可选单头（STB `NEX_IMPLEMENTATION` 风格）由 amalgamation 派生；先评估
-      是否值得改变消费模型。
-- 验收：amalgam 构建产物通过**全量** CTest（与分文件构建等价）。
+**替代（低成本）**：
 
-### B5 子集/合并文档生成
+- [x] 文档化工具链 DCE 与“子集只减归档不减可执行”的事实（README / design §2.4）。
+- [x] 场景示例：`examples/amalgam/`（单文件 + 十进制财务）；CI
+      `linux-amalgam-example` / `linux-subset-install`。
 
-- [ ] 扩展 `scripts/api_symbols.py` / `scripts/gen_api_doc.py`：输出子集库的
-      **保留函数/文件**与**移除函数/文件**清单。
-- [ ] CI 校验生成物与实现同步（`git diff --exit-code`，沿用 `docs` job 模式）。
+（粗粒度特性宏经评估不现实——全库 text+data ≈ 155 KB，`fft`=1.5 KB、
+`ntt`=4.6 KB，可选函数占比过小；决定不做，理由见 design §2.4/§13 #11/§14。）
+
+### B4 单文件组合（amalgamation）— ✅ 已完成
+
+- [x] `scripts/amalgamate.py` 生成 `nex_amalgam.c` / `nex_amalgam.h`：
+      公开头 → 单头；内部头 + 源文件 → 单源；剥离内部 `#include "nex/..."`；
+      跨文件重名 `static` 按文件前缀改名（实测 43 处）；版本宏内联。
+- [x] CMake 选项 `-DNEX_AMALGAM=ON`（配置期生成，单 TU 构建）。
+- [x] 验收：`linux-amalgam` CI 用**全量 CTest（34/34）**验证与分文件构建等价；
+      子集 amalgam（`bigfloat`）亦通过 `subset_smoke`。
+- 未做：可选单头（STB `NEX_IMPLEMENTATION` 风格）——消费模型改动大，暂缓。
+
+### B5 子集/合并文档生成 — ✅ 已完成
+
+- [x] `scripts/modules.py gen-docs` → `docs/modules.md`（模块 / 依赖 / 公开函数）。
+- [x] `scripts/modules.py docs <mod...>` 输出子集保留/移除清单（模块 / 文件 /
+      函数）。
+- [x] 并入 `scripts/docs.sh`；CI `docs` job 以
+      `git diff --exit-code -- docs/manual docs/modules.md` 校验无漂移。
 
 ---
 

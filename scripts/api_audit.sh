@@ -30,5 +30,8 @@ echo
 echo "== 声明 / 定义一致性 =="
 "${PYTHON:-python3}" scripts/api_symbols.py "$BUILD" || status=1
 echo
+echo "== 模块清单一致性（cmake/nex_modules.txt） =="
+"${PYTHON:-python3}" scripts/modules.py check || status=1
+echo
 echo "audit status: $status"
 exit $status

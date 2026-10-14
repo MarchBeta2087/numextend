@@ -1,0 +1,81 @@
+# 模块清单解析与依赖闭包（TODO §B1/B2）。
+#
+# 数据源：cmake/nex_modules.txt（字段以 '|' 分隔）。本文件直接 include 到
+# 调用方作用域（不创建新作用域），解析结果保存为：
+#   NEX_MODULE_LIST
+#   NEX_MODULE_<name>_DEPS / _SOURCES / _HEADERS
+# 公开函数：
+#   nex_resolve_modules(<out_sources> <out_headers> <out_modules> <requested>)
+#     requested 为分号分隔的模块名；按依赖闭包展开，输出保持清单顺序。
+
+set(_NEX_MODULES_TXT "${CMAKE_CURRENT_LIST_DIR}/nex_modules.txt")
+
+set(NEX_MODULE_LIST "")
+# 注意：不能用 file(STRINGS)——它会把 UTF-8 非 ASCII 字符当作分隔符，
+# 从而破坏中文注释行；改用 file(READ) + 换行切分。
+file(READ "${_NEX_MODULES_TXT}" _nex_module_content)
+string(REPLACE "\r\n" "\n" _nex_module_content "${_nex_module_content}")
+string(REPLACE "\n" ";" _nex_module_lines "${_nex_module_content}")
+foreach(_line IN LISTS _nex_module_lines)
+    string(STRIP "${_line}" _line)
+    if(_line STREQUAL "" OR _line MATCHES "^#")
+        continue()
+    endif()
+    string(REPLACE "|" ";" _fields "${_line}")
+    list(LENGTH _fields _nfields)
+    if(_nfields LESS 4)
+        message(FATAL_ERROR "nex_modules.txt: 字段不足（需 4 个）：${_line}")
+    endif()
+    list(GET _fields 0 _mod)
+    list(GET _fields 1 _deps)
+    list(GET _fields 2 _srcs)
+    list(GET _fields 3 _hdrs)
+    string(STRIP "${_mod}" _mod)
+    string(REPLACE "," ";" _deps "${_deps}")
+    string(REPLACE "," ";" _srcs "${_srcs}")
+    string(REPLACE "," ";" _hdrs "${_hdrs}")
+    foreach(_v _deps _srcs _hdrs)
+        set(_clean "")
+        foreach(_e IN LISTS ${_v})
+            string(STRIP "${_e}" _e)
+            if(NOT _e STREQUAL "")
+                list(APPEND _clean "${_e}")
+            endif()
+        endforeach()
+        set(${_v} "${_clean}")
+    endforeach()
+    set(NEX_MODULE_${_mod}_DEPS "${_deps}")
+    set(NEX_MODULE_${_mod}_SOURCES "${_srcs}")
+    set(NEX_MODULE_${_mod}_HEADERS "${_hdrs}")
+    list(APPEND NEX_MODULE_LIST "${_mod}")
+endforeach()
+list(REMOVE_DUPLICATES NEX_MODULE_LIST)
+
+function(nex_resolve_modules out_sources out_headers out_modules requested)
+    set(_queue ${requested})
+    set(_seen "")
+    while(_queue)
+        list(POP_FRONT _queue _m)
+        if(_m IN_LIST _seen)
+            continue()
+        endif()
+        if(NOT DEFINED NEX_MODULE_${_m}_SOURCES)
+            message(FATAL_ERROR
+                "NEX_MODULES: 未知模块 '${_m}'；可用：${NEX_MODULE_LIST}")
+        endif()
+        list(APPEND _seen "${_m}")
+        list(APPEND _queue ${NEX_MODULE_${_m}_DEPS})
+    endwhile()
+    # 按清单顺序输出，保证构建可复现
+    set(_srcs "")
+    set(_hdrs "")
+    foreach(_m IN LISTS NEX_MODULE_LIST)
+        if(_m IN_LIST _seen)
+            list(APPEND _srcs ${NEX_MODULE_${_m}_SOURCES})
+            list(APPEND _hdrs ${NEX_MODULE_${_m}_HEADERS})
+        endif()
+    endforeach()
+    set(${out_sources} "${_srcs}" PARENT_SCOPE)
+    set(${out_headers} "${_hdrs}" PARENT_SCOPE)
+    set(${out_modules} "${_seen}" PARENT_SCOPE)
+endfunction()

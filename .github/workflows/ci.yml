@@ -148,6 +148,69 @@ jobs:
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure
 
+  # 子集构建（TODO §B2）：文件级裁剪 + 依赖闭包
+  linux-subset:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        modules: ["bigint_bin,bigfrac", "bigfloat", "fft,ntt"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build subset (${{ matrix.modules }})
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DNEX_MODULES="${{ matrix.modules }}"
+          cmake --build build --parallel
+          if [ -x build/subset_smoke ]; then ./build/subset_smoke; fi
+
+  # 单文件组合（TODO §B4）：amalgam 构建 + 全量测试
+  linux-amalgam:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        modules: ["all", "bigfloat"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build amalgam (${{ matrix.modules }})
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DNEX_AMALGAM=ON -DNEX_MODULES="${{ matrix.modules }}"
+          cmake --build build --parallel
+          if [ -f build/CTestTestfile.cmake ]; then
+            ctest --test-dir build --output-on-failure
+          fi
+          if [ -x build/subset_smoke ]; then ./build/subset_smoke; fi
+
+  # 单文件组合示例（无 CMake，直接 cc）——「单文件分发」场景
+  linux-amalgam-example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & run amalgam example
+        run: |
+          python3 scripts/amalgamate.py --out dist
+          cc -O2 -std=c99 -Wall -Wextra -Wpedantic -Idist \
+             examples/amalgam/main.c dist/nex_amalgam.c -lm -o dist/amalgam_demo
+          ./dist/amalgam_demo
+
+  # 子集安装 + 下游消费（examples/downstream 仅用 bigint_bin）
+  linux-subset-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install subset & build downstream
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DNEX_MODULES="bigint_bin,bigfrac"
+          cmake --build build --parallel
+          cmake --install build --prefix "$PWD/_install-subset"
+          cmake -S examples/downstream -B build-downstream \
+                -DCMAKE_PREFIX_PATH="$PWD/_install-subset"
+          cmake --build build-downstream
+          ./build-downstream/downstream
+
   # GCC + ASan/UBSan
   linux-sanitizer:
     runs-on: ubuntu-latest
@@ -225,5 +288,5 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pandoc
       - name: Build manual
         run: sh scripts/docs.sh
-      - name: Verify generated API pages are up to date
-        run: git diff --exit-code -- docs/manual
+      - name: Verify generated docs are up to date
+        run: git diff --exit-code -- docs/manual docs/modules.md

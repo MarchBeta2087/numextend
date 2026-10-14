@@ -7,6 +7,35 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [1.2.0] - 2026-10-14
+
+### 新增
+
+- **文件级子集构建**（TODO §B1/B2）：机器可读模块清单 `cmake/nex_modules.txt`
+  （模块 / 直接依赖 / 源文件 / 公开头）+ 依赖闭包；新增 `NEX_MODULES` 构建选项
+  （默认 `all`），可只编译、只安装所选模块及其闭包。
+- `scripts/modules.py`（清单校验 / 闭包查询）并接入 `api_audit.sh`；CI 新增
+  `linux-subset` 子集构建矩阵；新增 `tests/subset_smoke.c`。
+- **单文件组合**（TODO §B4）：`scripts/amalgamate.py` 生成 `nex_amalgam.c/.h`
+  （去内部 `#include`、跨文件 `static` 按文件前缀改名）；新增 CMake 选项
+  `NEX_AMALGAM`（配置期生成），CI 新增 `linux-amalgam` 用**全量 CTest** 验证
+  与分文件构建等价。
+- **子集/模块文档**（TODO §B5）：`scripts/modules.py gen-docs` 生成
+  `docs/modules.md`（模块 / 依赖 / 公开函数），`docs <mod...>` 输出保留/移除
+  清单；并入 `scripts/docs.sh`，CI `docs` job 校验无漂移。
+- **场景示例**：`examples/amalgam/`（单文件组合 + 十进制财务求和）；CI 新增
+  `linux-amalgam-example`（无 CMake 直接 `cc`）与 `linux-subset-install`
+  （子集安装 + `examples/downstream` 消费）。
+- **函数级子集**（TODO §B3）经评审**暂缓**：粗粒度特性宏亦不做（可选功能占比过
+  小，见下）；替代为文档化工具链 DCE。
+
+### 文档 / 说明
+
+- **函数级子集**（TODO §B3）经评审**暂缓**：成本高、收益低。子集只减小
+  归档/分发体积与构建面，**不减小最终可执行文件**；函数级可由工具链 DCE
+  （`-ffunction-sections -fdata-sections` + `-Wl,--gc-sections`）近似。详见
+  README「体积说明」与 `docs/design.md` §2.4 / §13 #11。
+
 ## [1.1.0] - 2026-10-14
 
 ### 新增
@@ -50,5 +79,6 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
+[1.2.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.2.0
 [1.1.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.1.0
 [1.0.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.0.0
