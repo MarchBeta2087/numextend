@@ -108,16 +108,19 @@
 
 ---
 
-## C. P2 秦九韶 / 幂级数 / Padé 基础设施（目标 v1.3）
+## C. P2 秦九韶 / 幂级数 / Padé 基础设施（目标 v1.3）— 进行中
 
-- [ ] **C1 秦九韶（Horner）多项式求值**
-  - 覆盖 `bigint_bin`/`bigfrac`/`bigfloat`/`bigdecimal`；统一误差/舍入协定。
+- [x] **C1 秦九韶（Horner）多项式求值**
+  - 已落地：`*_poly_eval` 覆盖 `bigint_bin`/`bigfrac`/`bigfloat`/`bigdecimal`；
+    精确（整数/有理数）或逐次正确舍入（浮点，按 `ctx`）；out 允许别名，强异常安全。
+  - 测试：`tests/test_poly.c`（`poly_horner`）。
 - [ ] **C2 幂级数**（截断阶数 + 严谨误差界；`bigfrac` 先做精确系数版）。
+  - 设计已定（§15.2）：`(valuation k, coeffs)` 表示，支持 Laurent（负幂）。
 - [ ] **C3 Padé 逼近**（有理函数逼近，作为 `exp`/`atan` 等的可选核）。
 - [ ] **C4 外部高精度黄金参考**：测试期引入 `mpmath`（或 MPFR），
       运行期保持零依赖；扩展 `tests/golden_*.py` 框架。
-- [ ] **C5 规范**：`docs/design.md` 新增「多项式与级数」章节，明确正确舍入与
-      误差界要求。
+- [x] **C5 规范**：`docs/design.md` 新增「§15 多项式与级数」（含 Horner 舍入协定
+      与 Laurent/负幂级数设计）；级数误差界随 C2 细化。
 
 ---
 

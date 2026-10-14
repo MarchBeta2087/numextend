@@ -355,4 +355,23 @@ bigfloat_err_ty bigfloat_compose(bigfloat_ty *dst, const bigint_bin_ty *mant, in
 
 **备注**：若 flag 为特殊值，mant / exp 被忽略，结果为对应特殊值
 
+### `bigfloat_poly_eval`
+
+```c
+bigfloat_err_ty bigfloat_poly_eval(bigfloat_ty *out, const bigfloat_ty *coeffs, size_t degree, const bigfloat_ty *x, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：多项式求值（秦九韶 / Horner 法）：out = Σ_{i=0}^{degree} coeffs[i]·x^i
+
+**参数**
+- `out`：输出对象
+- `coeffs`：系数数组，共 degree+1 项，coeffs[i] 为 x^i 的系数
+- `degree`：最高次幂（coeffs 长度须为 degree+1）
+- `x`：自变量
+- `ctx`：精度上下文（每步乘加按此正确舍入）
+
+**返回**：成功返回 BIGFLOAT_OK_E；任一指针为 NULL 返回 BIGFLOAT_ERR_INVALID_E； 内存不足返回 BIGFLOAT_ERR_OOM_E（out 不变）
+
+**备注**：整体为 Horner 递推结果（逐次正确舍入），非对多项式值的单次正确舍入
+
 NEX_BIGFLOAT_H
