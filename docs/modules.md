@@ -370,9 +370,9 @@
 ### `ball`
 
 - 直接依赖：`bigfloat`, `bigdecimal`, `series`
-- 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`
+- 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`, `nex/ball/nex_ball_series.c`
 - 公开头：`nex/ball/nex_ball.h`
-- 公开函数（24）：
+- 公开函数（33）：
   - `bigdecimal_ball_add`
   - `bigdecimal_ball_contains`
   - `bigdecimal_ball_copy`
@@ -394,6 +394,15 @@
   - `bigfloat_ball_free`
   - `bigfloat_ball_init`
   - `bigfloat_ball_mul`
+  - `bigfloat_ball_series_add`
+  - `bigfloat_ball_series_compose`
+  - `bigfloat_ball_series_copy`
+  - `bigfloat_ball_series_eval`
+  - `bigfloat_ball_series_free`
+  - `bigfloat_ball_series_from_array`
+  - `bigfloat_ball_series_init`
+  - `bigfloat_ball_series_mul`
+  - `bigfloat_ball_series_sub`
   - `bigfloat_ball_set`
   - `bigfloat_ball_sin`
   - `bigfloat_ball_sub`

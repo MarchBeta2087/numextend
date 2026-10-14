@@ -197,6 +197,72 @@ static void test_elem_decimal(void) {
     bigdecimal_ball_free(&x);
 }
 
+static void mk_bser(bigfloat_ball_series_ty *s, int64_t val,
+        const double *cs, size_t n, const bigfloat_ctx_ty *ctx) {
+    bigfloat_ball_ty tmp[8];
+    for (size_t i = 0U; i < n; i++) {
+        bigfloat_ball_init(&tmp[i]);
+        mk(&tmp[i], cs[i], 0.0, ctx);
+    }
+    (void)bigfloat_ball_series_from_array(s, val, tmp, n);
+    for (size_t i = 0U; i < n; i++) {
+        bigfloat_ball_free(&tmp[i]);
+    }
+}
+
+static void test_ball_series(void) {
+    const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
+    bigfloat_ball_series_ty a;
+    bigfloat_ball_series_ty b;
+    bigfloat_ball_series_ty r;
+    bigfloat_ball_series_init(&a);
+    bigfloat_ball_series_init(&b);
+    bigfloat_ball_series_init(&r);
+    const double f[] = {1.0, 1.0, 1.0};   /* 1 + z + z^2 */
+    mk_bser(&a, 0, f, 3U, &ctx);
+
+    /* f + f = 2 + 2z + 2z^2 */
+    CHECK(bigfloat_ball_series_add(&r, &a, &a, 8U, &ctx) == BIGFLOAT_OK_E);
+    CHECK(r.val == 0 && r.len == 3U);
+    CHECK(contains_d(&r.coeffs[0], 2.0, &ctx));
+    CHECK(contains_d(&r.coeffs[1], 2.0, &ctx));
+    CHECK(contains_d(&r.coeffs[2], 2.0, &ctx));
+
+    /* f * f = 1 + 2z + 3z^2 + 2z^3 + z^4 */
+    CHECK(bigfloat_ball_series_mul(&r, &a, &a, 8U, &ctx) == BIGFLOAT_OK_E);
+    CHECK(r.val == 0 && r.len == 5U);
+    CHECK(contains_d(&r.coeffs[0], 1.0, &ctx));
+    CHECK(contains_d(&r.coeffs[1], 2.0, &ctx));
+    CHECK(contains_d(&r.coeffs[2], 3.0, &ctx));
+    CHECK(contains_d(&r.coeffs[3], 2.0, &ctx));
+    CHECK(contains_d(&r.coeffs[4], 1.0, &ctx));
+
+    /* 求值 f(0.5) = 1.75（球） */
+    bigfloat_ball_ty x;
+    bigfloat_ball_ty out;
+    bigfloat_ball_init(&x);
+    bigfloat_ball_init(&out);
+    mk(&x, 0.5, 0.0, &ctx);
+    CHECK(bigfloat_ball_series_eval(&out, &a, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(contains_d(&out, 1.75, &ctx));
+
+    /* 复合 f(1+z) = 3 + 3z + z^2 */
+    const double g[] = {1.0, 1.0};
+    mk_bser(&b, 0, g, 2U, &ctx);
+    CHECK(bigfloat_ball_series_compose(&r, &a, &b, 8U, &ctx) ==
+          BIGFLOAT_OK_E);
+    CHECK(r.val == 0 && r.len == 3U);
+    CHECK(contains_d(&r.coeffs[0], 3.0, &ctx));
+    CHECK(contains_d(&r.coeffs[1], 3.0, &ctx));
+    CHECK(contains_d(&r.coeffs[2], 1.0, &ctx));
+
+    bigfloat_ball_free(&out);
+    bigfloat_ball_free(&x);
+    bigfloat_ball_series_free(&r);
+    bigfloat_ball_series_free(&b);
+    bigfloat_ball_series_free(&a);
+}
+
 int main(void) {
     const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
     bigfloat_ball_ty a;
@@ -280,6 +346,7 @@ int main(void) {
     test_decimal_ball();
     test_elem();
     test_elem_decimal();
+    test_ball_series();
 
     if (failures == 0) {
         printf("test_ball: all checks passed\n");
