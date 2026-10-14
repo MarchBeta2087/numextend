@@ -7,6 +7,16 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [Unreleased]
+
+### 新增
+
+- **文件级子集构建**（TODO §B1/B2）：机器可读模块清单 `cmake/nex_modules.txt`
+  （模块 / 直接依赖 / 源文件 / 公开头）+ 依赖闭包；新增 `NEX_MODULES` 构建选项
+  （默认 `all`），可只编译、只安装所选模块及其闭包。
+- `scripts/modules.py`（清单校验 / 闭包查询）并接入 `api_audit.sh`；CI 新增
+  `linux-subset` 子集构建矩阵；新增 `tests/subset_smoke.c`。
+
 ## [1.1.0] - 2026-10-14
 
 ### 新增

@@ -41,7 +41,22 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/include/nex/nex_version.h
     @ONLY)
 
-# nex 库：各模块源文件与公共算法模块（nex/ntt/），后续按目录追加。
+# 模块清单与依赖闭包（TODO §B1/B2）：数据源 cmake/nex_modules.txt。
+# NEX_MODULES=all 构建全部模块；否则按依赖闭包裁剪（文件级子集）。
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/nex_modules.cmake)
+set(NEX_MODULES "all" CACHE STRING
+    "构建的模块：all，或逗号/分号分隔的模块名（TODO §B2）")
+if(NEX_MODULES STREQUAL "all")
+    set(_nex_requested ${NEX_MODULE_LIST})
+else()
+    string(REPLACE "," ";" _nex_requested "${NEX_MODULES}")
+endif()
+nex_resolve_modules(NEX_SOURCES NEX_PUBLIC_HEADERS NEX_RESOLVED_MODULES
+    "${_nex_requested}")
+list(LENGTH NEX_SOURCES _nex_nsrc)
+message(STATUS "nex modules: ${NEX_RESOLVED_MODULES}")
+message(STATUS "nex sources (incl. deps): ${_nex_nsrc}")
+
 # 库类型由 BUILD_SHARED_LIBS 决定（默认 STATIC）。
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(BUILD_SHARED_LIBS)
@@ -49,28 +64,7 @@ if(BUILD_SHARED_LIBS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-add_library(nex
-    nex/nex_alloc.c
-    nex/bigint/bin/nex_bigint_bin.c
-    nex/bigint/bin/nex_bigint_bin_mul.c
-    nex/bigint/bin/nex_bigint_bin_div.c
-    nex/bigint/bin/nex_bigint_bin_gcd.c
-    nex/bigint/bin64/nex_bigint_bin64.c
-    nex/bigint/dec/nex_bigint_dec.c
-    nex/bigint/dec/nex_bigint_dec_mul.c
-    nex/bigint/dec/nex_bigint_dec_div.c
-    nex/bigint/nex_bigint_conv.c
-    nex/fft/nex_fft.c
-    nex/ntt/nex_ntt.c
-    nex/bigfrac/nex_bigfrac.c
-    nex/bigfloat/nex_bigfloat.c
-    nex/bigfloat/nex_bigfloat_str.c
-    nex/bigdecimal/nex_bigdecimal.c
-    nex/bigdecimal/nex_bigdecimal_str.c
-    nex/bigcomplex/float/nex_bigcomplex_float.c
-    nex/bigcomplex/decimal/nex_bigcomplex_decimal.c
-    nex/convert/nex_convert.c
-)
+add_library(nex ${NEX_SOURCES})
 
 # 共享库版本号：SOVERSION = 主版本号（ABI 版本，见 design.md §1.4）
 set_target_properties(nex PROPERTIES
@@ -91,23 +85,31 @@ else()
     target_compile_options(nex PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-enable_testing()
-add_subdirectory(tests)
+# 测试 / 演示 / 基准：仅完整构建（子集构建不含全量测试）。
+if(NEX_MODULES STREQUAL "all")
+    enable_testing()
+    add_subdirectory(tests)
 
-# 演示程序（可选，仅构建不测试）
-add_executable(demo demo/demo.c)
-target_link_libraries(demo PRIVATE nex)
-target_include_directories(demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    # 演示程序（可选，仅构建不测试）
+    add_executable(demo demo/demo.c)
+    target_link_libraries(demo PRIVATE nex)
+    target_include_directories(demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# 性能基准（可选目标）
-add_executable(bench bench/bench.c)
-target_link_libraries(bench PRIVATE nex)
-target_include_directories(bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    # 性能基准（可选目标）
+    add_executable(bench bench/bench.c)
+    target_link_libraries(bench PRIVATE nex)
+    target_include_directories(bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# 全面性能扫描（可选目标）
-add_executable(bench_sweep bench/bench_sweep.c)
-target_link_libraries(bench_sweep PRIVATE nex)
-target_include_directories(bench_sweep PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    # 全面性能扫描（可选目标）
+    add_executable(bench_sweep bench/bench_sweep.c)
+    target_link_libraries(bench_sweep PRIVATE nex)
+    target_include_directories(bench_sweep PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+elseif("bigint_bin" IN_LIST NEX_RESOLVED_MODULES)
+    # 子集构建：最小冒烟测试（仅依赖 bigint_bin 闭包）。
+    add_executable(subset_smoke tests/subset_smoke.c)
+    target_link_libraries(subset_smoke PRIVATE nex)
+    target_include_directories(subset_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
 
 # 数学库：Linux/macOS 需显式 -lm（库内 floor/sqrt 等；Windows/mingw 的 libm 在 libc 内）
 if(NOT WIN32)
@@ -124,12 +126,19 @@ install(TARGETS nex
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-# 公开头文件（排除内部头与 .h.in 模板）
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/nex/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nex
-    FILES_MATCHING
-    PATTERN "*.h"
-    PATTERN "*_internal.h" EXCLUDE)
+# 公开头文件：仅安装依赖闭包内的头（保持 nex/ 下的相对路径）。
+foreach(_h IN LISTS NEX_PUBLIC_HEADERS)
+    file(RELATIVE_PATH _rel
+        "${CMAKE_CURRENT_SOURCE_DIR}/nex"
+        "${CMAKE_CURRENT_SOURCE_DIR}/${_h}")
+    get_filename_component(_rel_dir "${_rel}" DIRECTORY)
+    if(_rel_dir STREQUAL "")
+        set(_dst "${CMAKE_INSTALL_INCLUDEDIR}/nex")
+    else()
+        set(_dst "${CMAKE_INSTALL_INCLUDEDIR}/nex/${_rel_dir}")
+    endif()
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/${_h}" DESTINATION "${_dst}")
+endforeach()
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/nex/nex_version.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nex)
 

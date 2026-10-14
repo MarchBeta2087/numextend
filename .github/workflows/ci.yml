@@ -148,6 +148,22 @@ jobs:
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure
 
+  # 子集构建（TODO §B2）：文件级裁剪 + 依赖闭包
+  linux-subset:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        modules: ["bigint_bin,bigfrac", "bigfloat", "fft,ntt"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build subset (${{ matrix.modules }})
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DNEX_MODULES="${{ matrix.modules }}"
+          cmake --build build --parallel
+          if [ -x build/subset_smoke ]; then ./build/subset_smoke; fi
+
   # GCC + ASan/UBSan
   linux-sanitizer:
     runs-on: ubuntu-latest

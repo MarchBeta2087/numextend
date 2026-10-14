@@ -236,6 +236,20 @@ nex/
 - 任何模块不得绕过公开 API 直接读写下层结构体字段（结构体虽在头文件中可见，
   字段直读仅限本模块内部与本文档明确允许的场合）。
 
+### 2.4 模块清单与子集构建
+
+模块依赖与构建裁剪由机器可读清单 `cmake/nex_modules.txt` 单一描述（TODO §B1）：
+
+- 每行 `<module>|<deps>|<sources>|<public_headers>`；`deps` 为**直接**依赖，
+  由各 `.c` 与内部头的 `#include` 推导，允许成环（如
+  `bigint_bin ↔ bigint_conv`：bin 的十进制字符串快速路径调用 conv）。
+- 构建选项 `NEX_MODULES`（默认 `all`）：给定模块名列表后，CMake 按依赖闭包
+  展开源文件与公开头，只编译、只安装闭包内的内容（TODO §B2）。子集构建不作
+  完整 ABI 承诺；`all` 构建即 v1.x 的完整库。函数级子集与单文件组合为后续
+  方向（§13）。
+- 校验：`scripts/modules.py check`（CI 运行）保证清单与源码树一致；
+  `scripts/modules.py closure <mod...>` 可查看任一子集的闭包。
+
 ---
 
 ## 3. 通用约定

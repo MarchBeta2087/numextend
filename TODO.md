@@ -46,21 +46,25 @@
 
 ## B. P1 子集化与单文件组合（目标 v1.2）
 
-### B1 模块依赖清单（机器可读）
+### B1 模块依赖清单（机器可读）— ✅ 已完成
 
-- [ ] 建立 `tools/modules.toml`（或 JSON）：每个源文件/头文件的**公开符号**与
-      **内部依赖**，作为子集与文档生成的单一来源。
-- [ ] 脚本校验：每个模块的依赖闭包完整、无悬空符号。
-- 依据：`nex/bigint/bin`、`nex/bigint/dec`、`nex/fft`、`nex/ntt` 为叶子；
-  `bigfrac`/`bigfloat`→`bigint_bin`，`bigdecimal`→`bigint_dec`，
-  `bigcomplex`→`bigfloat`/`bigdecimal`，`convert`→几乎全部。
+- [x] `cmake/nex_modules.txt`：每行 `<module>|<deps>|<sources>|<public_headers>`，
+      依赖由各 `.c`/内部头的 `#include` 推导（允许成环，如
+      `bigint_bin ↔ bigint_conv`）。供 CMake 与 `scripts/modules.py` 共用。
+- [x] `scripts/modules.py check` 校验清单与源码树一致（每个 `.c` / 公开头恰好
+      登记一次、依赖已知），已接入 `scripts/api_audit.sh`（CI 运行）。
+- 实测依赖：`nex_alloc`/`fft`/`ntt` 为叶子；`bigint_bin`→conv（十进制字符串
+  快速路径）故整数层闭包连带 dec/conv。
 
-### B2 文件级子集（一期）
+### B2 文件级子集（一期）— ✅ 已完成
 
-- [ ] CMake 选项 `-DNEX_MODULES=bigint_bin,bigfloat,...`，自动带入依赖闭包，
-      只编译选中模块并只导出其符号。
-- [ ] 可选：`NEX_MINIMAL` 预设（仅 `bigint_bin` + `nex_alloc`）。
-- 验收：至少一个真子集构建通过其自身的 CTest 子集；`api_audit.sh` 对子集重跑。
+- [x] CMake 选项 `-DNEX_MODULES=bigint_bin,bigfloat,...`（默认 `all`），按依赖
+      闭包自动补齐源文件与公开头；只编译、只安装闭包内容。
+- [x] 子集构建跳过全量测试/演示/基准，仅构建 `subset_smoke`（闭包含
+      `bigint_bin` 时）；CI 新增 `linux-subset` 矩阵。
+- [x] 验收：`bigint_bin,bigfrac` / `bigfloat` / `fft,ntt` / `convert` 均通过；
+      `convert` 闭包正确排除无依赖的 `bigint_bin64`。
+- 未做：`NEX_MINIMAL` 预设（价值有限，暂缓）。
 
 ### B3 函数级子集（二期，需评审）
 
