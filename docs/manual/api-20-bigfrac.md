@@ -350,4 +350,38 @@ bigfrac_err_ty bigfrac_series_eval(bigfrac_ty *out, const bigfrac_series_ty *s, 
 
 **备注**：精确；val < 0（Laurent）按除以 x^{|val|} 实现
 
+### `bigfrac_binom`
+
+```c
+bigfrac_err_ty bigfrac_binom(bigfrac_ty *out, const bigfrac_ty *alpha, size_t k);
+```
+
+**说明**：广义二项式系数 C(alpha, k) = alpha(alpha−1)···(alpha−k+1)/k!
+
+**参数**
+- `out`：输出（已初始化）
+- `alpha`：上指标（任意有理数）
+- `k`：下指标
+
+**返回**：成功返回 BIGFRAC_OK_E；指针为 NULL 返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：k = 0 返回 1；alpha 为非负整数且 k > alpha 时返回 0
+
+### `bigfrac_series_binom`
+
+```c
+bigfrac_err_ty bigfrac_series_binom(bigfrac_series_ty *dst, const bigfrac_ty *alpha, size_t order);
+```
+
+**说明**：截断二项式级数 (1+z)^alpha = Σ_{k=0}^{order-1} C(alpha,k)·z^k
+
+**参数**
+- `dst`：输出（已初始化）
+- `alpha`：指数（任意有理数）
+- `order`：保留项数
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+
+**备注**：精确；order = 0 得零级数；alpha 为非负整数 n 时为 n 次多项式
+
 NEX_BIGFRAC_H

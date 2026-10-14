@@ -171,10 +171,11 @@
 ### `bigfrac`
 
 - 直接依赖：`bigint_common`, `bigint_bin`
-- 源文件：`nex/bigfrac/nex_bigfrac.c`, `nex/bigfrac/nex_bigfrac_poly.c`, `nex/bigfrac/nex_bigfrac_series.c`
+- 源文件：`nex/bigfrac/nex_bigfrac.c`, `nex/bigfrac/nex_bigfrac_poly.c`, `nex/bigfrac/nex_bigfrac_series.c`, `nex/bigfrac/nex_bigfrac_binom.c`
 - 公开头：`nex/bigfrac/nex_bigfrac.h`
-- 公开函数（24）：
+- 公开函数（26）：
   - `bigfrac_add`
+  - `bigfrac_binom`
   - `bigfrac_cmp`
   - `bigfrac_copy`
   - `bigfrac_den`
@@ -189,6 +190,7 @@
   - `bigfrac_num`
   - `bigfrac_poly_eval`
   - `bigfrac_series_add`
+  - `bigfrac_series_binom`
   - `bigfrac_series_copy`
   - `bigfrac_series_eval`
   - `bigfrac_series_free`
