@@ -119,6 +119,11 @@
         `order`）/`inv`（Laurent）/`eval`（含负幂）；测试 `tests/test_series.c`。
   - [x] 广义二项式系数 `bigfrac_binom` + 二项式级数 `bigfrac_series_binom`；
         测试 `tests/test_binom.c`；误差传播公式入 design §15.5。
+  - [x] 路线 A 底层：几何型全局尾界 `bigfrac_series_tail_geometric` +
+        自适应阶 `bigfrac_series_order_geometric`；测试 `tests/test_series_bound.c`；
+        design §15.6。
+  - [ ] 数值类型（`bigfloat`/`bigdecimal`）级数 + 自适应截断求值。
+  - [ ] 路线 B：球式（中心 + 误差半径）表示与半径传播。
   - [ ] `bigfloat`/`bigdecimal` 级数 + **严谨误差界** + 自适应截断。
   - [ ] 级数复合与求导 / 积分。
 - [ ] **C3 Padé 逼近**（有理函数逼近，作为 `exp`/`atan` 等的可选核）。
