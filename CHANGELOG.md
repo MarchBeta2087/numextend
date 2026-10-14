@@ -11,9 +11,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 
 ### 新增
 
-- **球系数截断级数**（TODO §I）：`bigfloat_ball_series_ty` + `init`/`free`/
-  `from_array`/`copy`/`add`/`sub`/`mul`/`eval`/`compose`——系数为
-  `bigfloat_ball_ty`，四则/复合/求值全程由球传播半径，得到严谨的数值级数。
+- **球系数截断级数**（TODO §I）：`bigfloat_ball_series_ty` /
+  `bigdecimal_ball_series_ty` + `init`/`free`/`from_array`/`copy`/`add`/`sub`/
+  `mul`/`eval`/`compose`——系数为球，四则/复合/求值全程由球传播半径。
 - `bench_sweep` 新增 `bigint_dec` 除法扫描（为 §I 的亚二次除法决策提供数据）。
 
 ## [1.4.0] - 2026-10-14

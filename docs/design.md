@@ -1430,7 +1430,8 @@ p_k = Σ_{j=0}^{min(k,n)} q_j c_{k−j}
 
 ## 15.8 球系数数值级数（§I，v1.5.0）
 
-`bigfloat_ball_series_ty` 以 `bigfloat_ball_ty`（中心 + 半径）为系数：
+`bigfloat_ball_series_ty` / `bigdecimal_ball_series_ty` 以球（中心 + 半径）为
+系数：
 
 ```
 S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}

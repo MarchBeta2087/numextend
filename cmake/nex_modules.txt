@@ -25,4 +25,4 @@ bigcomplex_float|bigint_common,bigint_bin,bigfloat,nex_alloc|nex/bigcomplex/floa
 bigcomplex_decimal|bigdecimal,nex_alloc|nex/bigcomplex/decimal/nex_bigcomplex_decimal.c|nex/bigcomplex/decimal/nex_bigcomplex_decimal.h
 convert|nex_alloc,bigint_bin,bigint_dec,bigint_conv,bigfrac,bigfloat,bigdecimal,bigcomplex_float,bigcomplex_decimal|nex/convert/nex_convert.c|nex/convert/nex_convert.h
 series|bigfrac,bigfloat,bigdecimal,convert|nex/series/nex_series.c,nex/series/nex_series_pade.c|nex/series/nex_series.h
-ball|bigfloat,bigdecimal,series|nex/ball/nex_ball.c,nex/ball/nex_ball_elem.c,nex/ball/nex_ball_elem_dec.c,nex/ball/nex_ball_series.c|nex/ball/nex_ball.h
+ball|bigfloat,bigdecimal,series|nex/ball/nex_ball.c,nex/ball/nex_ball_elem.c,nex/ball/nex_ball_elem_dec.c,nex/ball/nex_ball_series.c,nex/ball/nex_ball_series_dec.c|nex/ball/nex_ball.h
