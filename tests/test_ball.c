@@ -4,6 +4,7 @@
  * 覆盖 set/contains、加/减/乘/除的区间传播、除零区间与非法参数。
  */
 
+#include <math.h>
 #include <stdio.h>
 
 #include "nex/ball/nex_ball.h"
@@ -109,6 +110,56 @@ static void test_decimal_ball(void) {
     bigdecimal_ball_free(&a);
 }
 
+static double center_d(const bigfloat_ball_ty *b) {
+    double d = 0.0;
+    bigfloat_to_f64(&b->mid, &d);
+    return d;
+}
+
+static void test_elem(void) {
+    const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
+    bigfloat_ball_ty x;
+    bigfloat_ball_ty r;
+    bigfloat_ball_init(&x);
+    bigfloat_ball_init(&r);
+
+    /* exp(0) = 1 */
+    mk(&x, 0.0, 0.0, &ctx);
+    CHECK(bigfloat_ball_exp(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(center_d(&r) == 1.0);
+
+    /* exp(1) ≈ e（实参规约 + 球平方） */
+    mk(&x, 1.0, 0.0, &ctx);
+    CHECK(bigfloat_ball_exp(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(fabs(center_d(&r) - 2.718281828459045) < 1e-12);
+
+    /* exp(2) ≈ e^2 */
+    mk(&x, 2.0, 0.0, &ctx);
+    CHECK(bigfloat_ball_exp(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(fabs(center_d(&r) - 7.38905609893065) < 1e-12);
+
+    /* sin(0)=0, cos(0)=1 */
+    mk(&x, 0.0, 0.0, &ctx);
+    CHECK(bigfloat_ball_sin(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(center_d(&r) == 0.0);
+    CHECK(bigfloat_ball_cos(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(center_d(&r) == 1.0);
+
+    /* sin(1), cos(1)（half-angle 倍角） */
+    mk(&x, 1.0, 0.0, &ctx);
+    CHECK(bigfloat_ball_sin(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(fabs(center_d(&r) - 0.8414709848078965) < 1e-12);
+    CHECK(bigfloat_ball_cos(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(fabs(center_d(&r) - 0.5403023058681397) < 1e-12);
+
+    /* |x| 过大（k > 20）-> INVALID */
+    mk(&x, 1e9, 0.0, &ctx);
+    CHECK(bigfloat_ball_exp(&r, &x, &ctx) == BIGFLOAT_ERR_INVALID_E);
+
+    bigfloat_ball_free(&r);
+    bigfloat_ball_free(&x);
+}
+
 int main(void) {
     const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
     bigfloat_ball_ty a;
@@ -190,6 +241,7 @@ int main(void) {
     bigfloat_ball_free(&a);
 
     test_decimal_ball();
+    test_elem();
 
     if (failures == 0) {
         printf("test_ball: all checks passed\n");
