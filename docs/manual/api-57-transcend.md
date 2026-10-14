@@ -23,4 +23,19 @@ bigfloat_err_ty bigfloat_atan(bigfloat_ty *out, const bigfloat_ty *x, const bigf
 
 **备注**：实参规约 + 级数 + 球式严格误差界 + Ziv 提升精度保证正确舍入
 
+### `bigdecimal_atan`
+
+```c
+bigdecimal_err_ty bigdecimal_atan(bigdecimal_ty *out, const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：反正切 out = atan(x)，按 ctx 正确舍入（十进制版）
+
+**参数**
+- `out`：输出；x 自变量（有限值）；ctx 目标精度上下文
+
+**返回**：成功返回 BIGDECIMAL_OK_E；参数非法或 x 非有限返回 BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（out 不变）
+
+**备注**：实参规约 + 级数 + 球式严格误差界 + Ziv 提升精度保证正确舍入
+
 NEX_TRANSCEND_H

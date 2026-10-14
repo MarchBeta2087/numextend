@@ -193,6 +193,20 @@ static void test_elem_decimal(void) {
     mk_dec(&x, "1000000000", "0", &ctx);
     CHECK(bigdecimal_ball_exp(&r, &x, &ctx) == BIGDECIMAL_ERR_INVALID_E);
 
+    /* sqrt / atan：球应包含真值（decimal64） */
+    mk_dec(&x, "2", "0", &ctx);
+    CHECK(bigdecimal_ball_sqrt(&r, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(contains_dec(&r, "1.414213562373095", &ctx));
+    mk_dec(&x, "1", "0", &ctx);
+    CHECK(bigdecimal_ball_atan(&r, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(contains_dec(&r, "0.7853981633974483", &ctx));
+    mk_dec(&x, "2", "0", &ctx);
+    CHECK(bigdecimal_ball_atan(&r, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(contains_dec(&r, "1.107148717794091", &ctx));
+    /* 区间含负值的 sqrt 非法 */
+    mk_dec(&x, "-1", "0.5", &ctx);
+    CHECK(bigdecimal_ball_sqrt(&r, &x, &ctx) == BIGDECIMAL_ERR_INVALID_E);
+
     bigdecimal_ball_free(&r);
     bigdecimal_ball_free(&x);
 }

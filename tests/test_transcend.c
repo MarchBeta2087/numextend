@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "nex/bigfloat/nex_bigfloat.h"
+#include "nex/bigdecimal/nex_bigdecimal.h"
 #include "nex/transcend/nex_transcend.h"
 
 static int failures = 0;
@@ -40,6 +41,29 @@ static void check_atan(const char *in, const char *want,
     bigfloat_free(&x);
 }
 
+static void check_atan_dec(const char *in, const char *want,
+        const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ty x;
+    bigdecimal_ty out;
+    bigdecimal_ty w;
+    bigdecimal_init(&x);
+    bigdecimal_init(&out);
+    bigdecimal_init(&w);
+    (void)bigdecimal_from_str(&x, in, ctx, NULL);
+    (void)bigdecimal_from_str(&w, want, ctx, NULL);
+    bigdecimal_err_ty err = bigdecimal_atan(&out, &x, ctx);
+    if (err != BIGDECIMAL_OK_E) {
+        printf("FAIL dec atan(%s) err=%d\n", in, (int)err);
+        ++failures;
+    } else if (!bigdecimal_eq(&out, &w)) {
+        printf("FAIL dec atan(%s) != %s\n", in, want);
+        ++failures;
+    }
+    bigdecimal_free(&w);
+    bigdecimal_free(&out);
+    bigdecimal_free(&x);
+}
+
 int main(void) {
     const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
 
@@ -73,6 +97,27 @@ int main(void) {
     bigfloat_free(&oa);
     bigfloat_free(&b);
     bigfloat_free(&a);
+
+    /* 十进制正确舍入到 decimal64（16 位有效数字） */
+    const bigdecimal_ctx_ty dctx = bigdecimal_ctx_decimal64();
+    check_atan_dec("0", "0", &dctx);
+    check_atan_dec("1", "0.7853981633974483", &dctx);      /* pi/4 */
+    check_atan_dec("-1", "-0.7853981633974483", &dctx);
+    check_atan_dec("0.5", "0.4636476090008061", &dctx);
+    check_atan_dec("2", "1.107148717794091", &dctx);
+    check_atan_dec("3", "1.249045772398254", &dctx);
+    check_atan_dec("0.25", "0.2449786631268642", &dctx);
+    check_atan_dec("10", "1.471127674303735", &dctx);
+
+    /* 非法参数（十进制） */
+    {
+        bigdecimal_ty dx;
+        bigdecimal_init(&dx);
+        CHECK(bigdecimal_atan(NULL, &dx, &dctx) == BIGDECIMAL_ERR_INVALID_E);
+        CHECK(bigdecimal_atan(&dx, NULL, &dctx) == BIGDECIMAL_ERR_INVALID_E);
+        CHECK(bigdecimal_atan(&dx, &dx, NULL) == BIGDECIMAL_ERR_INVALID_E);
+        bigdecimal_free(&dx);
+    }
 
     /* 非法参数 */
     bigfloat_ty x;

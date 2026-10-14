@@ -110,13 +110,13 @@
 
 ---
 
-## C. P2 秦九韶 / 幂级数 / Padé 基础设施（目标 v1.3）— 进行中
+## C. P2 秦九韶 / 幂级数 / Padé 基础设施（目标 v1.3）— ✅ 已完成
 
 - [x] **C1 秦九韶（Horner）多项式求值**
   - 已落地：`*_poly_eval` 覆盖 `bigint_bin`/`bigfrac`/`bigfloat`/`bigdecimal`；
     精确（整数/有理数）或逐次正确舍入（浮点，按 `ctx`）；out 允许别名，强异常安全。
   - 测试：`tests/test_poly.c`（`poly_horner`）。
-- [ ] **C2 幂级数**（进行中：`bigfrac` 精确版已落地）
+- [x] **C2 幂级数**
   - [x] `bigfrac_series_ty` + `from_array`/`copy`/`add`/`sub`/`mul`（截断
         `order`）/`inv`（Laurent）/`eval`（含负幂）；测试 `tests/test_series.c`。
   - [x] 广义二项式系数 `bigfrac_binom` + 二项式级数 `bigfrac_series_binom`；
@@ -141,8 +141,8 @@
         （折半 + 球平方 / half-angle）；测试 `tests/test_ball.c`。待续：更大 |x|。
   - [x] 数值类型（bigfloat/bigdecimal）严谨误差界 + 自适应截断（路线 A
         `*_order` + `err_out`；路线 B 球式传播）。
-  - [ ] 通用（球系数）数值级数 `bigfloat_ball_series` / `bigdecimal_ball_series`
-        ——见 §I（v1.5.0 候选；§D 逐点求值不需要）。
+  - [x] 通用（球系数）数值级数 `bigfloat_ball_series` / `bigdecimal_ball_series`
+        ——已在 §I（v1.5.0）落地（`nex/ball/nex_ball_series*.c`）。
   - [x] 复合与求导 / 积分：`bigfrac_series_deriv` / `integral`（前导零归一；
         `z^{−1}` 项积分报错）/ `compose`（秦九韶式）；测试入 `tests/test_series.c`。
 - [x] **C3 Padé 逼近**：`nex_series_pade_frac`（bigfrac 高斯消元，[m/n] 系数
@@ -162,9 +162,9 @@
 > 前置：C1–C5。每阶段须有**误差分析 + 外部黄金 + 定向边界用例**；
 > `bigfloat` 与 `bigdecimal` 的规约各自实现。
 
-- [~] **D1 `atan`**：✅ `bigfloat_atan`（正确舍入：球式实参规约 + Ziv；
-      design §16）；测试 + mpmath 黄金对拍。待续：`bigdecimal_atan`；
-      随后重新引入复数辐角 `bigcomplex_*_arg`。
+- [~] **D1 `atan`**：✅ `bigfloat_atan` + `bigdecimal_atan`（正确舍入：球式实参
+      规约 + Ziv；design §16；含 `bigdecimal_ball_sqrt`/`bigdecimal_ball_atan`）；
+      测试 + mpmath 黄金对拍。待续：重新引入复数辐角 `bigcomplex_*_arg`。
 - [ ] **D2 `exp` / `log` / `ln`**（二进制 + 十进制各一套）。
 - [ ] **D3 `sin` / `cos` / `tan`**：含**大参数 Payne–Hanek 规约**（需高精度 π）。
 - [ ] **D4 `asin` / `acos` / `atan`**。

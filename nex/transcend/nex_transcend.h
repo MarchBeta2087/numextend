@@ -2,6 +2,7 @@
 #define NEX_TRANSCEND_H
 
 #include "nex/bigfloat/nex_bigfloat.h"
+#include "nex/bigdecimal/nex_bigdecimal.h"
 
 /*
  * nex_transcend：数值类型的超越函数（设计文档 §13 #8 / §D）。
@@ -24,6 +25,16 @@ extern "C" {
  */
 bigfloat_err_ty bigfloat_atan(bigfloat_ty *out, const bigfloat_ty *x,
         const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 反正切 out = atan(x)，按 ctx 正确舍入（十进制版）
+ * param: out 输出；x 自变量（有限值）；ctx 目标精度上下文
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法或 x 非有限返回
+ *         BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（out 不变）
+ * note: 实参规约 + 级数 + 球式严格误差界 + Ziv 提升精度保证正确舍入
+ */
+bigdecimal_err_ty bigdecimal_atan(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx);
 
 #ifdef __cplusplus
 }
