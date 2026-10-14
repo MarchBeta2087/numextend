@@ -7,6 +7,25 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [1.4.0] - 2026-10-14
+
+### 修复
+
+- **16-bit FFT 强制路径安全上限**：`mul_fft` 在强制 `chunk_bits = 16` 且长度和
+  `S > NEX_MUL_FFT_B16_MAX_SUM`（1024）时返回 `BIGINT_ERR_UNSUPPORTED_E`
+  （此前仅自动路径校验，强制路径可越界）。测试 `test_fft_mul::test_fft16_cap`。
+
+### 新增
+
+- **平台 CI**：`linux-32bit`（`-m32 -msse2 -mfpmath=sse`）与 `linux-bigendian`
+  （s390x 交叉 + QEMU）；交叉构建跳过 Python 黄金测试。
+- **测试**：`test_bigint_bin::test_sparse`（乘法与 gcd 闭式恒等式）。
+
+### 文档
+
+- `docs/design.md` §3.4「内部视图与比较规则」；§1.3/§14 平台 CI；§4.3 16-bit 上限。
+- `TODO.md` §G 收口（v1.4.0 关闭项与延后项）。
+
 ## [1.3.0] - 2026-10-14
 
 ### 新增
@@ -137,6 +156,7 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
+[1.4.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.4.0
 [1.3.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.3.0
 [1.2.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.2.0
 [1.1.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.1.0
