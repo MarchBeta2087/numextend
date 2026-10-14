@@ -183,6 +183,34 @@ jobs:
           fi
           if [ -x build/subset_smoke ]; then ./build/subset_smoke; fi
 
+  # 单文件组合示例（无 CMake，直接 cc）——「单文件分发」场景
+  linux-amalgam-example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & run amalgam example
+        run: |
+          python3 scripts/amalgamate.py --out dist
+          cc -O2 -std=c99 -Wall -Wextra -Wpedantic -Idist \
+             examples/amalgam/main.c dist/nex_amalgam.c -lm -o dist/amalgam_demo
+          ./dist/amalgam_demo
+
+  # 子集安装 + 下游消费（examples/downstream 仅用 bigint_bin）
+  linux-subset-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install subset & build downstream
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DNEX_MODULES="bigint_bin,bigfrac"
+          cmake --build build --parallel
+          cmake --install build --prefix "$PWD/_install-subset"
+          cmake -S examples/downstream -B build-downstream \
+                -DCMAKE_PREFIX_PATH="$PWD/_install-subset"
+          cmake --build build-downstream
+          ./build-downstream/downstream
+
   # GCC + ASan/UBSan
   linux-sanitizer:
     runs-on: ubuntu-latest

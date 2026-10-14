@@ -106,9 +106,13 @@ cmake --build build && ctest --test-dir build   # 全量测试通过 → 与分�
   `-DNEX_MODULES="bigint_bin"`（注意整数层因 bin↔conv 依赖环会连带 dec/conv）。
 - **无 CMake / 单文件分发**：`python scripts/amalgamate.py --out dist` 得到
   `nex_amalgam.c/.h`，直接 `cc app.c nex_amalgam.c`，或拖入单个工程 / 竞赛 /
-  教学示例。
+  教学示例。完整示例见 [`examples/amalgam/`](examples/amalgam/)。
 - **共享库体积敏感**：用子集生成小的 `.so`/`.dll`（共享库不会自动剔除未用
   符号，子集是直接有效手段）。
+
+场景 1–3 可直接用 [`examples/downstream/`](examples/downstream/) 对子集
+`find_package` 消费（该示例仅用 `bigint_bin`）；CI `linux-subset-install` 验证
+子集安装与消费链路。
 
 ## 性能
 

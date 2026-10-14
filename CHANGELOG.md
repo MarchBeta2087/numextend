@@ -23,6 +23,11 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **子集/模块文档**（TODO §B5）：`scripts/modules.py gen-docs` 生成
   `docs/modules.md`（模块 / 依赖 / 公开函数），`docs <mod...>` 输出保留/移除
   清单；并入 `scripts/docs.sh`，CI `docs` job 校验无漂移。
+- **场景示例**：`examples/amalgam/`（单文件组合 + 十进制财务求和）；CI 新增
+  `linux-amalgam-example`（无 CMake 直接 `cc`）与 `linux-subset-install`
+  （子集安装 + `examples/downstream` 消费）。
+- **函数级子集**（TODO §B3）经评审**暂缓**：粗粒度特性宏亦不做（可选功能占比过
+  小，见下）；替代为文档化工具链 DCE。
 
 ### 文档 / 说明
 
