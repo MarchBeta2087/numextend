@@ -213,6 +213,44 @@ jobs:
           cmake --build build-downstream
           ./build-downstream/downstream
 
+  # 32 位平台验证（TODO §G 第 6 项）：-m32 构建 + 全量 CTest
+  linux-32bit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install multilib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib g++-multilib
+      - name: Build & test (32-bit)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_C_FLAGS="-m32 -msse2 -mfpmath=sse" \
+                -DCMAKE_CXX_FLAGS="-m32 -msse2 -mfpmath=sse" \
+                -DCMAKE_EXE_LINKER_FLAGS=-m32
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+
+  # 大端平台验证（TODO §G 第 6 项）：s390x 交叉 + QEMU，跑 C 单元测试
+  linux-bigendian:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross toolchain & QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-s390x-linux-gnu g++-s390x-linux-gnu qemu-user
+      - name: Build & test (s390x big-endian)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_SYSTEM_NAME=Linux \
+                -DCMAKE_SYSTEM_PROCESSOR=s390x \
+                -DCMAKE_C_COMPILER=s390x-linux-gnu-gcc \
+                -DCMAKE_CXX_COMPILER=s390x-linux-gnu-g++ \
+                -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-s390x;-L;/usr/s390x-linux-gnu"
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+
   # GCC + ASan/UBSan
   linux-sanitizer:
     runs-on: ubuntu-latest
