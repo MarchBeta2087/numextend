@@ -181,6 +181,7 @@ typedef enum {
 | 11.3 | **对外接口头文件必须自包含**：即该头文件可被单独 `#include` 编译通过，所需类型自行包含对应头文件，不依赖包含顺序。 |
 | 11.4 | `#include` 顺序：① 本模块自身头文件 → ② 系统/标准库头文件 → ③ 项目内其他头文件；组间空一行，组内按字母序排列。 |
 | 11.5 | 头文件中只允许声明（`extern` 函数、`typedef`、宏），禁止定义非 `static` 变量和非内联函数。 |
+| 11.6 | **公开头文件必须带 `extern "C"` 守卫**（`#ifdef __cplusplus` / `extern "C" {` … `}`），置于 include 之后、声明之前，以保证 C++ 消费者可经 C ABI 链接。 |
 
 ```c99
 #ifndef PROJ_MATH_BIGINT_H
@@ -189,7 +190,15 @@ typedef enum {
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 ...
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* PROJ_MATH_BIGINT_H */
 ```
@@ -399,3 +408,4 @@ void bigint_dec_free(bigint_dec_ty *bd)
 | v1.4 | 2026-08-10 | 附录 A 补登 6 条：`algo`/`crt`/`ex`/`fft`/`ntt`/`param`（配合设计文档 v0.2 乘法方法选择机制） |
 | v1.5 | 2026-08-12 | 附录 A 补登 5 条：`bitrev`/`dif`/`dit`/`ntt_mod`/`w`（配合设计文档 v0.7 NTT 设计细化） |
 | v1.6 | 2026-08-12 | 附录 A 补登 2 条：`bin64`/`u128`（配合设计文档 v0.13 64 位肢变体） |
+| v1.7 | 2026-10-14 | §11.6 新增：公开头文件必须带 `extern "C"` 守卫（配合 v1.1.0 C++ 互操作）；§11 示例同步更新 |

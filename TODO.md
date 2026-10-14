@@ -175,5 +175,7 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 - **分支**：`feature/*` / `chore/*` → PR → `dev` → `main`；PR 触发多平台 CI。
 - **性能**：用 `-O2` 构建；`bench_sweep`（交错采样）做规模扫描。
 - **测试**：`ctest --test-dir build`（当前 33 项，含 Python 黄金对拍）。
-- **文档**：算法与决策入 `docs/design.md`；本文件只维护规划状态与优先级。
+- **文档**：算法与决策入 `docs/design.md`；API 手册由 `sh scripts/docs.sh` 生成
+  （API 页取自头文件 + Pandoc 合成 `docs/manual.html`），手写页随能力更新；
+  发版前按 `docs/maintenance.md` §4.1 清单同步。本文件只维护规划状态与优先级。
 - **验收门槛**：每个 P1+ 方向落地时同步补 §A 提及的 CI/文档/黄金对拍。
