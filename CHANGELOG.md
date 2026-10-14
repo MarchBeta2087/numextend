@@ -18,6 +18,11 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **超越函数 `bigfloat_atan`（TODO §D）**：正确舍入（球式实参规约 + 严谨误差界
   + Ziv 提升精度）；新模块 `nex/transcend/`；球式 `sqrt`/`atan`；测试 +
   mpmath 黄金对拍。
+- **`bigint_dec` 亚二次除法**（TODO §I）：Burnikel-Ziegler 递归除法
+  （`dbz_div_rem`），dec 基 10⁹ 以 Knuth-D 归一化因子 + 肢移位代替 bin 的整位
+  规约；除数 ≥ 64 肢且被除数 ≥ 2×除数自动分派。回归
+  `tests/test_bigint_dec::test_bz`（分派边界/随机/稀疏/全 9/精确整除）；10⁵ 位
+  ≈ 45 ms（原 Knuth D ≈ 360 ms，约 8×）。
 
 ## [1.4.0] - 2026-10-14
 

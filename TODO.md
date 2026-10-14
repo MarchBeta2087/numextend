@@ -199,9 +199,10 @@
 
 ## G. 已知技术债 / 风险（v1.4.0 后）
 
-- **`bigint_dec` 无亚二次除法**：⏳ **延后至 v1.5.0（候选）**——实测万位除法
-  1.6 ms（基 10⁹，n≈555），O(n²) 在常规规模不是瓶颈；先用 `bench_sweep`
-  量化再决定（见 §I）。
+- **`bigint_dec` 无亚二次除法**：✅ v1.5.0 已解决——移植 Burnikel-Ziegler 递归
+  除法（`dbz_div_rem`；基 10⁹ 以 Knuth-D 归一化因子 d + 肢移位 pad 代替 bin 的
+  位规约），除数 ≥ 64 肢且被除数 ≥ 2×除数自动分派；10⁵ 位 ≈ 45 ms（原 Knuth D
+  ≈ 360 ms，约 8×）。见 §I。
 
 ### v1.4.0 已关闭
 
@@ -241,9 +242,11 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 - **通用（球系数）数值级数**：✅ `bigfloat_ball_series` 与
   `bigdecimal_ball_series`（init/free/from_array/copy/add/sub/mul/eval/compose）
   均已落地；测试 `tests/test_ball.c`；design §15.8。
-- **`bigint_dec` 亚二次除法**：已量化——`bench_sweep` 新增 `dec` 除法扫描，
-  n=1024 肢（≈1 万位）~10 ms，O(n²) 确认（每翻倍 ×4.1）；**常规规模非瓶颈**，
-  继续延后；若需 10⁵ 位再评估。
+- **`bigint_dec` 亚二次除法**：✅ 已实现 Burnikel-Ziegler（`dbz_div_rem`；dec 基
+  10⁹ 的 Knuth-D 归一化 + 肢移位规约，阈值 64 肢自动分派）；回归
+  `tests/test_bigint_dec::test_bz`（分派边界/随机/稀疏/全 9/精确整除）；
+  `bench_sweep` dec 除法扫描更新。实测 n=1024 肢 14→2.9 ms、2048 肢 8.2 ms、
+  10⁵ 位 ≈ 45 ms（约 8×）。
 - **退役一次性会话备忘 `MEMO.md`**（已在 chore #59 完成）：耐久内容并入
   `docs/maintenance.md` §8 与 `design §3.4/§G`。
 

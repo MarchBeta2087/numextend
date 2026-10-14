@@ -30,6 +30,10 @@
 /* 基的 uint64_t 形式，用于试商比较 */
 #define NEX_DEC_BASE_U64 UINT64_C(1000000000)
 
+/* Burnikel-Ziegler 递归除法阈值与分派阈值（dec 肢） */
+#define NEX_DEC_BZ_THRESHOLD 80U
+#define NEX_DEC_BZ_DISPATCH 64U
+
 /* ------------------------------------------------------------------ */
 /* 内部辅助：容量与规范化（算法文件自包含，不依赖 dec.c 的 static 函数）      */
 /* ------------------------------------------------------------------ */
@@ -340,6 +344,10 @@ static bigint_err_ty mag_divmod(bigint_dec_ty *quot, bigint_dec_ty *rem,
  * return: 除数为零返回 BIGINT_ERR_DIV_ZERO_E（quot / rem 不被修改）；
  *         内存不足返回 BIGINT_ERR_OOM_E；成功返回 BIGINT_OK_E
  */
+/* BZ 递归除法（定义见文件末；大输入分派） */
+static bigint_err_ty dbz_div_rem(bigint_dec_ty *quot, bigint_dec_ty *rem,
+        const bigint_dec_ty *lhs, const bigint_dec_ty *rhs);
+
 bigint_err_ty bigint_dec_div_rem(bigint_dec_ty *quot, bigint_dec_ty *rem,
         const bigint_dec_ty *lhs, const bigint_dec_ty *rhs)
 {
@@ -372,6 +380,34 @@ bigint_err_ty bigint_dec_div_rem(bigint_dec_ty *quot, bigint_dec_ty *rem,
             bigint_dec_free(&tmp_quot);
             bigint_dec_free(&tmp_rem);
             return err;
+        }
+        if (quot != NULL) {
+            bigint_dec_move(quot, &tmp_quot);
+        } else {
+            bigint_dec_free(&tmp_quot);
+        }
+        if (rem != NULL) {
+            bigint_dec_move(rem, &tmp_rem);
+        } else {
+            bigint_dec_free(&tmp_rem);
+        }
+        return BIGINT_OK_E;
+    }
+
+    /* BZ 递归除法：大输入（除数 ≥ 64 肢且被除数 ≥ 2×除数）走亚二次 */
+    if ((rhs->len >= NEX_DEC_BZ_DISPATCH) && (lhs->len >= 2U * rhs->len)) {
+        err = dbz_div_rem(&tmp_quot, &tmp_rem, lhs, rhs);
+        if (err != BIGINT_OK_E) {
+            bigint_dec_free(&tmp_quot);
+            bigint_dec_free(&tmp_rem);
+            return err;
+        }
+        if (tmp_quot.len > 0U) {
+            tmp_quot.sign = (lhs->sign == rhs->sign)
+                    ? BIGINT_SIGN_POS_E : BIGINT_SIGN_NEG_E;
+        }
+        if (tmp_rem.len > 0U) {
+            tmp_rem.sign = lhs->sign;
         }
         if (quot != NULL) {
             bigint_dec_move(quot, &tmp_quot);
@@ -663,5 +699,542 @@ cleanup:
     if (e_work_ok) {
         bigint_dec_free(&e_work);
     }
+    return err;
+}
+
+/* ------------------------------------------------------------------ */
+/* Burnikel-Ziegler 递归除法（dec 版，基 10^9；§13 #1 / §I）            */
+/*                                                                     */
+/* 与 bin 版同构（JDK BigInteger），唯一差异在**规约**：bin 用整位左移   */
+/* sigma 使除数恰 n 肢且顶位 1；dec 基 10^9 非 2 的幂，改用 Knuth-D 归一  */
+/* 化因子 d = B/(vtop+1)（顶肢 ≥ B/2）再左移 `pad` 个肢，使除数恰 n 肢。  */
+/* 被除数同乘 d·B^pad；商不变，余数按 d·B^pad 还原。                     */
+/* ------------------------------------------------------------------ */
+
+
+typedef struct {
+    uint32_t *limbs;
+    size_t len;
+} dbz_view_ty;
+
+static bigint_dec_ty dbz_as(const dbz_view_ty *v)
+{
+    bigint_dec_ty t;
+    t.sign = (v->len > 0U) ? BIGINT_SIGN_POS_E : BIGINT_SIGN_ZERO_E;
+    t.limbs = v->limbs;
+    t.len = v->len;
+    t.cap = 0U;
+    return t;
+}
+
+static bigint_err_ty dbz_mag_copy(bigint_dec_ty *dst, const bigint_dec_ty *src)
+{
+    bigint_err_ty err = div_ensure_cap(dst, src->len);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    if (src->len > 0U) {
+        memcpy(dst->limbs, src->limbs, src->len * sizeof(uint32_t));
+    }
+    dst->len = src->len;
+    dst->sign = BIGINT_SIGN_POS_E;
+    return BIGINT_OK_E;
+}
+
+static bigint_err_ty dbz_mag_mul_small(bigint_dec_ty *dst,
+        const bigint_dec_ty *src, uint32_t d)
+{
+    bigint_err_ty err = div_ensure_cap(dst, src->len + 1U);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    uint64_t carry = 0U;
+    for (size_t i = 0U; i < src->len; i++) {
+        const uint64_t cur = (uint64_t)src->limbs[i] * (uint64_t)d + carry;
+        dst->limbs[i] = (uint32_t)(cur % NEX_DEC_BASE_U64);
+        carry = cur / NEX_DEC_BASE_U64;
+    }
+    dst->len = src->len;
+    if (carry > 0U) {
+        dst->limbs[src->len] = (uint32_t)carry;
+        dst->len = src->len + 1U;
+    }
+    div_normalize(dst);
+    dst->sign = BIGINT_SIGN_POS_E;
+    return BIGINT_OK_E;
+}
+
+static bigint_err_ty dbz_mag_add(bigint_dec_ty *dst, const bigint_dec_ty *lhs,
+        const bigint_dec_ty *rhs)
+{
+    const size_t max_len = (lhs->len > rhs->len) ? lhs->len : rhs->len;
+    bigint_err_ty err = div_ensure_cap(dst, max_len + 1U);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    uint64_t carry = 0U;
+    for (size_t i = 0U; i < max_len; i++) {
+        const uint64_t a = (i < lhs->len) ? lhs->limbs[i] : 0U;
+        const uint64_t b = (i < rhs->len) ? rhs->limbs[i] : 0U;
+        const uint64_t sum = a + b + carry;
+        dst->limbs[i] = (uint32_t)(sum % NEX_DEC_BASE_U64);
+        carry = sum / NEX_DEC_BASE_U64;
+    }
+    dst->len = max_len;
+    if (carry > 0U) {
+        dst->limbs[max_len] = (uint32_t)carry;
+        dst->len = max_len + 1U;
+    }
+    div_normalize(dst);
+    dst->sign = BIGINT_SIGN_POS_E;
+    return BIGINT_OK_E;
+}
+
+/* 要求 |lhs| ≥ |rhs| */
+static bigint_err_ty dbz_mag_sub(bigint_dec_ty *dst, const bigint_dec_ty *lhs,
+        const bigint_dec_ty *rhs)
+{
+    bigint_err_ty err = div_ensure_cap(dst, lhs->len);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    uint64_t borrow = 0U;
+    for (size_t i = 0U; i < lhs->len; i++) {
+        const uint64_t cur = lhs->limbs[i];
+        const uint64_t sub = (uint64_t)((i < rhs->len) ? rhs->limbs[i] : 0U)
+                + borrow;
+        if (cur >= sub) {
+            dst->limbs[i] = (uint32_t)(cur - sub);
+            borrow = 0U;
+        } else {
+            dst->limbs[i] = (uint32_t)(NEX_DEC_BASE_U64 + cur - sub);
+            borrow = 1U;
+        }
+    }
+    dst->len = lhs->len;
+    div_normalize(dst);
+    dst->sign = BIGINT_SIGN_POS_E;
+    return BIGINT_OK_E;
+}
+
+/* 幅值左移 k 个肢（乘 B^k） */
+static bigint_err_ty dbz_mag_shl_limbs(bigint_dec_ty *dst,
+        const bigint_dec_ty *src, size_t k)
+{
+    bigint_err_ty err = div_ensure_cap(dst, src->len + k);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    if (src->len > 0U) {
+        memmove(dst->limbs + k, src->limbs, src->len * sizeof(uint32_t));
+    }
+    memset(dst->limbs, 0, k * sizeof(uint32_t));
+    dst->len = src->len + k;
+    dst->sign = BIGINT_SIGN_POS_E;
+    return BIGINT_OK_E;
+}
+
+static bigint_err_ty dbz_mag_inc(bigint_dec_ty *v)
+{
+    size_t i = 0U;
+    while ((i < v->len) && (v->limbs[i] == NEX_DEC_BASE - 1U)) {
+        v->limbs[i] = 0U;
+        i++;
+    }
+    if (i == v->len) {
+        bigint_err_ty err = div_ensure_cap(v, v->len + 1U);
+        if (err != BIGINT_OK_E) {
+            return err;
+        }
+        v->limbs[i] = 1U;
+        v->len++;
+    } else {
+        v->limbs[i]++;
+    }
+    return BIGINT_OK_E;
+}
+
+static void dbz_mag_dec(bigint_dec_ty *v)
+{
+    size_t i = 0U;
+    while ((i < v->len) && (v->limbs[i] == 0U)) {
+        v->limbs[i] = NEX_DEC_BASE - 1U;
+        i++;
+    }
+    if (i < v->len) {
+        v->limbs[i]--;
+    }
+    div_normalize(v);
+}
+
+static void dbz_mag_add_at(bigint_dec_ty *acc, size_t off,
+        const bigint_dec_ty *src)
+{
+    uint64_t carry = 0U;
+    size_t i = 0U;
+    for (; i < src->len; i++) {
+        if (off + i >= acc->len) {
+            break;
+        }
+        const uint64_t sum = (uint64_t)acc->limbs[off + i]
+                + src->limbs[i] + carry;
+        acc->limbs[off + i] = (uint32_t)(sum % NEX_DEC_BASE_U64);
+        carry = sum / NEX_DEC_BASE_U64;
+    }
+    size_t k = off + i;
+    while ((carry > 0U) && (k < acc->len)) {
+        const uint64_t sum = (uint64_t)acc->limbs[k] + carry;
+        acc->limbs[k] = (uint32_t)(sum % NEX_DEC_BASE_U64);
+        carry = sum / NEX_DEC_BASE_U64;
+        k++;
+    }
+}
+
+static int dbz_mag_cmp(const bigint_dec_ty *lhs, const bigint_dec_ty *rhs)
+{
+    size_t l = lhs->len;
+    size_t r = rhs->len;
+    while ((l > 0U) && (lhs->limbs[l - 1U] == 0U)) {
+        l--;
+    }
+    while ((r > 0U) && (rhs->limbs[r - 1U] == 0U)) {
+        r--;
+    }
+    if (l != r) {
+        return (l < r) ? -1 : 1;
+    }
+    for (size_t i = l; i-- > 0U;) {
+        if (lhs->limbs[i] != rhs->limbs[i]) {
+            return (lhs->limbs[i] < rhs->limbs[i]) ? -1 : 1;
+        }
+    }
+    return 0;
+}
+
+static bigint_err_ty dbz_d2n1n2(bigint_dec_ty *q, bigint_dec_ty *r,
+        const dbz_view_ty *a, const dbz_view_ty *b, size_t n);
+
+static bigint_err_ty dbz_d3n2(bigint_dec_ty *q, bigint_dec_ty *r,
+        const dbz_view_ty *a, const dbz_view_ty *b, size_t n)
+{
+    dbz_view_ty a12;
+    dbz_view_ty a3;
+    dbz_view_ty b1;
+    dbz_view_ty b2;
+    a12.limbs = a->limbs + n;
+    a12.len = 2U * n;
+    a3.limbs = a->limbs;
+    a3.len = n;
+    b1.limbs = b->limbs + n;
+    b1.len = n;
+    b2.limbs = b->limbs;
+    b2.len = n;
+    const bigint_dec_ty a12b = dbz_as(&a12);
+    const bigint_dec_ty b1b = dbz_as(&b1);
+    const bigint_dec_ty bb = dbz_as(b);
+    const bigint_dec_ty b2b = dbz_as(&b2);
+
+    bigint_dec_ty rtmp;
+    bigint_dec_ty d;
+    bigint_dec_ty t;
+    bigint_err_ty err = bigint_dec_init(&rtmp);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&d);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&t);
+    if (err != BIGINT_OK_E) {
+        bigint_dec_free(&t);
+        bigint_dec_free(&d);
+        bigint_dec_free(&rtmp);
+        return err;
+    }
+
+    if (dbz_mag_cmp(&a12b, &bb) < 0) {
+        bigint_dec_ty q1;
+        bigint_dec_ty r1;
+        (void)bigint_dec_init(&q1);
+        (void)bigint_dec_init(&r1);
+        err = dbz_d2n1n2(&q1, &r1, &a12, &b1, n);
+        if (err == BIGINT_OK_E) err = dbz_mag_copy(q, &q1);
+        if (err == BIGINT_OK_E) err = dbz_mag_copy(&rtmp, &r1);
+        bigint_dec_free(&r1);
+        bigint_dec_free(&q1);
+        if (err == BIGINT_OK_E) err = bigint_dec_mul(&d, q, &b2b);
+    } else {
+        err = div_ensure_cap(q, n);
+        if (err == BIGINT_OK_E) {
+            for (size_t i = 0U; i < n; i++) {
+                q->limbs[i] = NEX_DEC_BASE - 1U;
+            }
+            q->len = n;
+            q->sign = BIGINT_SIGN_POS_E;
+        }
+        if (err == BIGINT_OK_E) err = dbz_mag_add(&rtmp, &a12b, &b1b);
+        if (err == BIGINT_OK_E) err = dbz_mag_shl_limbs(&t, &b1b, n);
+        if (err == BIGINT_OK_E) err = dbz_mag_sub(&rtmp, &rtmp, &t);
+        if (err == BIGINT_OK_E) err = dbz_mag_shl_limbs(&t, &b2b, n);
+        if (err == BIGINT_OK_E) err = dbz_mag_sub(&d, &t, &b2b);
+    }
+
+    if (err == BIGINT_OK_E) err = dbz_mag_shl_limbs(&t, &rtmp, n);
+    if (err == BIGINT_OK_E) {
+        const bigint_dec_ty a3b = dbz_as(&a3);
+        dbz_mag_add_at(&t, 0U, &a3b);
+    }
+    while ((err == BIGINT_OK_E) && (dbz_mag_cmp(&t, &d) < 0)) {
+        const bigint_dec_ty bbb = dbz_as(b);
+        err = dbz_mag_add(&t, &t, &bbb);
+        if (err == BIGINT_OK_E) {
+            dbz_mag_dec(q);
+        }
+    }
+    if (err == BIGINT_OK_E) err = dbz_mag_sub(r, &t, &d);
+    while ((err == BIGINT_OK_E) && (dbz_mag_cmp(r, &bb) >= 0)) {
+        err = dbz_mag_sub(r, r, &bb);
+        if (err == BIGINT_OK_E) {
+            err = dbz_mag_inc(q);
+        }
+    }
+
+    bigint_dec_free(&t);
+    bigint_dec_free(&d);
+    bigint_dec_free(&rtmp);
+    return err;
+}
+
+static bigint_err_ty dbz_d2n1n2(bigint_dec_ty *q, bigint_dec_ty *r,
+        const dbz_view_ty *a, const dbz_view_ty *b, size_t n)
+{
+    if (((n & 1U) != 0U) || (n < NEX_DEC_BZ_THRESHOLD)) {
+        dbz_view_ty an = *a;
+        dbz_view_ty bn = *b;
+        while ((an.len > 0U) && (an.limbs[an.len - 1U] == 0U)) {
+            an.len--;
+        }
+        while ((bn.len > 0U) && (bn.limbs[bn.len - 1U] == 0U)) {
+            bn.len--;
+        }
+        const bigint_dec_ty ab = dbz_as(&an);
+        const bigint_dec_ty bb = dbz_as(&bn);
+        if (dbz_mag_cmp(&ab, &bb) < 0) {
+            bigint_err_ty err = dbz_mag_copy(r, &ab);
+            if (err == BIGINT_OK_E) {
+                err = set_u64_mag(q, 0U);
+            }
+            return err;
+        }
+        return mag_divmod(q, r, &ab, &bb);
+    }
+    const size_t m = n / 2U;
+    dbz_view_ty a_upper;
+    dbz_view_ty a4;
+    a_upper.limbs = a->limbs + m;
+    a_upper.len = 3U * m;
+    a4.limbs = a->limbs;
+    a4.len = m;
+
+    bigint_dec_ty q1;
+    bigint_dec_ty r1;
+    bigint_dec_ty q2;
+    bigint_dec_ty r2;
+    bigint_err_ty err = bigint_dec_init(&q1);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&r1);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&q2);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&r2);
+    if (err != BIGINT_OK_E) {
+        bigint_dec_free(&r2);
+        bigint_dec_free(&q2);
+        bigint_dec_free(&r1);
+        bigint_dec_free(&q1);
+        return err;
+    }
+
+    if (err == BIGINT_OK_E) err = dbz_d3n2(&q1, &r1, &a_upper, b, m);
+    if (err == BIGINT_OK_E) {
+        bigint_dec_ty combo;
+        dbz_view_ty cur;
+        (void)bigint_dec_init(&combo);
+        err = div_ensure_cap(&combo, 3U * m);
+        if (err == BIGINT_OK_E) {
+            memset(combo.limbs, 0, 3U * m * sizeof(uint32_t));
+            memcpy(combo.limbs, a4.limbs, m * sizeof(uint32_t));
+            memcpy(combo.limbs + m, r1.limbs, r1.len * sizeof(uint32_t));
+            combo.len = 3U * m;
+            combo.sign = BIGINT_SIGN_POS_E;
+            cur.limbs = combo.limbs;
+            cur.len = combo.len;
+        }
+        if (err == BIGINT_OK_E) err = dbz_d3n2(&q2, &r2, &cur, b, m);
+        bigint_dec_free(&combo);
+    }
+    if (err == BIGINT_OK_E) err = dbz_mag_shl_limbs(&q1, &q1, m);
+    if (err == BIGINT_OK_E) err = dbz_mag_add(&q1, &q1, &q2);
+    if (err == BIGINT_OK_E) err = dbz_mag_copy(q, &q1);
+    if (err == BIGINT_OK_E) err = dbz_mag_copy(r, &r2);
+
+    bigint_dec_free(&r2);
+    bigint_dec_free(&q2);
+    bigint_dec_free(&r1);
+    bigint_dec_free(&q1);
+    return err;
+}
+
+static bigint_err_ty dbz_div_rem(bigint_dec_ty *quot, bigint_dec_ty *rem,
+        const bigint_dec_ty *lhs, const bigint_dec_ty *rhs)
+{
+    const size_t s = rhs->len;
+    size_t m = 1U;
+    while (m * NEX_DEC_BZ_THRESHOLD < s) {
+        m <<= 1U;
+    }
+    const size_t j = (s + m - 1U) / m;
+    const size_t n = j * m;
+    const size_t pad = n - s;
+
+    /* Knuth-D 归一化因子 d 与肢移位 pad：bs 恰 n 肢且顶肢 ≥ B/2 */
+    const uint32_t vtop = rhs->limbs[s - 1U];
+    const uint32_t d = (uint32_t)(NEX_DEC_BASE_U64 / ((uint64_t)vtop + 1U));
+
+    bigint_dec_ty btmp;
+    bigint_dec_ty bs;
+    bigint_dec_ty atmp;
+    bigint_dec_ty as;
+    bigint_dec_ty z;
+    bigint_dec_ty q;
+    bigint_err_ty err = bigint_dec_init(&btmp);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&bs);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&atmp);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&as);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&z);
+    if (err == BIGINT_OK_E) err = bigint_dec_init(&q);
+    if (err != BIGINT_OK_E) {
+        bigint_dec_free(&q);
+        bigint_dec_free(&z);
+        bigint_dec_free(&as);
+        bigint_dec_free(&atmp);
+        bigint_dec_free(&bs);
+        bigint_dec_free(&btmp);
+        return err;
+    }
+    if (err == BIGINT_OK_E) err = dbz_mag_mul_small(&btmp, rhs, d);
+    if (err == BIGINT_OK_E) err = dbz_mag_shl_limbs(&bs, &btmp, pad);
+    if (err == BIGINT_OK_E) err = dbz_mag_mul_small(&atmp, lhs, d);
+    if (err == BIGINT_OK_E) err = dbz_mag_shl_limbs(&as, &atmp, pad);
+
+    /* t：块数（含额外一位），as 补齐到 t·n 肢 */
+    size_t t = (as.len / n) + 1U;
+    if (t < 2U) {
+        t = 2U;
+    }
+    const size_t as_full = t * n;
+    if (err == BIGINT_OK_E) err = div_ensure_cap(&as, as_full);
+    if (err == BIGINT_OK_E) {
+        if (as.len < as_full) {
+            memset(as.limbs + as.len, 0, (as_full - as.len) * sizeof(uint32_t));
+        }
+        as.len = as_full;
+        as.sign = BIGINT_SIGN_POS_E;
+    }
+
+    bigint_dec_ty qi;
+    bigint_dec_ty ri;
+    (void)bigint_dec_init(&qi);
+    (void)bigint_dec_init(&ri);
+    err = div_ensure_cap(&q, (t - 1U) * n + 1U);
+    if (err == BIGINT_OK_E) {
+        memset(q.limbs, 0, ((t - 1U) * n + 1U) * sizeof(uint32_t));
+        q.len = 0U;
+        q.sign = BIGINT_SIGN_POS_E;
+    }
+    err = div_ensure_cap(&z, 2U * n);
+    if (err == BIGINT_OK_E) {
+        memset(z.limbs, 0, 2U * n * sizeof(uint32_t));
+        memcpy(z.limbs, as.limbs + (t - 2U) * n, n * sizeof(uint32_t));
+        memcpy(z.limbs + n, as.limbs + (t - 1U) * n, n * sizeof(uint32_t));
+        z.len = 2U * n;
+        z.sign = BIGINT_SIGN_POS_E;
+    }
+    dbz_view_ty bv;
+    bv.limbs = bs.limbs;
+    bv.len = bs.len;
+    for (size_t i = t - 2U; (err == BIGINT_OK_E) && (i > 0U); i--) {
+        dbz_view_ty zv;
+        zv.limbs = z.limbs;
+        zv.len = z.len;
+        err = dbz_d2n1n2(&qi, &ri, &zv, &bv, n);
+        if (err != BIGINT_OK_E) {
+            break;
+        }
+        if (qi.len > n) {
+            bigint_dec_ty qshift;
+            (void)bigint_dec_init(&qshift);
+            err = dbz_mag_shl_limbs(&qshift, &qi, i * n);
+            if (err == BIGINT_OK_E) err = dbz_mag_add(&q, &q, &qshift);
+            bigint_dec_free(&qshift);
+        } else {
+            memcpy(q.limbs + i * n, qi.limbs, qi.len * sizeof(uint32_t));
+            if (q.len < i * n + qi.len) {
+                q.len = i * n + qi.len;
+            }
+        }
+        if (err != BIGINT_OK_E) {
+            break;
+        }
+        err = div_ensure_cap(&z, 2U * n);
+        if (err == BIGINT_OK_E) {
+            memset(z.limbs, 0, 2U * n * sizeof(uint32_t));
+            memcpy(z.limbs, as.limbs + (i - 1U) * n, n * sizeof(uint32_t));
+            memcpy(z.limbs + n, ri.limbs, ri.len * sizeof(uint32_t));
+            z.len = 2U * n;
+            z.sign = BIGINT_SIGN_POS_E;
+        }
+    }
+    if (err == BIGINT_OK_E) {
+        dbz_view_ty zv;
+        zv.limbs = z.limbs;
+        zv.len = z.len;
+        err = dbz_d2n1n2(&qi, &ri, &zv, &bv, n);
+    }
+    if (err == BIGINT_OK_E) {
+        if (qi.len > n) {
+            err = dbz_mag_add(&q, &q, &qi);
+        } else {
+            memcpy(q.limbs, qi.limbs, qi.len * sizeof(uint32_t));
+            if (q.len < qi.len) {
+                q.len = qi.len;
+            }
+        }
+    }
+    if (err == BIGINT_OK_E) {
+        div_normalize(&q);
+    }
+    /* 余数还原：去掉低 pad 肢（恰为 0），再除以 d */
+    if (err == BIGINT_OK_E) {
+        if (ri.len > pad) {
+            memmove(ri.limbs, ri.limbs + pad,
+                    (ri.len - pad) * sizeof(uint32_t));
+            ri.len -= pad;
+            ri.sign = BIGINT_SIGN_POS_E;
+        } else {
+            ri.len = 0U;
+            ri.sign = BIGINT_SIGN_ZERO_E;
+        }
+    }
+    if (err == BIGINT_OK_E && ri.len > 0U) {
+        (void)div_small(ri.limbs, ri.len, d);
+        div_normalize(&ri);
+    }
+
+    if (err == BIGINT_OK_E) {
+        bigint_dec_move(quot, &q);
+        bigint_dec_move(rem, &ri);
+    } else {
+        bigint_dec_free(&q);
+        bigint_dec_free(&ri);
+    }
+    bigint_dec_free(&qi);
+    bigint_dec_free(&z);
+    bigint_dec_free(&as);
+    bigint_dec_free(&atmp);
+    bigint_dec_free(&bs);
+    bigint_dec_free(&btmp);
     return err;
 }
