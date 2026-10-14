@@ -1412,8 +1412,9 @@ p_k = Σ_{j=0}^{min(k,n)} q_j c_{k−j}
 
 实现：`nex_series_pade_frac` 对 `q` 用 **bigfrac 精确高斯消元**（首非零主元；
 精确运算无需选主），返回精确的 `P`、`Q` 系数。典型：`exp` 的 [2/2] 为
-`(12 + 6z + z²)/(12 − 6z + z²)`。后续：数值点求值（正确舍入）与
-`bigfloat`/`bigdecimal` 带误差的 Padé。
+`(12 + 6z + z²)/(12 − 6z + z²)`。求值 `nex_series_pade_eval_{frac,float,decimal}`：
+在 `bigfrac`/`bigfloat`/`bigdecimal` 点计算 `P(z)/Q(z)`（精确部分和 + 终值
+一次舍入）。后续：带误差的 Padé。
 
 ---
 

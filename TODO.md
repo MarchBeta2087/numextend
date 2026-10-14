@@ -141,11 +141,13 @@
         测试 `tests/test_ball.c`。待续：更大 |x|。
   - [ ] `bigfloat`/`bigdecimal` 级数 + **严谨误差界** + 自适应截断。
   - [ ] 级数复合与求导 / 积分。
-- [~] **C3 Padé 逼近**：精确版 `nex_series_pade_frac`（bigfrac 高斯消元，
-      [m/n] 系数精确；`exp` [2/2] `(12+6z+z²)/(12−6z+z²)`）；测试已入
-      `tests/test_series_eval.c`；design §15.7。待续：数值点求值 + 带误差版。
-- [ ] **C4 外部高精度黄金参考**：测试期引入 `mpmath`（或 MPFR），
-      运行期保持零依赖；扩展 `tests/golden_*.py` 框架。
+- [x] **C3 Padé 逼近**：`nex_series_pade_frac`（bigfrac 高斯消元，[m/n] 系数
+      精确；`exp` [2/2] `(12+6z+z²)/(12−6z+z²)`）与求值
+      `nex_series_pade_eval_{frac,float,decimal}`（精确部分和 + 终值一次舍入）；
+      测试入 `tests/test_series_eval.c`；design §15.7。
+- [x] **C4 外部高精度黄金参考**：`tests/golden_series_driver.c` +
+      `tests/golden_series.py`（**mpmath** 参考；缺失时 SKIP）；CI/CTest 新增
+      `series_mpmath_golden`，覆盖 `exp/sin/cos/ln1p/atan` 的 64/128/256 bit。
 - [x] **C5 规范**：`docs/design.md` 新增「§15 多项式与级数」（含 Horner 舍入协定
       与 Laurent/负幂级数设计）；级数误差界随 C2 细化。
 

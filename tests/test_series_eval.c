@@ -282,6 +282,38 @@ static void test_pade(void) {
     CHECK(frac_eq_str(&den.coeffs[1], "-1/2"));
     CHECK(frac_eq_str(&den.coeffs[2], "1/12"));
 
+    /* 求值：P(1)/Q(1) = (12+6+1)/(12−6+1) = 19/7 */
+    bigfrac_ty one;
+    bigfrac_ty val;
+    bigfrac_init(&one);
+    bigfrac_init(&val);
+    bigfrac_from_str(&one, "1", NULL);
+    CHECK(nex_series_pade_eval_frac(&val, &num, &den, &one) == BIGFRAC_OK_E);
+    CHECK(frac_eq_str(&val, "19/7"));
+
+    /* bigfloat 点 z=0.5：P/Q = 61/37（与精确有理数一次舍入对照） */
+    const bigfloat_ctx_ty fctx = bigfloat_ctx_binary64();
+    bigfloat_ty zf;
+    bigfloat_ty of;
+    bigfloat_ty ef;
+    bigfloat_init(&zf);
+    bigfloat_init(&of);
+    bigfloat_init(&ef);
+    bigfloat_from_f64(&zf, 0.5);
+    CHECK(nex_series_pade_eval_float(&of, &num, &den, &zf, &fctx) ==
+          BIGFLOAT_OK_E);
+    bigfrac_ty ref;
+    bigfrac_init(&ref);
+    bigfrac_from_str(&ref, "61/37", NULL);
+    CHECK(nex_convert_frac_to_float(&ef, &ref, &fctx) == NEX_CONVERT_OK_E);
+    CHECK(bigfloat_eq(&of, &ef));
+    bigfrac_free(&ref);
+    bigfloat_free(&ef);
+    bigfloat_free(&of);
+    bigfloat_free(&zf);
+    bigfrac_free(&val);
+    bigfrac_free(&one);
+
     /* val ≠ 0 -> INVALID */
     bigfrac_series_ty s2;
     bigfrac_series_init(&s2);

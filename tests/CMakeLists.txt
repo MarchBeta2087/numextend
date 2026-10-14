@@ -191,7 +191,14 @@ add_test(NAME bigint_bin64_unit COMMAND test_bigint_bin64)
 
 # Python 可用时注册黄金对拍；脚本自行定位驱动可执行文件
 find_package(Python3 COMPONENTS Interpreter)
+add_executable(series_golden_driver golden_series_driver.c)
+target_link_libraries(series_golden_driver PRIVATE nex)
+
 if(Python3_Interpreter_FOUND)
+    add_test(NAME series_mpmath_golden
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/golden_series.py
+                $<TARGET_FILE:series_golden_driver>)
     add_test(NAME bigint_bin_golden
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/golden_bigint_bin.py

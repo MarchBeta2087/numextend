@@ -247,4 +247,34 @@ bigfrac_err_ty nex_series_pade_frac(bigfrac_series_ty *num, bigfrac_series_ty *d
 
 **备注**：对 q 用 bigfrac 精确高斯消元；P/Q 系数精确
 
+### `nex_series_pade_eval_frac`
+
+```c
+bigfrac_err_ty nex_series_pade_eval_frac(bigfrac_ty *out, const bigfrac_series_ty *num, const bigfrac_series_ty *den, const bigfrac_ty *z);
+```
+
+**说明**：Padé 有理逼近求值 out = P(z)/Q(z)（精确有理结果）
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； Q(z) == 0 返回 BIGFRAC_ERR_DIV_ZERO_E；内存不足返回 OOM（out 不变）
+
+### `nex_series_pade_eval_float`
+
+```c
+bigfloat_err_ty nex_series_pade_eval_float(bigfloat_ty *out, const bigfrac_series_ty *num, const bigfrac_series_ty *den, const bigfloat_ty *z, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：在 bigfloat 点求值 P(z)/Q(z)（精确部分和 + 终值一次舍入）
+
+**返回**：成功返回 BIGFLOAT_OK_E；参数非法或 Q(z) == 0 返回 BIGFLOAT_ERR_INVALID_E；内存不足返回 OOM（out 不变）
+
+### `nex_series_pade_eval_decimal`
+
+```c
+bigdecimal_err_ty nex_series_pade_eval_decimal(bigdecimal_ty *out, const bigfrac_series_ty *num, const bigfrac_series_ty *den, const bigdecimal_ty *z, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：在 bigdecimal 点求值 P(z)/Q(z)（语义同 bigfloat 版）
+
+**返回**：成功返回 BIGDECIMAL_OK_E；其余同 bigfloat 版（错误码对应更换）
+
 NEX_SERIES_H

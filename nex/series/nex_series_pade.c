@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "nex/convert/nex_convert.h"
 #include "nex/nex_alloc.h"
 
 /*
@@ -227,4 +228,110 @@ bigfrac_err_ty nex_series_pade_frac(bigfrac_series_ty *num,
     free(b);
     free(A);
     return err;
+}
+
+/* ------------------------------------------------------------------ */
+/* Padé 有理逼近求值（精确部分和 + 终值一次舍入）                      */
+/* ------------------------------------------------------------------ */
+
+bigfrac_err_ty nex_series_pade_eval_frac(bigfrac_ty *out,
+        const bigfrac_series_ty *num, const bigfrac_series_ty *den,
+        const bigfrac_ty *z) {
+    if (out == NULL || num == NULL || den == NULL || z == NULL) {
+        return BIGFRAC_ERR_INVALID_E;
+    }
+    bigfrac_ty P;
+    bigfrac_ty Q;
+    bigfrac_ty zero;
+    bigfrac_init(&P);
+    bigfrac_init(&Q);
+    bigfrac_init(&zero);
+    bigfrac_err_ty err = bigfrac_series_eval(&P, num, z);
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_series_eval(&Q, den, z);
+    }
+    if (err == BIGFRAC_OK_E && bigfrac_cmp(&Q, &zero) == 0) {
+        err = BIGFRAC_ERR_DIV_ZERO_E;
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_div(out, &P, &Q);
+    }
+    bigfrac_free(&zero);
+    bigfrac_free(&Q);
+    bigfrac_free(&P);
+    return err;
+}
+
+static bigfloat_err_ty pade_map_float(bigfrac_err_ty err) {
+    return (err == BIGFRAC_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                      : BIGFLOAT_ERR_INVALID_E;
+}
+
+bigfloat_err_ty nex_series_pade_eval_float(bigfloat_ty *out,
+        const bigfrac_series_ty *num, const bigfrac_series_ty *den,
+        const bigfloat_ty *z, const bigfloat_ctx_ty *ctx) {
+    if (out == NULL || num == NULL || den == NULL || z == NULL || ctx == NULL) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfrac_ty zf;
+    bigfrac_init(&zf);
+    nex_convert_err_ty conv = nex_convert_float_to_frac(&zf, z);
+    if (conv != NEX_CONVERT_OK_E) {
+        bigfrac_free(&zf);
+        return (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                               : BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfrac_ty r;
+    bigfrac_init(&r);
+    bigfrac_err_ty err = nex_series_pade_eval_frac(&r, num, den, &zf);
+    bigfloat_err_ty result = BIGFLOAT_OK_E;
+    if (err != BIGFRAC_OK_E) {
+        result = pade_map_float(err);
+    } else {
+        conv = nex_convert_frac_to_float(out, &r, ctx);
+        if (conv != NEX_CONVERT_OK_E) {
+            result = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                                     : BIGFLOAT_ERR_INVALID_E;
+        }
+    }
+    bigfrac_free(&r);
+    bigfrac_free(&zf);
+    return result;
+}
+
+static bigdecimal_err_ty pade_map_dec(bigfrac_err_ty err) {
+    return (err == BIGFRAC_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                      : BIGDECIMAL_ERR_INVALID_E;
+}
+
+bigdecimal_err_ty nex_series_pade_eval_decimal(bigdecimal_ty *out,
+        const bigfrac_series_ty *num, const bigfrac_series_ty *den,
+        const bigdecimal_ty *z, const bigdecimal_ctx_ty *ctx) {
+    if (out == NULL || num == NULL || den == NULL || z == NULL || ctx == NULL) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigfrac_ty zf;
+    bigfrac_init(&zf);
+    nex_convert_err_ty conv = nex_convert_decimal_to_frac(&zf, z);
+    if (conv != NEX_CONVERT_OK_E) {
+        bigfrac_free(&zf);
+        return (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                               : BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigfrac_ty r;
+    bigfrac_init(&r);
+    bigfrac_err_ty err = nex_series_pade_eval_frac(&r, num, den, &zf);
+    bigdecimal_err_ty result = BIGDECIMAL_OK_E;
+    if (err != BIGFRAC_OK_E) {
+        result = pade_map_dec(err);
+    } else {
+        conv = nex_convert_frac_to_decimal(out, &r, ctx);
+        if (conv != NEX_CONVERT_OK_E) {
+            result = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                                     : BIGDECIMAL_ERR_INVALID_E;
+        }
+    }
+    bigfrac_free(&r);
+    bigfrac_free(&zf);
+    return result;
 }
