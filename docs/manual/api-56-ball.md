@@ -155,6 +155,16 @@ bigfloat_err_ty bigfloat_ball_cos(bigfloat_ball_ty *dst, const bigfloat_ball_ty 
 
 **返回**：同 exp
 
+### `bigfloat_ball_tan`
+
+```c
+bigfloat_err_ty bigfloat_ball_tan(bigfloat_ball_ty *dst, const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：球式 tan(x) = sin(x)/cos(x)
+
+**返回**：成功返回 BIGFLOAT_OK_E；参数非法/含 NaN/±∞/|x| 过大返回 INVALID； cos 区间含 0（极点附近）返回 INVALID；内存不足返回 OOM（dst 不变）
+
 ### `bigfloat_ball_sqrt`
 
 ```c
@@ -411,6 +421,16 @@ bigdecimal_err_ty bigdecimal_ball_cos(bigdecimal_ball_ty *dst, const bigdecimal_
 **说明**：球式 cos(x)（half-angle 倍角；语义同 bigfloat 版）
 
 **返回**：同 exp
+
+### `bigdecimal_ball_tan`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_tan(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：球式 tan(x) = sin(x)/cos(x)（十进制版；语义同 bigfloat_ball_tan）
+
+**返回**：同 bigfloat_ball_tan（错误码对应更换）
 
 ### `bigdecimal_ball_sqrt`
 

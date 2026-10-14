@@ -15,7 +15,7 @@
  * 半径（decimal 下 2 的幂不保证精确）。
  */
 
-static const size_t NEX_DBALL_HALVE_CAP = 20U;
+static const size_t NEX_DBALL_HALVE_CAP = 64U;
 
 static bigdecimal_err_ty ed_dir_ctx(bigdecimal_ctx_ty *out,
         const bigdecimal_ctx_ty *base, bigdecimal_round_ty round) {
@@ -389,11 +389,14 @@ static bigdecimal_err_ty sincos_reduced_dec(bigdecimal_ball_ty *sball,
     bigdecimal_ball_init(&one_ball);
     if (err == BIGDECIMAL_OK_E) {
         bigdecimal_ty one;
+        bigdecimal_ty zero;
         bigdecimal_init(&one);
+        bigdecimal_init(&zero);
         err = bigdecimal_from_str(&one, "1", ctx, NULL);
         if (err == BIGDECIMAL_OK_E) {
-            err = bigdecimal_ball_set(&one_ball, &one, &one, ctx);
+            err = bigdecimal_ball_set(&one_ball, &one, &zero, ctx);
         }
+        bigdecimal_free(&zero);
         bigdecimal_free(&one);
     }
 
@@ -623,7 +626,7 @@ bigdecimal_err_ty bigdecimal_ball_atan(bigdecimal_ball_ty *dst,
         if (err != BIGDECIMAL_OK_E || done) {
             break;
         }
-        if (k >= 32U) {
+        if (k >= 64U) {
             err = BIGDECIMAL_ERR_INVALID_E;   /* |x| 过大 */
             break;
         }
@@ -834,5 +837,26 @@ bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
     bigdecimal_free(&lo);
     bigdecimal_free(&one);
     bigdecimal_free(&zero);
+    return err;
+}
+
+bigdecimal_err_ty bigdecimal_ball_tan(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !ed_ball_ok(x)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ball_ty s;
+    bigdecimal_ball_ty c;
+    bigdecimal_ball_init(&s);
+    bigdecimal_ball_init(&c);
+    bigdecimal_err_ty err = bigdecimal_ball_sin(&s, x, ctx);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_cos(&c, x, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_div(dst, &s, &c, ctx);
+    }
+    bigdecimal_ball_free(&c);
+    bigdecimal_ball_free(&s);
     return err;
 }

@@ -539,3 +539,99 @@ bigdecimal_err_ty bigdecimal_log(bigdecimal_ty *out, const bigdecimal_ty *x,
     bigdecimal_ball_free(&xb);
     return (err != BIGDECIMAL_OK_E) ? err : result;
 }
+
+/* 一元球函数的 Ziv 正确舍入包装（sin/cos/tan 共用，十进制） */
+typedef bigdecimal_err_ty (*bd_ball_unary_fn)(bigdecimal_ball_ty *,
+        const bigdecimal_ball_ty *, const bigdecimal_ctx_ty *);
+
+static bigdecimal_err_ty bd_ziv_unary(bigdecimal_ty *out,
+        const bigdecimal_ty *x, bd_ball_unary_fn fn,
+        const bigdecimal_ctx_ty *ctx) {
+    if (out == NULL || x == NULL || ctx == NULL) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    if (bigdecimal_is_nan(x) || bigdecimal_is_inf(x)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ball_ty xb;
+    bigdecimal_ball_init(&xb);
+    bigdecimal_ty zero;
+    bigdecimal_init(&zero);
+    bigdecimal_err_ty err = bigdecimal_ball_set(&xb, x, &zero, ctx);
+    bigdecimal_err_ty result = BIGDECIMAL_ERR_INVALID_E;
+    size_t p = ctx->mant_digits + 16U;
+    for (int iter = 0; iter < 10 && err == BIGDECIMAL_OK_E; iter++) {
+        bigdecimal_ctx_ty wctx;
+        bigdecimal_ctx_ty wdn;
+        bigdecimal_ctx_ty wup;
+        if (bigdecimal_ctx_make(&wctx, p, ctx->exp_digits,
+                                BIGDECIMAL_ROUND_NEAREST_EVEN_E) !=
+                    BIGDECIMAL_OK_E ||
+                bigdecimal_ctx_make(&wdn, p, ctx->exp_digits,
+                                    BIGDECIMAL_ROUND_TOWARD_NEG_E) !=
+                    BIGDECIMAL_OK_E ||
+                bigdecimal_ctx_make(&wup, p, ctx->exp_digits,
+                                    BIGDECIMAL_ROUND_TOWARD_POS_E) !=
+                    BIGDECIMAL_OK_E) {
+            result = BIGDECIMAL_ERR_INVALID_E;
+            break;
+        }
+        bigdecimal_ball_ty b;
+        bigdecimal_ball_init(&b);
+        err = fn(&b, &xb, &wctx);
+        if (err != BIGDECIMAL_OK_E) {
+            result = err;
+            bigdecimal_ball_free(&b);
+            break;
+        }
+        bigdecimal_ty lo;
+        bigdecimal_ty hi;
+        bigdecimal_ty Lo;
+        bigdecimal_ty Hi;
+        bigdecimal_init(&lo);
+        bigdecimal_init(&hi);
+        bigdecimal_init(&Lo);
+        bigdecimal_init(&Hi);
+        err = bigdecimal_sub(&lo, &b.mid, &b.rad, &wdn);
+        if (err == BIGDECIMAL_OK_E) {
+            err = bigdecimal_add(&hi, &b.mid, &b.rad, &wup);
+        }
+        if (err == BIGDECIMAL_OK_E) {
+            err = bd_round_to_ctx(&Lo, &lo, ctx);
+        }
+        if (err == BIGDECIMAL_OK_E) {
+            err = bd_round_to_ctx(&Hi, &hi, ctx);
+        }
+        if (err == BIGDECIMAL_OK_E && bigdecimal_eq(&Lo, &Hi)) {
+            err = bigdecimal_copy(out, &Lo);
+            result = BIGDECIMAL_OK_E;
+        }
+        bigdecimal_free(&Hi);
+        bigdecimal_free(&Lo);
+        bigdecimal_free(&hi);
+        bigdecimal_free(&lo);
+        bigdecimal_ball_free(&b);
+        if (result == BIGDECIMAL_OK_E || err != BIGDECIMAL_OK_E) {
+            break;
+        }
+        p *= 2U;
+    }
+    bigdecimal_free(&zero);
+    bigdecimal_ball_free(&xb);
+    return (err != BIGDECIMAL_OK_E) ? err : result;
+}
+
+bigdecimal_err_ty bigdecimal_sin(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx) {
+    return bd_ziv_unary(out, x, bigdecimal_ball_sin, ctx);
+}
+
+bigdecimal_err_ty bigdecimal_cos(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx) {
+    return bd_ziv_unary(out, x, bigdecimal_ball_cos, ctx);
+}
+
+bigdecimal_err_ty bigdecimal_tan(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx) {
+    return bd_ziv_unary(out, x, bigdecimal_ball_tan, ctx);
+}

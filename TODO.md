@@ -171,7 +171,10 @@
       `bigfloat_log` / `bigdecimal_log`（正确舍入；log 用球式迭代平方根规约
       `y=x^(1/2^k)` → `ln1p` 级数 → 2^k 球加法回放；球式 `ball_log` 公开）；
       测试 + mpmath 黄金 `exppub`/`exppubdec`/`logpub`/`logpubdec`。
-- [ ] **D3 `sin` / `cos` / `tan`**：含**大参数 Payne–Hanek 规约**（需高精度 π）。
+- [x] **D3 `sin` / `cos` / `tan`**：✅ `bigfloat_*` / `bigdecimal_*` 正确舍入
+      （球式折半 + half-angle 倍角 + Ziv；球式 `ball_tan` = sin/cos）；折半上限
+      提到 64（覆盖 |x| ≲ 2⁶³）；修复 `sincos_reduced` 的 `one_ball` 半径错误
+      （原为 [0,2]）。待续：超大 |x|（> 2⁶³）的 Payne–Hanek 规约（需高精度 π）。
 - [ ] **D4 `asin` / `acos` / `atan`**。
 - [ ] **D5 复数超越函数**（`bigcomplex_float` / `bigcomplex_decimal`）。
 - [ ] **D6 正确舍入**：保护位 + 粘位、无双重舍入；补 §7/§9 语义规范。

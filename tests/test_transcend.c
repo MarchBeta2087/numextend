@@ -156,6 +156,58 @@ static void check_log_dec(const char *in, const char *want,
     bigdecimal_free(&x);
 }
 
+typedef bigfloat_err_ty (*bf_fn1)(bigfloat_ty *, const bigfloat_ty *,
+        const bigfloat_ctx_ty *);
+
+typedef bigdecimal_err_ty (*bd_fn1)(bigdecimal_ty *, const bigdecimal_ty *,
+        const bigdecimal_ctx_ty *);
+
+static void check_trig(const char *desc, const char *in, const char *want,
+        bf_fn1 fn, const bigfloat_ctx_ty *ctx) {
+    bigfloat_ty x;
+    bigfloat_ty out;
+    bigfloat_ty w;
+    bigfloat_init(&x);
+    bigfloat_init(&out);
+    bigfloat_init(&w);
+    (void)bigfloat_from_str(&x, in, ctx, NULL);
+    (void)bigfloat_from_str(&w, want, ctx, NULL);
+    bigfloat_err_ty err = fn(&out, &x, ctx);
+    if (err != BIGFLOAT_OK_E) {
+        printf("FAIL %s(%s) err=%d\n", desc, in, (int)err);
+        ++failures;
+    } else if (!bigfloat_eq(&out, &w)) {
+        printf("FAIL %s(%s) != %s\n", desc, in, want);
+        ++failures;
+    }
+    bigfloat_free(&w);
+    bigfloat_free(&out);
+    bigfloat_free(&x);
+}
+
+static void check_trig_dec(const char *desc, const char *in,
+        const char *want, bd_fn1 fn, const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ty x;
+    bigdecimal_ty out;
+    bigdecimal_ty w;
+    bigdecimal_init(&x);
+    bigdecimal_init(&out);
+    bigdecimal_init(&w);
+    (void)bigdecimal_from_str(&x, in, ctx, NULL);
+    (void)bigdecimal_from_str(&w, want, ctx, NULL);
+    bigdecimal_err_ty err = fn(&out, &x, ctx);
+    if (err != BIGDECIMAL_OK_E) {
+        printf("FAIL dec %s(%s) err=%d\n", desc, in, (int)err);
+        ++failures;
+    } else if (!bigdecimal_eq(&out, &w)) {
+        printf("FAIL dec %s(%s) != %s\n", desc, in, want);
+        ++failures;
+    }
+    bigdecimal_free(&w);
+    bigdecimal_free(&out);
+    bigdecimal_free(&x);
+}
+
 int main(void) {
     const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
 
@@ -227,6 +279,26 @@ int main(void) {
     check_log_dec("0.5", "-0.6931471805599453", &dctx);
     check_log_dec("1.5", "0.4054651081081644", &dctx);
     check_log_dec("7", "1.945910149055313", &dctx);
+
+    /* sin / cos / tan：正确舍入（binary64 / decimal64） */
+    check_trig("sin", "0", "0", bigfloat_sin, &ctx);
+    check_trig("sin", "1", "0.8414709848078965", bigfloat_sin, &ctx);
+    check_trig("sin", "0.5", "0.479425538604203", bigfloat_sin, &ctx);
+    check_trig("sin", "-2", "-0.9092974268256817", bigfloat_sin, &ctx);
+    check_trig("cos", "0", "1", bigfloat_cos, &ctx);
+    check_trig("cos", "1", "0.5403023058681398", bigfloat_cos, &ctx);
+    check_trig("cos", "0.5", "0.8775825618903728", bigfloat_cos, &ctx);
+    check_trig("cos", "-2", "-0.4161468365471424", bigfloat_cos, &ctx);
+    check_trig("tan", "0", "0", bigfloat_tan, &ctx);
+    check_trig("tan", "1", "1.5574077246549023", bigfloat_tan, &ctx);
+    check_trig("tan", "0.5", "0.5463024898437905", bigfloat_tan, &ctx);
+    check_trig("tan", "-2", "2.185039863261519", bigfloat_tan, &ctx);
+    check_trig_dec("sin", "1", "0.8414709848078965", bigdecimal_sin, &dctx);
+    check_trig_dec("sin", "2", "0.9092974268256817", bigdecimal_sin, &dctx);
+    check_trig_dec("cos", "1", "0.5403023058681397", bigdecimal_cos, &dctx);
+    check_trig_dec("cos", "2", "-0.4161468365471424", bigdecimal_cos, &dctx);
+    check_trig_dec("tan", "1", "1.557407724654902", bigdecimal_tan, &dctx);
+    check_trig_dec("tan", "0.5", "0.5463024898437905", bigdecimal_tan, &dctx);
     /* log 定义域 */
     {
         bigfloat_ty nx;

@@ -9,9 +9,11 @@
  *   atan <prec_bits> <z>
  *   exppub <prec_bits> <z>        （bigfloat_exp，正确舍入）
  *   logpub <prec_bits> <z>        （bigfloat_log，正确舍入）
+ *   sinpub/cospub/tanpub <prec_bits> <z>
  *   atanpubdec <mant_digits> <z>   （十进制正确舍入）
  *   exppubdec <mant_digits> <z>
  *   logpubdec <mant_digits> <z>
+ *   sinpubdec/cospubdec/tanpubdec <mant_digits> <z>
  * 失败输出 "ERR"。参考实现见 golden_series.py（mpmath）。
  */
 
@@ -52,7 +54,10 @@ int main(void) {
             continue;
         }
         if (strcmp(cmd, "atanpubdec") == 0 || strcmp(cmd, "exppubdec") == 0 ||
-                strcmp(cmd, "logpubdec") == 0) {
+                strcmp(cmd, "logpubdec") == 0 ||
+                strcmp(cmd, "sinpubdec") == 0 ||
+                strcmp(cmd, "cospubdec") == 0 ||
+                strcmp(cmd, "tanpubdec") == 0) {
             bigdecimal_ctx_ty dctx;
             bigdecimal_ty dz;
             bigdecimal_ty dout;
@@ -70,6 +75,12 @@ int main(void) {
                     derr = bigdecimal_exp(&dout, &dz, &dctx);
                 } else if (strcmp(cmd, "logpubdec") == 0) {
                     derr = bigdecimal_log(&dout, &dz, &dctx);
+                } else if (strcmp(cmd, "sinpubdec") == 0) {
+                    derr = bigdecimal_sin(&dout, &dz, &dctx);
+                } else if (strcmp(cmd, "cospubdec") == 0) {
+                    derr = bigdecimal_cos(&dout, &dz, &dctx);
+                } else if (strcmp(cmd, "tanpubdec") == 0) {
+                    derr = bigdecimal_tan(&dout, &dz, &dctx);
                 } else {
                     derr = bigdecimal_atan(&dout, &dz, &dctx);
                 }
@@ -114,6 +125,12 @@ int main(void) {
                 err = bigfloat_exp(&out, &z, &g_ctx);
             } else if (strcmp(cmd, "logpub") == 0) {
                 err = bigfloat_log(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "sinpub") == 0) {
+                err = bigfloat_sin(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "cospub") == 0) {
+                err = bigfloat_cos(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "tanpub") == 0) {
+                err = bigfloat_tan(&out, &z, &g_ctx);
             }
         }
 

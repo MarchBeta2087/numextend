@@ -28,6 +28,12 @@ FUNCS = {
     "exppubdec": lambda mp, x: mp.exp(x),
     "logpub": lambda mp, x: mp.log(x),
     "logpubdec": lambda mp, x: mp.log(x),
+    "sinpub": lambda mp, x: mp.sin(x),
+    "cospub": lambda mp, x: mp.cos(x),
+    "tanpub": lambda mp, x: mp.tan(x),
+    "sinpubdec": lambda mp, x: mp.sin(x),
+    "cospubdec": lambda mp, x: mp.cos(x),
+    "tanpubdec": lambda mp, x: mp.tan(x),
 }
 
 CASES = [
@@ -62,6 +68,15 @@ CASES = [
     ("logpubdec", 16, "2"),
     ("logpubdec", 16, "1.5"),
     ("logpubdec", 20, "10"),
+    ("sinpub", 64, "1"),
+    ("cospub", 64, "1"),
+    ("tanpub", 64, "0.5"),
+    ("sinpub", 128, "-2"),
+    ("cospub", 256, "3"),
+    ("sinpubdec", 16, "1"),
+    ("cospubdec", 16, "1"),
+    ("tanpubdec", 16, "0.5"),
+    ("sinpubdec", 20, "2"),
 ]
 
 

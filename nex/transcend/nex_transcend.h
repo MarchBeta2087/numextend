@@ -57,6 +57,30 @@ bigfloat_err_ty bigfloat_log(bigfloat_ty *out, const bigfloat_ty *x,
         const bigfloat_ctx_ty *ctx);
 
 /*
+ * brief: 正弦 out = sin(x)，按 ctx 正确舍入
+ * param: out 输出；x 自变量（有限值）；ctx 目标精度上下文
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法/x 非有限/|x| 过大返回 INVALID；
+ *         内存不足返回 OOM（out 不变）
+ * note: 球式折半 + half-angle 倍角 + Ziv 正确舍入
+ */
+bigfloat_err_ty bigfloat_sin(bigfloat_ty *out, const bigfloat_ty *x,
+        const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 余弦 out = cos(x)，按 ctx 正确舍入（语义同 sin）
+ * return: 同 bigfloat_sin
+ */
+bigfloat_err_ty bigfloat_cos(bigfloat_ty *out, const bigfloat_ty *x,
+        const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 正切 out = tan(x) = sin(x)/cos(x)，按 ctx 正确舍入
+ * return: 同 bigfloat_sin；cos = 0（极点）返回 INVALID
+ */
+bigfloat_err_ty bigfloat_tan(bigfloat_ty *out, const bigfloat_ty *x,
+        const bigfloat_ctx_ty *ctx);
+
+/*
  * brief: 反正切 out = atan(x)，按 ctx 正确舍入（十进制版）
  * param: out 输出；x 自变量（有限值）；ctx 目标精度上下文
  * return: 成功返回 BIGDECIMAL_OK_E；参数非法或 x 非有限返回
@@ -94,6 +118,27 @@ bigdecimal_err_ty bigdecimal_exp(bigdecimal_ty *out, const bigdecimal_ty *x,
  * note: 球式迭代平方根规约 + `ln1p` 级数 + Ziv 正确舍入
  */
 bigdecimal_err_ty bigdecimal_log(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 正弦 out = sin(x)，按 ctx 正确舍入（十进制版）
+ * return: 同 bigfloat_sin（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_sin(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 余弦 out = cos(x)，按 ctx 正确舍入（十进制版）
+ * return: 同 bigfloat_sin（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_cos(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 正切 out = tan(x)，按 ctx 正确舍入（十进制版）
+ * return: 同 bigfloat_tan（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_tan(bigdecimal_ty *out, const bigdecimal_ty *x,
         const bigdecimal_ctx_ty *ctx);
 
 #ifdef __cplusplus

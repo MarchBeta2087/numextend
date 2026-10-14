@@ -68,6 +68,41 @@ bigfloat_err_ty bigfloat_log(bigfloat_ty *out, const bigfloat_ty *x, const bigfl
 
 **备注**：球式迭代平方根规约 + `ln1p` 级数 + Ziv 正确舍入
 
+### `bigfloat_sin`
+
+```c
+bigfloat_err_ty bigfloat_sin(bigfloat_ty *out, const bigfloat_ty *x, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：正弦 out = sin(x)，按 ctx 正确舍入
+
+**参数**
+- `out`：输出；x 自变量（有限值）；ctx 目标精度上下文
+
+**返回**：成功返回 BIGFLOAT_OK_E；参数非法/x 非有限/|x| 过大返回 INVALID； 内存不足返回 OOM（out 不变）
+
+**备注**：球式折半 + half-angle 倍角 + Ziv 正确舍入
+
+### `bigfloat_cos`
+
+```c
+bigfloat_err_ty bigfloat_cos(bigfloat_ty *out, const bigfloat_ty *x, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：余弦 out = cos(x)，按 ctx 正确舍入（语义同 sin）
+
+**返回**：同 bigfloat_sin
+
+### `bigfloat_tan`
+
+```c
+bigfloat_err_ty bigfloat_tan(bigfloat_ty *out, const bigfloat_ty *x, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：正切 out = tan(x) = sin(x)/cos(x)，按 ctx 正确舍入
+
+**返回**：同 bigfloat_sin；cos = 0（极点）返回 INVALID
+
 ### `bigdecimal_atan`
 
 ```c
@@ -127,5 +162,35 @@ bigdecimal_err_ty bigdecimal_log(bigdecimal_ty *out, const bigdecimal_ty *x, con
 **返回**：成功返回 BIGDECIMAL_OK_E；参数非法、x 非有限或 x ≤ 0 返回 INVALID； 内存不足返回 OOM（out 不变）
 
 **备注**：球式迭代平方根规约 + `ln1p` 级数 + Ziv 正确舍入
+
+### `bigdecimal_sin`
+
+```c
+bigdecimal_err_ty bigdecimal_sin(bigdecimal_ty *out, const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：正弦 out = sin(x)，按 ctx 正确舍入（十进制版）
+
+**返回**：同 bigfloat_sin（错误码对应更换）
+
+### `bigdecimal_cos`
+
+```c
+bigdecimal_err_ty bigdecimal_cos(bigdecimal_ty *out, const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：余弦 out = cos(x)，按 ctx 正确舍入（十进制版）
+
+**返回**：同 bigfloat_sin（错误码对应更换）
+
+### `bigdecimal_tan`
+
+```c
+bigdecimal_err_ty bigdecimal_tan(bigdecimal_ty *out, const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：正切 out = tan(x)，按 ctx 正确舍入（十进制版）
+
+**返回**：同 bigfloat_tan（错误码对应更换）
 
 NEX_TRANSCEND_H
