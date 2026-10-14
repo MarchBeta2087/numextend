@@ -194,7 +194,9 @@ find_package(Python3 COMPONENTS Interpreter)
 add_executable(series_golden_driver golden_series_driver.c)
 target_link_libraries(series_golden_driver PRIVATE nex)
 
-if(Python3_Interpreter_FOUND)
+# 交叉编译（如大端 QEMU）下，Python 黄金对拍无法直接运行目标二进制，
+# 仅注册 C 单元测试（由 CMAKE_CROSSCOMPILING_EMULATOR 托管）。
+if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
     add_test(NAME series_mpmath_golden
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/golden_series.py
