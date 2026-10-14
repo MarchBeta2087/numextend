@@ -60,7 +60,7 @@ int main() {
 
     /* convert：bin → frac（精确），验证分子等于源值 */
     bigfrac_ty frac{};
-    CHECK(bigfrac_init(&frac) == BIGINT_OK_E);
+    CHECK(bigfrac_init(&frac) == BIGFRAC_OK_E);
     CHECK(nex_convert_bin_to_frac(&frac, &sum) == NEX_CONVERT_OK_E);
     CHECK(bigint_bin_cmp(bigfrac_num(&frac), &sum) == 0);
 
@@ -78,10 +78,10 @@ int main() {
     bigcomplex_decimal_ty cd{};
     CHECK(bigint_dec_init(&dec) == BIGINT_OK_E);
     CHECK(bigint_bin64_init(&b64) == BIGINT_OK_E);
-    CHECK(bigfloat_init(&bf) == BIGINT_OK_E);
-    CHECK(bigdecimal_init(&bd) == BIGINT_OK_E);
-    CHECK(bigcomplex_float_init(&cf) == BIGINT_OK_E);
-    CHECK(bigcomplex_decimal_init(&cd) == BIGINT_OK_E);
+    CHECK(bigfloat_init(&bf) == BIGFLOAT_OK_E);
+    CHECK(bigdecimal_init(&bd) == BIGDECIMAL_OK_E);
+    CHECK(bigcomplex_float_init(&cf) == BIGCOMPLEX_FLOAT_OK_E);
+    CHECK(bigcomplex_decimal_init(&cd) == BIGCOMPLEX_DECIMAL_OK_E);
     bigint_dec_free(&dec);
     bigint_bin64_free(&b64);
     bigfloat_free(&bf);

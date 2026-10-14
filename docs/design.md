@@ -249,6 +249,12 @@ nex/
   方向（§13）。
 - 校验：`scripts/modules.py check`（CI 运行）保证清单与源码树一致；
   `scripts/modules.py closure <mod...>` 可查看任一子集的闭包。
+- 文档：`scripts/modules.py gen-docs` 生成 `docs/modules.md`（模块 / 依赖 /
+  公开函数），随 `sh scripts/docs.sh` 同步、CI 校验无漂移；
+  `scripts/modules.py docs <mod...>` 输出任一子集的保留/移除清单。
+- 单文件组合（§B4）：`scripts/amalgamate.py` 生成 `nex_amalgam.c/.h`
+  （去内部 `#include`、跨文件 `static` 按文件前缀改名）；CMake
+  `-DNEX_AMALGAM=ON` 以单 TU 构建，CI 用全量 CTest 验证与分文件构建等价。
 
 ---
 

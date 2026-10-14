@@ -75,23 +75,23 @@
 - 风险/门槛：函数级 ABI 与 §1.4 稳定性政策的关系须先写明；维护成本高，
   未定案前不进入实现。
 
-### B4 单文件组合（amalgamation）
+### B4 单文件组合（amalgamation）— ✅ 已完成
 
-- [ ] 生成 `nex_amalgam.c` / `nex_amalgam.h`（单 TU）。
-- **已知硬障碍（实测）**：202 个 `static` 定义、141 个唯一名、**44 个跨文件重名**
-  （`valid_ctx`×4、`mag_add`/`mag_sub`×4、`mul_schoolbook`、`map_bigint_err` …）。
-  单 TU 直接拼接会「重复定义」。
-- [ ] 必备步骤：`static` 符号改名（按文件名加前缀）、内部 `#include` 剥离、
-      拼接拓扑排序、宏/`static const` 表冲突检测、`NEX_*` 配置宏透传。
-- [ ] 可选单头（STB `NEX_IMPLEMENTATION` 风格）由 amalgamation 派生；先评估
-      是否值得改变消费模型。
-- 验收：amalgam 构建产物通过**全量** CTest（与分文件构建等价）。
+- [x] `scripts/amalgamate.py` 生成 `nex_amalgam.c` / `nex_amalgam.h`：
+      公开头 → 单头；内部头 + 源文件 → 单源；剥离内部 `#include "nex/..."`；
+      跨文件重名 `static` 按文件前缀改名（实测 43 处）；版本宏内联。
+- [x] CMake 选项 `-DNEX_AMALGAM=ON`（配置期生成，单 TU 构建）。
+- [x] 验收：`linux-amalgam` CI 用**全量 CTest（34/34）**验证与分文件构建等价；
+      子集 amalgam（`bigfloat`）亦通过 `subset_smoke`。
+- 未做：可选单头（STB `NEX_IMPLEMENTATION` 风格）——消费模型改动大，暂缓。
 
-### B5 子集/合并文档生成
+### B5 子集/合并文档生成 — ✅ 已完成
 
-- [ ] 扩展 `scripts/api_symbols.py` / `scripts/gen_api_doc.py`：输出子集库的
-      **保留函数/文件**与**移除函数/文件**清单。
-- [ ] CI 校验生成物与实现同步（`git diff --exit-code`，沿用 `docs` job 模式）。
+- [x] `scripts/modules.py gen-docs` → `docs/modules.md`（模块 / 依赖 / 公开函数）。
+- [x] `scripts/modules.py docs <mod...>` 输出子集保留/移除清单（模块 / 文件 /
+      函数）。
+- [x] 并入 `scripts/docs.sh`；CI `docs` job 以
+      `git diff --exit-code -- docs/manual docs/modules.md` 校验无漂移。
 
 ---
 

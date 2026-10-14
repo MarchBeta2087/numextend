@@ -16,6 +16,13 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   （默认 `all`），可只编译、只安装所选模块及其闭包。
 - `scripts/modules.py`（清单校验 / 闭包查询）并接入 `api_audit.sh`；CI 新增
   `linux-subset` 子集构建矩阵；新增 `tests/subset_smoke.c`。
+- **单文件组合**（TODO §B4）：`scripts/amalgamate.py` 生成 `nex_amalgam.c/.h`
+  （去内部 `#include`、跨文件 `static` 按文件前缀改名）；新增 CMake 选项
+  `NEX_AMALGAM`（配置期生成），CI 新增 `linux-amalgam` 用**全量 CTest** 验证
+  与分文件构建等价。
+- **子集/模块文档**（TODO §B5）：`scripts/modules.py gen-docs` 生成
+  `docs/modules.md`（模块 / 依赖 / 公开函数），`docs <mod...>` 输出保留/移除
+  清单；并入 `scripts/docs.sh`，CI `docs` job 校验无漂移。
 
 ## [1.1.0] - 2026-10-14
 

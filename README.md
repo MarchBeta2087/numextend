@@ -74,8 +74,21 @@ cmake --build build
 ```
 
 `convert`（跨类型转换）依赖全部类型；未选模块不编译、不安装、也不导出符号。
-子集构建不提供完整测试与 ABI 承诺。清单与闭包可用
-`python scripts/modules.py list` / `closure <mod...>` 查看。
+子集构建不提供完整测试与 ABI 承诺。模块总览（依赖 / 公开函数）见
+[`docs/modules.md`](docs/modules.md)；清单与闭包可用
+`python scripts/modules.py list` / `closure <mod...>` / `docs <mod...>` 查看。
+
+## 单文件组合（可选）
+
+`-DNEX_AMALGAM=ON` 时先由 `scripts/amalgamate.py` 生成 `nex_amalgam.c/.h`
+（剥离内部 `#include`、跨文件 `static` 改名），再以单个翻译单元构建库：
+
+```sh
+cmake -S . -B build -DNEX_AMALGAM=ON
+cmake --build build && ctest --test-dir build   # 全量测试通过 → 与分文件等价
+```
+
+也可直接使用生成物：`cc app.c nex_amalgam.c -I<amalgam_dir>`。
 
 ## 性能
 
