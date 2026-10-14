@@ -229,4 +229,22 @@ bigdecimal_err_ty nex_series_atan_eval_decimal(bigdecimal_ty *out, bigdecimal_ty
 
 **返回**：成功返回 BIGDECIMAL_OK_E；其余同 ln1p_eval_float（错误码对应更换）
 
+### `nex_series_pade_frac`
+
+```c
+bigfrac_err_ty nex_series_pade_frac(bigfrac_series_ty *num, bigfrac_series_ty *den, const bigfrac_series_ty *series, size_t m, size_t n);
+```
+
+**说明**：Padé 逼近 [m/n]：由幂级数 c_0+c_1 z+… 求 P/Q，f − P/Q = O(z^{m+n+1})
+
+**参数**
+- `num`：输出分子多项式（bigfrac_series，val=0，次数 ≤ m）
+- `den`：输出分母多项式（bigfrac_series，val=0，Q(0)=1，次数 ≤ n）
+- `series`：输入幂级数（要求 val = 0）
+- `m,`：n   分子/分母次数
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法或 series->val ≠ 0 或系统奇异返回 BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E
+
+**备注**：对 q 用 bigfrac 精确高斯消元；P/Q 系数精确
+
 NEX_SERIES_H

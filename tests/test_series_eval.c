@@ -256,6 +256,48 @@ static void test_invpow_eval(void) {
     bigfrac_free(&eps);
 }
 
+static void test_pade(void) {
+    const char *cs[] = {"1", "1", "1/2", "1/6", "1/24"};
+    bigfrac_ty coeffs[5];
+    for (int i = 0; i < 5; i++) {
+        bigfrac_init(&coeffs[i]);
+        bigfrac_from_str(&coeffs[i], cs[i], NULL);
+    }
+    bigfrac_series_ty s;
+    bigfrac_series_ty num;
+    bigfrac_series_ty den;
+    bigfrac_series_init(&s);
+    bigfrac_series_init(&num);
+    bigfrac_series_init(&den);
+    CHECK(bigfrac_series_from_array(&s, 0, coeffs, 5U) == BIGFRAC_OK_E);
+
+    /* exp(z) 的 [2/2] Padé：(12 + 6z + z²)/(12 − 6z + z²) */
+    CHECK(nex_series_pade_frac(&num, &den, &s, 2U, 2U) == BIGFRAC_OK_E);
+    CHECK(num.val == 0 && num.len == 3U);
+    CHECK(frac_eq_str(&num.coeffs[0], "1"));
+    CHECK(frac_eq_str(&num.coeffs[1], "1/2"));
+    CHECK(frac_eq_str(&num.coeffs[2], "1/12"));
+    CHECK(den.val == 0 && den.len == 3U);
+    CHECK(frac_eq_str(&den.coeffs[0], "1"));
+    CHECK(frac_eq_str(&den.coeffs[1], "-1/2"));
+    CHECK(frac_eq_str(&den.coeffs[2], "1/12"));
+
+    /* val ≠ 0 -> INVALID */
+    bigfrac_series_ty s2;
+    bigfrac_series_init(&s2);
+    CHECK(bigfrac_series_from_array(&s2, 1, coeffs, 3U) == BIGFRAC_OK_E);
+    CHECK(nex_series_pade_frac(&num, &den, &s2, 1U, 1U) ==
+          BIGFRAC_ERR_INVALID_E);
+    bigfrac_series_free(&s2);
+
+    for (int i = 0; i < 5; i++) {
+        bigfrac_free(&coeffs[i]);
+    }
+    bigfrac_series_free(&den);
+    bigfrac_series_free(&num);
+    bigfrac_series_free(&s);
+}
+
 int main(void) {
     test_binom_model_order();
     test_fact_orders();
@@ -263,6 +305,7 @@ int main(void) {
     test_fact_eval_float();
     test_fact_eval_decimal();
     test_invpow_eval();
+    test_pade();
 
     if (failures == 0) {
         printf("test_series_eval: all checks passed\n");

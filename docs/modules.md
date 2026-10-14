@@ -337,9 +337,9 @@
 ### `series`
 
 - 直接依赖：`bigfrac`, `bigfloat`, `bigdecimal`, `convert`
-- 源文件：`nex/series/nex_series.c`
+- 源文件：`nex/series/nex_series.c`, `nex/series/nex_series_pade.c`
 - 公开头：`nex/series/nex_series.h`
-- 公开函数（19）：
+- 公开函数（20）：
   - `nex_series_atan_eval_decimal`
   - `nex_series_atan_eval_float`
   - `nex_series_atan_order`
@@ -356,6 +356,7 @@
   - `nex_series_ln1p_eval_decimal`
   - `nex_series_ln1p_eval_float`
   - `nex_series_ln1p_order`
+  - `nex_series_pade_frac`
   - `nex_series_sin_eval_decimal`
   - `nex_series_sin_eval_float`
   - `nex_series_sin_order`
@@ -363,17 +364,20 @@
 ### `ball`
 
 - 直接依赖：`bigfloat`, `bigdecimal`, `series`
-- 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`
+- 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`
 - 公开头：`nex/ball/nex_ball.h`
-- 公开函数（21）：
+- 公开函数（24）：
   - `bigdecimal_ball_add`
   - `bigdecimal_ball_contains`
   - `bigdecimal_ball_copy`
+  - `bigdecimal_ball_cos`
   - `bigdecimal_ball_div`
+  - `bigdecimal_ball_exp`
   - `bigdecimal_ball_free`
   - `bigdecimal_ball_init`
   - `bigdecimal_ball_mul`
   - `bigdecimal_ball_set`
+  - `bigdecimal_ball_sin`
   - `bigdecimal_ball_sub`
   - `bigfloat_ball_add`
   - `bigfloat_ball_contains`
