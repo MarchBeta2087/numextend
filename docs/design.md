@@ -1305,9 +1305,12 @@ S(z) = Σ_{i=0}^{N} a[i] · z^{k+i},   k ∈ ℤ
   `mul`（截断到 `order`）/ `inv`（支持 Laurent，结果 `val = −src->val`）/
   `eval`（`val < 0` 按除以 `x^{|val|}`，要求 `x ≠ 0`）。精确、允许别名、
   OOM 时输出不变。测试 `tests/test_series.c`。
+  另已落地：`bigfrac_series_deriv` / `integral`（逐项，前导零归一；含
+  `z^{−1}` 项积分报 INVALID）与 `bigfrac_series_compose`（秦九韶式，
+  `f.val = 0`、`g.val ≥ 0`）。
 - **后续（C2 续 / C3）**：
   - `bigfloat` / `bigdecimal` 级数 + 严谨**误差界**（数值类型，含自适应截断）；
-  - 级数复合与求导/积分；
+  - 级数复合与求导/积分（已落地，见上）。
   - Padé 逼近（有理函数，作为 `exp`/`atan` 等的可选核）；
   - `valuation` 字段从第一天即存在，非负幂级数即 `k ≥ 0` 特例（已按此实现）。
 

@@ -140,7 +140,8 @@
         `bigdecimal_ball_exp/sin/cos`（折半 + 球平方 / half-angle）；
         测试 `tests/test_ball.c`。待续：更大 |x|。
   - [ ] `bigfloat`/`bigdecimal` 级数 + **严谨误差界** + 自适应截断。
-  - [ ] 级数复合与求导 / 积分。
+  - [x] 复合与求导 / 积分：`bigfrac_series_deriv` / `integral`（前导零归一；
+        `z^{−1}` 项积分报错）/ `compose`（秦九韶式）；测试入 `tests/test_series.c`。
 - [x] **C3 Padé 逼近**：`nex_series_pade_frac`（bigfrac 高斯消元，[m/n] 系数
       精确；`exp` [2/2] `(12+6z+z²)/(12−6z+z²)`）与求值
       `nex_series_pade_eval_{frac,float,decimal}`（精确部分和 + 终值一次舍入）；

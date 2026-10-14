@@ -155,10 +155,54 @@ static void test_eval(void) {
     bigfrac_series_free(&a);
 }
 
+static void test_calc(void) {
+    const char *f[] = {"1", "1", "1"};   /* 1 + z + z^2 */
+    bigfrac_series_ty a;
+    bigfrac_series_ty r;
+    bigfrac_series_ty g;
+    bigfrac_series_init(&a);
+    bigfrac_series_init(&r);
+    bigfrac_series_init(&g);
+    build(&a, 0, f, 3U);
+
+    /* 求导：1 + 2z */
+    const char *d[] = {"1", "2"};
+    CHECK(bigfrac_series_deriv(&r, &a) == BIGFRAC_OK_E);
+    CHECK(series_eq(&r, 0, d, 2U));
+
+    /* 积分：z + z^2/2 + z^3/3 */
+    const char *in[] = {"1", "1/2", "1/3"};
+    CHECK(bigfrac_series_integral(&r, &a) == BIGFRAC_OK_E);
+    CHECK(series_eq(&r, 1, in, 3U));
+
+    /* 复合 f(z) = a：g = z（val=1） */
+    const char *zg[] = {"1"};
+    build(&g, 1, zg, 1U);
+    CHECK(bigfrac_series_compose(&r, &a, &g, 5U) == BIGFRAC_OK_E);
+    CHECK(series_eq(&r, 0, f, 3U));
+
+    /* f(1+z) = 3 + 3z + z^2 */
+    const char *g1[] = {"1", "1"};
+    build(&g, 0, g1, 2U);
+    CHECK(bigfrac_series_compose(&r, &a, &g, 5U) == BIGFRAC_OK_E);
+    const char *w[] = {"3", "3", "1"};
+    CHECK(series_eq(&r, 0, w, 3U));
+
+    /* ∫ z^{-1} -> INVALID */
+    const char *lm1[] = {"1"};
+    build(&g, -1, lm1, 1U);
+    CHECK(bigfrac_series_integral(&r, &g) == BIGFRAC_ERR_INVALID_E);
+
+    bigfrac_series_free(&g);
+    bigfrac_series_free(&r);
+    bigfrac_series_free(&a);
+}
+
 int main(void) {
     test_add_mul();
     test_inv_laurent();
     test_eval();
+    test_calc();
 
     if (failures == 0) {
         printf("test_series: all checks passed\n");

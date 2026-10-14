@@ -61,6 +61,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **C4 mpmath 黄金参考（TODO §C4）**：`tests/golden_series_driver.c` +
   `tests/golden_series.py`（mpmath 独立参考；缺失时 SKIP）；CTest 新增
   `series_mpmath_golden`（`exp/sin/cos/ln1p/atan` × 64/128/256 bit）。
+- **C2 剩余：级数求导/积分/复合（TODO §C2）**：`bigfrac_series_deriv` /
+  `integral`（逐项，前导零归一；`z^{−1}` 项积分报 `INVALID`）与
+  `bigfrac_series_compose`（秦九韶式，`f.val = 0`、`g.val ≥ 0`）。
 
 ## [1.2.0] - 2026-10-14
 
