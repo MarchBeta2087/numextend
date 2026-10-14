@@ -12,8 +12,8 @@
 # 1) 生成单文件组合（默认全部模块；也可 --modules bigdecimal,bigint_dec 裁剪）
 python3 scripts/amalgamate.py --out dist
 
-# 2) 编译（C99，无外部依赖）
-cc -O2 -std=c99 -Idist examples/amalgam/main.c dist/nex_amalgam.c -o amalgam_demo
+# 2) 编译（C99；Linux/macOS 需 -lm，Windows/MinGW 的 libm 在 libc 内可省）
+cc -O2 -std=c99 -Idist examples/amalgam/main.c dist/nex_amalgam.c -lm -o amalgam_demo
 
 # 3) 运行
 ./amalgam_demo

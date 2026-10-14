@@ -8,7 +8,7 @@
  * `nex_amalgam.c` / `nex_amalgam.h`。构建：
  *
  *   python3 scripts/amalgamate.py --out dist
- *   cc -O2 -std=c99 -Idist examples/amalgam/main.c dist/nex_amalgam.c -o amalgam_demo
+ *   cc -O2 -std=c99 -Idist examples/amalgam/main.c dist/nex_amalgam.c -lm -o amalgam_demo
  *   ./amalgam_demo
  */
 
