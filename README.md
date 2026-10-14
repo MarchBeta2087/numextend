@@ -165,3 +165,6 @@ CI 覆盖 C11/C17/C23 与 C++11/C17/C23 矩阵（见 `.github/workflows/ci.yml`�
 欢迎贡献！请先阅读 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)——它规定了
 分支流程（feature → dev → main）与"完成"的定义（单元测试、黄金对拍、边界/
 鲁棒测试、文档同步），PR/Issue 请使用仓库内模板。
+
+参与本项目即表示同意遵守[行为准则](CODE_OF_CONDUCT.md)；安全漏洞请勿公开
+提交 issue，按[安全政策](SECURITY.md)私密报告。
