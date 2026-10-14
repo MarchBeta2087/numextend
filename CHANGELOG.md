@@ -15,6 +15,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `bigdecimal_ball_series_ty` + `init`/`free`/`from_array`/`copy`/`add`/`sub`/
   `mul`/`eval`/`compose`——系数为球，四则/复合/求值全程由球传播半径。
 - `bench_sweep` 新增 `bigint_dec` 除法扫描（为 §I 的亚二次除法决策提供数据）。
+- **超越函数 `bigfloat_atan`（TODO §D）**：正确舍入（球式实参规约 + 严谨误差界
+  + Ziv 提升精度）；新模块 `nex/transcend/`；球式 `sqrt`/`atan`；测试 +
+  mpmath 黄金对拍。
 
 ## [1.4.0] - 2026-10-14
 

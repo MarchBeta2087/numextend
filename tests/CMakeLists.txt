@@ -137,6 +137,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME ball_unit COMMAND test_ball)
 
+add_executable(test_transcend test_transcend.c)
+target_link_libraries(test_transcend PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_transcend PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME transcend_unit COMMAND test_transcend)
+
 add_executable(convert_golden_driver golden_convert_driver.c)
 target_link_libraries(convert_golden_driver PRIVATE nex)
 

@@ -40,6 +40,8 @@ MODULES = [
      "series —— 幂级数求值（精确系数 + 全局尾界）"),
     ("nex/ball/nex_ball.h", "api-56-ball",
      "ball —— 球式（中心 + 半径）算术"),
+    ("nex/transcend/nex_transcend.h", "api-57-transcend",
+     "transcend —— 超越函数（正确舍入）"),
     ("nex/fft/nex_fft.h", "api-60-fft",
      "fft —— 浮点复数 FFT 核心（低层）"),
     ("nex/ntt/nex_ntt.h", "api-61-ntt",

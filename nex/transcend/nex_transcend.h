@@ -1,0 +1,32 @@
+#ifndef NEX_TRANSCEND_H
+#define NEX_TRANSCEND_H
+
+#include "nex/bigfloat/nex_bigfloat.h"
+
+/*
+ * nex_transcend：数值类型的超越函数（设计文档 §13 #8 / §D）。
+ *
+ * 实现方式：内部用球式（路线 B）做实参规约与严谨误差界，再以 **Ziv 策略**
+ * 提升工作精度直至结果在目标 ctx 下**正确舍入**。首个函数为 `atan`（复数
+ * 辐角 `arg` 依赖它）。
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+ * brief: 反正切 out = atan(x)，按 ctx 正确舍入
+ * param: out 输出；x 自变量（有限值）；ctx 目标精度上下文
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法或 x 非有限返回 BIGFLOAT_ERR_INVALID_E；
+ *         内存不足返回 BIGFLOAT_ERR_OOM_E（out 不变）
+ * note: 实参规约 + 级数 + 球式严格误差界 + Ziv 提升精度保证正确舍入
+ */
+bigfloat_err_ty bigfloat_atan(bigfloat_ty *out, const bigfloat_ty *x,
+        const bigfloat_ctx_ty *ctx);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* NEX_TRANSCEND_H */
