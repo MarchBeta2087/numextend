@@ -6,6 +6,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "nex/ball/nex_ball.h"
 #include "nex/bigfloat/nex_bigfloat.h"
@@ -160,6 +161,42 @@ static void test_elem(void) {
     bigfloat_ball_free(&x);
 }
 
+static double dec_center_d(const bigdecimal_ball_ty *b) {
+    char buf[64];
+    size_t need = 0U;
+    bigdecimal_to_str(&b->mid, BIGDECIMAL_FMT_FIXED_E, buf, sizeof(buf),
+                      &need);
+    return strtod(buf, NULL);
+}
+
+static void test_elem_decimal(void) {
+    const bigdecimal_ctx_ty ctx = bigdecimal_ctx_decimal64();
+    bigdecimal_ball_ty x;
+    bigdecimal_ball_ty r;
+    bigdecimal_ball_init(&x);
+    bigdecimal_ball_init(&r);
+
+    mk_dec(&x, "0", "0", &ctx);
+    CHECK(bigdecimal_ball_exp(&r, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(dec_center_d(&r) == 1.0);
+
+    mk_dec(&x, "1", "0", &ctx);
+    CHECK(bigdecimal_ball_exp(&r, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(fabs(dec_center_d(&r) - 2.718281828459045) < 1e-12);
+
+    mk_dec(&x, "1", "0", &ctx);
+    CHECK(bigdecimal_ball_sin(&r, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(fabs(dec_center_d(&r) - 0.8414709848078965) < 1e-12);
+    CHECK(bigdecimal_ball_cos(&r, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(fabs(dec_center_d(&r) - 0.5403023058681397) < 1e-12);
+
+    mk_dec(&x, "1000000000", "0", &ctx);
+    CHECK(bigdecimal_ball_exp(&r, &x, &ctx) == BIGDECIMAL_ERR_INVALID_E);
+
+    bigdecimal_ball_free(&r);
+    bigdecimal_ball_free(&x);
+}
+
 int main(void) {
     const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
     bigfloat_ball_ty a;
@@ -242,6 +279,7 @@ int main(void) {
 
     test_decimal_ball();
     test_elem();
+    test_elem_decimal();
 
     if (failures == 0) {
         printf("test_ball: all checks passed\n");

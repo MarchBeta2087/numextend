@@ -238,4 +238,34 @@ bigdecimal_err_ty bigdecimal_ball_div(bigdecimal_ball_ty *dst, const bigdecimal_
 
 **返回**：成功返回 BIGDECIMAL_OK_E；b 的区间含 0 返回 BIGDECIMAL_ERR_INVALID_E；其余同 add
 
+### `bigdecimal_ball_exp`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_exp(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：球式 exp(x)（实参规约；语义同 bigfloat 版）
+
+**返回**：成功返回 BIGDECIMAL_OK_E；参数非法/含 NaN/±∞/|x| 过大返回 BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E
+
+### `bigdecimal_ball_sin`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_sin(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：球式 sin(x)（half-angle 倍角；语义同 bigfloat 版）
+
+**返回**：同 exp
+
+### `bigdecimal_ball_cos`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_cos(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：球式 cos(x)（half-angle 倍角；语义同 bigfloat 版）
+
+**返回**：同 exp
+
 NEX_BALL_H

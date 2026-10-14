@@ -52,6 +52,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   精确缩放）→ 路线 A 级数得初始球 → `exp` 反复球平方 / `sin/cos` half-angle
   倍角；半径严格传播。测试含 `exp(1)≈e`、`exp(2)≈e²`、`sin(1)`、`cos(1)`、
   过大 |x| 报错。
+- **路线 B：`bigdecimal` 球式实参规约（TODO §C2）**：`bigdecimal_ball_exp/sin/cos`
+  （折半 + 球平方 / half-angle；eps 用 `10^{−(p+10)}`）。
+- **C3 Padé 精确版（TODO §C3）**：`nex_series_pade_frac`——[m/n] Padé 逼近，
+  bigfrac 精确高斯消元；`exp` 的 [2/2] 为 `(12+6z+z²)/(12−6z+z²)`。
 
 ## [1.2.0] - 2026-10-14
 
