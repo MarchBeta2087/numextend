@@ -47,6 +47,16 @@ bigfloat_err_ty bigfloat_exp(bigfloat_ty *out, const bigfloat_ty *x,
         const bigfloat_ctx_ty *ctx);
 
 /*
+ * brief: 自然对数 out = log(x) = ln(x)，按 ctx 正确舍入
+ * param: out 输出；x 自变量（有限值，x > 0）；ctx 目标精度上下文
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法、x 非有限或 x ≤ 0 返回 INVALID；
+ *         内存不足返回 OOM（out 不变）
+ * note: 球式迭代平方根规约 + `ln1p` 级数 + Ziv 正确舍入
+ */
+bigfloat_err_ty bigfloat_log(bigfloat_ty *out, const bigfloat_ty *x,
+        const bigfloat_ctx_ty *ctx);
+
+/*
  * brief: 反正切 out = atan(x)，按 ctx 正确舍入（十进制版）
  * param: out 输出；x 自变量（有限值）；ctx 目标精度上下文
  * return: 成功返回 BIGDECIMAL_OK_E；参数非法或 x 非有限返回
@@ -74,6 +84,16 @@ bigdecimal_err_ty bigdecimal_atan2(bigdecimal_ty *out, const bigdecimal_ty *y,
  * note: 球式折半 + 路线 A 级数 + k 次球平方 + Ziv 正确舍入
  */
 bigdecimal_err_ty bigdecimal_exp(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 自然对数 out = log(x) = ln(x)，按 ctx 正确舍入（十进制版）
+ * param: out 输出；x 自变量（有限值，x > 0）；ctx 目标精度上下文
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法、x 非有限或 x ≤ 0 返回 INVALID；
+ *         内存不足返回 OOM（out 不变）
+ * note: 球式迭代平方根规约 + `ln1p` 级数 + Ziv 正确舍入
+ */
+bigdecimal_err_ty bigdecimal_log(bigdecimal_ty *out, const bigdecimal_ty *x,
         const bigdecimal_ctx_ty *ctx);
 
 #ifdef __cplusplus

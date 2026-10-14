@@ -110,6 +110,52 @@ static void check_exp_dec(const char *in, const char *want,
     bigdecimal_free(&x);
 }
 
+static void check_log(const char *in, const char *want,
+        const bigfloat_ctx_ty *ctx) {
+    bigfloat_ty x;
+    bigfloat_ty out;
+    bigfloat_ty w;
+    bigfloat_init(&x);
+    bigfloat_init(&out);
+    bigfloat_init(&w);
+    (void)bigfloat_from_str(&x, in, ctx, NULL);
+    (void)bigfloat_from_str(&w, want, ctx, NULL);
+    bigfloat_err_ty err = bigfloat_log(&out, &x, ctx);
+    if (err != BIGFLOAT_OK_E) {
+        printf("FAIL log(%s) err=%d\n", in, (int)err);
+        ++failures;
+    } else if (!bigfloat_eq(&out, &w)) {
+        printf("FAIL log(%s) != %s\n", in, want);
+        ++failures;
+    }
+    bigfloat_free(&w);
+    bigfloat_free(&out);
+    bigfloat_free(&x);
+}
+
+static void check_log_dec(const char *in, const char *want,
+        const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ty x;
+    bigdecimal_ty out;
+    bigdecimal_ty w;
+    bigdecimal_init(&x);
+    bigdecimal_init(&out);
+    bigdecimal_init(&w);
+    (void)bigdecimal_from_str(&x, in, ctx, NULL);
+    (void)bigdecimal_from_str(&w, want, ctx, NULL);
+    bigdecimal_err_ty err = bigdecimal_log(&out, &x, ctx);
+    if (err != BIGDECIMAL_OK_E) {
+        printf("FAIL dec log(%s) err=%d\n", in, (int)err);
+        ++failures;
+    } else if (!bigdecimal_eq(&out, &w)) {
+        printf("FAIL dec log(%s) != %s\n", in, want);
+        ++failures;
+    }
+    bigdecimal_free(&w);
+    bigdecimal_free(&out);
+    bigdecimal_free(&x);
+}
+
 int main(void) {
     const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
 
@@ -167,6 +213,28 @@ int main(void) {
     check_exp_dec("-1", "0.3678794411714423", &dctx);
     check_exp_dec("0.5", "1.648721270700128", &dctx);
     check_exp_dec("10", "22026.46579480672", &dctx);
+
+    /* log：正确舍入（binary64 / decimal64） */
+    check_log("1", "0", &ctx);
+    check_log("2", "0.6931471805599453", &ctx);
+    check_log("10", "2.302585092994046", &ctx);
+    check_log("0.5", "-0.6931471805599453", &ctx);
+    check_log("0.1", "-2.3025850929940455", &ctx);
+    check_log("7", "1.9459101490553132", &ctx);
+    check_log_dec("1", "0", &dctx);
+    check_log_dec("2", "0.6931471805599453", &dctx);
+    check_log_dec("10", "2.302585092994046", &dctx);
+    check_log_dec("0.5", "-0.6931471805599453", &dctx);
+    check_log_dec("1.5", "0.4054651081081644", &dctx);
+    check_log_dec("7", "1.945910149055313", &dctx);
+    /* log 定义域 */
+    {
+        bigfloat_ty nx;
+        bigfloat_init(&nx);
+        (void)bigfloat_from_str(&nx, "-1", &ctx, NULL);
+        CHECK(bigfloat_log(&nx, &nx, &ctx) == BIGFLOAT_ERR_INVALID_E);
+        bigfloat_free(&nx);
+    }
 
     /* 非法参数（十进制） */
     {

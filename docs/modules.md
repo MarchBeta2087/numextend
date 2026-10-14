@@ -374,7 +374,7 @@
 - 直接依赖：`bigfloat`, `bigdecimal`, `series`
 - 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`, `nex/ball/nex_ball_series.c`, `nex/ball/nex_ball_series_dec.c`
 - 公开头：`nex/ball/nex_ball.h`
-- 公开函数（46）：
+- 公开函数（48）：
   - `bigdecimal_ball_add`
   - `bigdecimal_ball_atan`
   - `bigdecimal_ball_contains`
@@ -384,6 +384,7 @@
   - `bigdecimal_ball_exp`
   - `bigdecimal_ball_free`
   - `bigdecimal_ball_init`
+  - `bigdecimal_ball_log`
   - `bigdecimal_ball_mul`
   - `bigdecimal_ball_series_add`
   - `bigdecimal_ball_series_compose`
@@ -407,6 +408,7 @@
   - `bigfloat_ball_exp`
   - `bigfloat_ball_free`
   - `bigfloat_ball_init`
+  - `bigfloat_ball_log`
   - `bigfloat_ball_mul`
   - `bigfloat_ball_series_add`
   - `bigfloat_ball_series_compose`
@@ -427,10 +429,12 @@
 - 直接依赖：`bigfloat`, `bigdecimal`, `ball`
 - 源文件：`nex/transcend/nex_transcend.c`, `nex/transcend/nex_transcend_dec.c`
 - 公开头：`nex/transcend/nex_transcend.h`
-- 公开函数（6）：
+- 公开函数（8）：
   - `bigdecimal_atan`
   - `bigdecimal_atan2`
   - `bigdecimal_exp`
+  - `bigdecimal_log`
   - `bigfloat_atan`
   - `bigfloat_atan2`
   - `bigfloat_exp`
+  - `bigfloat_log`
