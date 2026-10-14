@@ -78,6 +78,11 @@ cmake --build build
 [`docs/modules.md`](docs/modules.md)；清单与闭包可用
 `python scripts/modules.py list` / `closure <mod...>` / `docs <mod...>` 查看。
 
+> **体积说明**：静态链接下 linker 本就只拉取可达的 `.o` 成员，所以子集减小的是
+> **归档 / 分发体积与构建面**，最终可执行文件通常**不变**；共享库场景子集可直接
+> 减小 `.so`/`.dll`。如需函数级裁剪，可对库加 `-ffunction-sections
+> -fdata-sections` 并以 `-Wl,--gc-sections` 链接（ELF 有效；PE/MinGW 基本无效）。
+
 ## 单文件组合（可选）
 
 `-DNEX_AMALGAM=ON` 时先由 `scripts/amalgamate.py` 生成 `nex_amalgam.c/.h`
@@ -89,6 +94,21 @@ cmake --build build && ctest --test-dir build   # 全量测试通过 → 与分�
 ```
 
 也可直接使用生成物：`cc app.c nex_amalgam.c -I<amalgam_dir>`。
+
+## 典型场景（子集 / 单文件）
+
+- **嵌入式 / 固件**：只需整数与有理数 →
+  `-DNEX_MODULES="bigint_bin,bigfrac"`，去掉浮点/复数/跨类型转换，缩小归档与
+  代码审查面。
+- **十进制财务计算**：只需精确十进制 → `-DNEX_MODULES="bigint_dec,bigdecimal"`
+  （`bigdecimal` 精确十进制展开与 I/O，无二进制浮点）。
+- **专用工具（哈希 / 编码 / 加密）**：只需整数核心 →
+  `-DNEX_MODULES="bigint_bin"`（注意整数层因 bin↔conv 依赖环会连带 dec/conv）。
+- **无 CMake / 单文件分发**：`python scripts/amalgamate.py --out dist` 得到
+  `nex_amalgam.c/.h`，直接 `cc app.c nex_amalgam.c`，或拖入单个工程 / 竞赛 /
+  教学示例。
+- **共享库体积敏感**：用子集生成小的 `.so`/`.dll`（共享库不会自动剔除未用
+  符号，子集是直接有效手段）。
 
 ## 性能
 

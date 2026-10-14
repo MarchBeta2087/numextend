@@ -245,8 +245,14 @@ nex/
   `bigint_bin ↔ bigint_conv`：bin 的十进制字符串快速路径调用 conv）。
 - 构建选项 `NEX_MODULES`（默认 `all`）：给定模块名列表后，CMake 按依赖闭包
   展开源文件与公开头，只编译、只安装闭包内的内容（TODO §B2）。子集构建不作
-  完整 ABI 承诺；`all` 构建即 v1.x 的完整库。函数级子集与单文件组合为后续
-  方向（§13）。
+  完整 ABI 承诺；`all` 构建即 v1.x 的完整库。
+- **体积事实**：静态链接下 linker 本就只拉取可达的 `.o` 成员，因此模块子集
+  减小的是**归档/分发体积与构建面**，最终可执行文件通常**不变**；共享库场景
+  下子集可直接减小 `.so`/`.dll`。
+- 函数级子集（§B3）经评审**暂缓**：成本高（精确函数级调用图 + 定义/调用点
+  条件编译 + 组合测试 + ABI 政策），收益低；替代为文档化工具链 DCE
+  （`-ffunction-sections -fdata-sections` + `-Wl,--gc-sections`，ELF 有效）
+  与（按需）粗粒度特性宏。
 - 校验：`scripts/modules.py check`（CI 运行）保证清单与源码树一致；
   `scripts/modules.py closure <mod...>` 可查看任一子集的闭包。
 - 文档：`scripts/modules.py gen-docs` 生成 `docs/modules.md`（模块 / 依赖 /
@@ -1220,6 +1226,9 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
     bigint_bin base 10，v0.12）；**decimal 快速乘法经实测否定**（v0.13）：
     "转 bin → NTT → 转回"在 1 万..50 万位全面落后 4-7 倍（转换开销约
     为同尺寸乘法的 5-6 倍，bin NTT 的 n·log n 优势无法弥补），不实现；
+11. 函数级子集：经评审**暂缓**（2026-10-14）——模块子集（B2）已覆盖主要
+    价值且裁剪不减最终可执行；函数级可由工具链 DCE 近似。若出现具体需求，
+    优先做粗粒度特性宏（见 §2.4、TODO §B3）。
 
 ---
 
@@ -1233,6 +1242,7 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 | 超越函数 exp/log/sin/cos/atan | 非目标 | 仅提供 `sqrt`；复数辐角 `arg` 因此移出公开面（§9.2） |
 | 次正规（subnormal）浮点 | 非目标 | 需放松“最高位恒 1”不变式，影响面大（§7.3） |
 | SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3） |
+| 函数级子集 | 非目标（1.x 暂缓） | 成本高、收益低；替代见 §2.4 / §13 #11 |
 | 自定义分配器钩子 | 后续 | 现为内部统一分配器 `nex_alloc`（§13 #6） |
 | 十进制侧亚二次除法 | 限制 | `bigint_dec` 仅 Knuth D（O(n²)）；bin 侧已有 BZ |
 | 超大输入 gcd | 限制 | Lehmer 仍 O(n²)；半 gcd 为后续（§13 #2） |
@@ -1320,3 +1330,4 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 | v0.18 | 2026-10-13 | 迈向 v1.0：`project(numextend VERSION 1.0.0)` + 生成 `nex/nex_version.h`（`NEX_VERSION_*`）；新增 §1.4「API/ABI 稳定性政策」（1.x API 只增不改、同主版本 ABI 稳定、公开结构体布局冻结）；复数辐角 `arg` 移出 v1 公开面（删除 `bigcomplex_float_arg` / `bigcomplex_decimal_arg`，依赖超越函数 `atan`，见 §9.2、§13 #8） |
 | v1.0.0 | 2026-10-14 | 首个正式发布。API/ABI 稳定性政策（§1.4）、公开 API 审计（§1.5）、已知限制与非目标（§14）定稿；参考手册 `docs/manual/` + `docs/manual.html`（头文件生成 + Pandoc，`scripts/docs.sh`）；性能报告 `docs/performance.md`（`scripts/bench.sh`）；安装与导出（`find_package`/pkg-config/共享库 `SOVERSION`）；CI 覆盖 Clang/MSVC/ASan-UBSan/覆盖率门槛/文档同步；建立 `CHANGELOG.md` |
 | v1.1.0 | 2026-10-14 | C++ 互操作与 C 标准矩阵：13 个公开头 + `nex_version.h` 补齐 `extern "C"` 守卫（C++11–C++26 可经 C ABI 链接消费）；新增 `NEX_C_STANDARD` 构建选项（默认 99，可切 11/17/23/2y）；CI 新增 `linux-cpp` / `linux-c-std` 标准矩阵；新增 `tests/test_cpp_consumer.cpp`；§1.3 增补标准兼容性；`.gitattributes` 补 C++ 源文件 LF 规则 |
+| v1.2.0（dev） | 2026-10-14 | 模块子集与单文件组合：机器可读清单 `cmake/nex_modules.txt` + `NEX_MODULES` 依赖闭包（§2.4）；`scripts/amalgamate.py` 单 TU（`NEX_AMALGAM`，全量 CTest 验证等价）；`docs/modules.md`（§B5）；函数级子集经评审暂缓（§13 #11、§14） |

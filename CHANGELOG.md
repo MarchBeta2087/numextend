@@ -24,6 +24,13 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `docs/modules.md`（模块 / 依赖 / 公开函数），`docs <mod...>` 输出保留/移除
   清单；并入 `scripts/docs.sh`，CI `docs` job 校验无漂移。
 
+### 文档 / 说明
+
+- **函数级子集**（TODO §B3）经评审**暂缓**：成本高、收益低。子集只减小
+  归档/分发体积与构建面，**不减小最终可执行文件**；函数级可由工具链 DCE
+  （`-ffunction-sections -fdata-sections` + `-Wl,--gc-sections`）近似。详见
+  README「体积说明」与 `docs/design.md` §2.4 / §13 #11。
+
 ## [1.1.0] - 2026-10-14
 
 ### 新增
