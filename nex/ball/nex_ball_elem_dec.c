@@ -693,3 +693,146 @@ bigdecimal_err_ty bigdecimal_ball_atan(bigdecimal_ball_ty *dst,
     bigdecimal_ball_free(&t);
     return err;
 }
+
+/* 迭代平方根规约 + ln1p 级数 + 2^k 球加法回放（十进制） */
+bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !ed_ball_ok(x)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ctx_ty dn;
+    bigdecimal_ctx_ty up;
+    bigdecimal_err_ty err = ed_dir_ctx(&dn, ctx, BIGDECIMAL_ROUND_TOWARD_NEG_E);
+    if (err == BIGDECIMAL_OK_E) {
+        err = ed_dir_ctx(&up, ctx, BIGDECIMAL_ROUND_TOWARD_POS_E);
+    }
+    bigdecimal_ty zero;
+    bigdecimal_ty one;
+    bigdecimal_ty lo;
+    bigdecimal_ty thresh;
+    bigdecimal_init(&zero);
+    bigdecimal_init(&one);
+    bigdecimal_init(&lo);
+    bigdecimal_init(&thresh);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_from_str(&one, "1", ctx, NULL);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_from_str(&thresh, "0.125", ctx, NULL);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(&lo, &x->mid, &x->rad, &dn);
+    }
+    if (err == BIGDECIMAL_OK_E && bigdecimal_cmp(&lo, &zero) <= 0) {
+        err = BIGDECIMAL_ERR_INVALID_E;
+    }
+
+    bigdecimal_ball_ty y;
+    bigdecimal_ball_init(&y);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_copy(&y, x);
+    }
+
+    size_t k = 0U;
+    while (err == BIGDECIMAL_OK_E) {
+        bigdecimal_ty dm;
+        bigdecimal_ty am;
+        bigdecimal_ty M;
+        bigdecimal_init(&dm);
+        bigdecimal_init(&am);
+        bigdecimal_init(&M);
+        err = bigdecimal_sub(&dm, &y.mid, &one, &up);
+        if (err == BIGDECIMAL_OK_E) {
+            err = ed_abs(&am, &dm);
+        }
+        if (err == BIGDECIMAL_OK_E) {
+            err = bigdecimal_add(&M, &am, &y.rad, &up);
+        }
+        bool done = (err == BIGDECIMAL_OK_E && bigdecimal_cmp(&M, &thresh) <= 0);
+        bigdecimal_free(&M);
+        bigdecimal_free(&am);
+        bigdecimal_free(&dm);
+        if (err != BIGDECIMAL_OK_E || done) {
+            break;
+        }
+        if (k >= 40U) {
+            err = BIGDECIMAL_ERR_INVALID_E;
+            break;
+        }
+        bigdecimal_ball_ty ny;
+        bigdecimal_ball_init(&ny);
+        err = bigdecimal_ball_sqrt(&ny, &y, ctx);
+        if (err == BIGDECIMAL_OK_E) {
+            err = bigdecimal_ball_copy(&y, &ny);
+        }
+        bigdecimal_ball_free(&ny);
+        k++;
+    }
+
+    bigdecimal_ty z;
+    bigdecimal_init(&z);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(&z, &y.mid, &one, ctx);
+    }
+
+    bigfrac_ty eps;
+    bigfrac_init(&eps);
+    if (err == BIGDECIMAL_OK_E) {
+        bigfrac_err_ty ferr = ed_frac_pow10_neg(&eps, ctx->mant_digits + 10U);
+        if (ferr != BIGFRAC_OK_E) {
+            err = (ferr == BIGFRAC_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                              : BIGDECIMAL_ERR_INVALID_E;
+        }
+    }
+    bigdecimal_ty P;
+    bigdecimal_ty eb;
+    bigdecimal_init(&P);
+    bigdecimal_init(&eb);
+    if (err == BIGDECIMAL_OK_E) {
+        err = nex_series_ln1p_eval_decimal(&P, &eb, &z, &eps, ctx);
+    }
+    bigdecimal_ball_ty c;
+    bigdecimal_ball_init(&c);
+    if (err == BIGDECIMAL_OK_E) {
+        err = make_eval_ball_dec(&c, &P, &eb, NULL, ctx);
+    }
+    for (size_t i = 0U; i < k && err == BIGDECIMAL_OK_E; i++) {
+        err = bigdecimal_ball_add(&c, &c, &c, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        bigdecimal_ty rr;
+        bigdecimal_ty den;
+        bigdecimal_ty infl;
+        bigdecimal_init(&rr);
+        bigdecimal_init(&den);
+        bigdecimal_init(&infl);
+        err = bigdecimal_div(&rr, &x->rad, &x->mid, &up);
+        if (err == BIGDECIMAL_OK_E) {
+            err = bigdecimal_sub(&den, &one, &rr, &up);
+        }
+        if (err == BIGDECIMAL_OK_E && bigdecimal_cmp(&den, &zero) > 0) {
+            err = bigdecimal_div(&infl, &rr, &den, &up);
+            if (err == BIGDECIMAL_OK_E) {
+                err = bigdecimal_add(&c.rad, &c.rad, &infl, &up);
+            }
+        }
+        bigdecimal_free(&infl);
+        bigdecimal_free(&den);
+        bigdecimal_free(&rr);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_copy(dst, &c);
+    }
+
+    bigdecimal_ball_free(&c);
+    bigdecimal_free(&eb);
+    bigdecimal_free(&P);
+    bigfrac_free(&eps);
+    bigdecimal_free(&z);
+    bigdecimal_ball_free(&y);
+    bigdecimal_free(&thresh);
+    bigdecimal_free(&lo);
+    bigdecimal_free(&one);
+    bigdecimal_free(&zero);
+    return err;
+}

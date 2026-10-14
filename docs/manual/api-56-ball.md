@@ -123,6 +123,18 @@ bigfloat_err_ty bigfloat_ball_exp(bigfloat_ball_ty *dst, const bigfloat_ball_ty 
 
 **备注**：半径由球运算严格传播；总误差含截断与逐次舍入
 
+### `bigfloat_ball_log`
+
+```c
+bigfloat_err_ty bigfloat_ball_log(bigfloat_ball_ty *dst, const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：球式 log(x)（自然对数；x>0）
+
+**返回**：成功返回 BIGFLOAT_OK_E；参数非法/含 NaN/±∞/区间含 ≤0 返回 INVALID； 内存不足返回 OOM（dst 不变）
+
+**备注**：迭代平方根规约 y = x^(1/2^k) 使 |y−1| ≤ 1/8 → `ln1p` 级数初始球 → k 次球加法回放 ×2^k；半径严格传播
+
 ### `bigfloat_ball_sin`
 
 ```c
@@ -369,6 +381,16 @@ bigdecimal_err_ty bigdecimal_ball_exp(bigdecimal_ball_ty *dst, const bigdecimal_
 **说明**：球式 exp(x)（实参规约；语义同 bigfloat 版）
 
 **返回**：成功返回 BIGDECIMAL_OK_E；参数非法/含 NaN/±∞/|x| 过大返回 BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E
+
+### `bigdecimal_ball_log`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：球式 log(x)（自然对数；x>0，十进制版）
+
+**返回**：同 bigfloat_ball_log（错误码对应更换）
 
 ### `bigdecimal_ball_sin`
 

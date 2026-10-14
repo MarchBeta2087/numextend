@@ -34,6 +34,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **指数 `exp`（TODO §D2）**：`bigfloat_exp` / `bigdecimal_exp` 正确舍入（球式
   折半 + 路线 A 级数 + k 次球平方 + Ziv）；`golden_series` 新增 `exppub` /
   `exppubdec`（mpmath 对拍）。
+- **自然对数 `log`（TODO §D2）**：`bigfloat_log` / `bigdecimal_log` 正确舍入；
+  球式 `ball_log` 用**迭代平方根规约**（`y = x^(1/2^k)` 使 `|y−1| ≤ 1/8`）+
+  `ln1p` 级数 + 2^k 球加法回放，float/decimal 统一；`golden_series` 新增
+  `logpub` / `logpubdec`。
 
 ## [1.4.0] - 2026-10-14
 
