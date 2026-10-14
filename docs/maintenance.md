@@ -66,7 +66,7 @@ sh scripts/coverage.sh                # 覆盖率不低于现有基线（约 84%
 ## 4. 发版流程（dev → main → tag → Release）
 
 ```bash
-# ① 确认 dev 全绿、README/设计文档已同步
+# ① 确认 dev 全绿、文档已同步（见 §4.1 清单）
 # ② 开 PR：dev → main，合并用 merge commit
 # ③ 打 tag 并推送：
 git checkout main && git pull
@@ -79,8 +79,25 @@ git checkout dev && git pull
 git merge main && git push
 ```
 
-版本号语义（SemVer）：破坏性 API 变更 → 0.x 递增主位；新功能/新模块 →
-次位；纯修复 → 修订位。发布前检查 `LICENSE` 版权年份/署名。
+版本号语义（SemVer）：破坏性 API 变更 → 递增主位；新功能/新模块 →
+递增次位；纯修复 → 递增修订位。发布前检查 `LICENSE` 版权年份/署名。
+
+### 4.1 文档同步清单（发版前必做）
+
+逐项确认后再开 dev → main 的 PR：
+
+- [ ] `CHANGELOG.md`：新增 `[x.y.z] - 日期` 段（Keep a Changelog），补版本链接；
+- [ ] `docs/design.md`：修订记录新增版本行；§10 转换矩阵 / 语义 / 附录 A 缩写表
+      随变更更新；
+- [ ] `README.md`：能力矩阵、兼容性表、性能数字；
+- [ ] `docs/manual/`：手写页（`00-index` / `01-introduction` / `02-conventions` /
+      `03-install` / `04-examples`）随能力与用法更新；
+- [ ] **重新生成手册**：`sh scripts/docs.sh`（从公开头文件生成 API 页 + Pandoc
+      合成 `docs/manual.html`），提交生成物；CI `docs` job 会以
+      `git diff --exit-code -- docs/manual` 校验一致性；
+- [ ] `coding_standard.md`：规则变更记修订记录；新前缀登记附录 A；
+- [ ] `TODO.md`：勾选完成项、更新规划状态；
+- [ ] `.github/CONTRIBUTING.md`：“完成”定义若变化同步更新。
 
 ## 5. 热修复
 
@@ -106,4 +123,6 @@ git push -u origin hotfix/<name>
 - 不要 `--force` 推送 `main`/`dev`（保护规则已禁，管理员旁路也建议勾选禁止）；
 - 合并到 `dev` 前本地至少跑一遍 ctest；发版前跑一遍三平台 CI；
 - 语义变更必须同步 `docs/design.md` 修订记录与 §10 转换矩阵；
-- 新前缀/新类型须登记 `coding_standard.md` 附录 A 缩写表。
+- 新前缀/新类型须登记 `coding_standard.md` 附录 A 缩写表；
+- 发版前必须执行 §4.1 文档同步清单；`sh scripts/docs.sh` 重新生成后
+  `git diff` 应仅包含本次有意的变更（CI `docs` job 会拦截漂移）。

@@ -75,3 +75,5 @@ nex_convert_frac_to_decimal(&dec, &frac, &dec_ctx);
 ```
 
 完整转换矩阵见 API 参考的 `convert` 章节。
+
+> 以上示例均为 C。C++ 中调用同一套 API（无需包装）见 §3.6。
