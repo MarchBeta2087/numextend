@@ -42,6 +42,73 @@ static int contains_d(const bigfloat_ball_ty *b, double x,
     return result;
 }
 
+static void mk_dec(bigdecimal_ball_ty *b, const char *mid, const char *rad,
+        const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ty m;
+    bigdecimal_ty r;
+    bigdecimal_init(&m);
+    bigdecimal_init(&r);
+    bigdecimal_from_str(&m, mid, ctx, NULL);
+    bigdecimal_from_str(&r, rad, ctx, NULL);
+    (void)bigdecimal_ball_set(b, &m, &r, ctx);
+    bigdecimal_free(&r);
+    bigdecimal_free(&m);
+}
+
+static int contains_dec(const bigdecimal_ball_ty *b, const char *x,
+        const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ty t;
+    bigdecimal_init(&t);
+    bigdecimal_from_str(&t, x, ctx, NULL);
+    int result = bigdecimal_ball_contains(b, &t, ctx);
+    bigdecimal_free(&t);
+    return result;
+}
+
+static void test_decimal_ball(void) {
+    const bigdecimal_ctx_ty ctx = bigdecimal_ctx_decimal64();
+    bigdecimal_ball_ty a;
+    bigdecimal_ball_ty b;
+    bigdecimal_ball_ty r;
+    bigdecimal_ball_init(&a);
+    bigdecimal_ball_init(&b);
+    bigdecimal_ball_init(&r);
+
+    mk_dec(&a, "1", "0", &ctx);
+    mk_dec(&b, "2", "0", &ctx);
+    CHECK(bigdecimal_ball_add(&r, &a, &b, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(contains_dec(&r, "3", &ctx));
+    CHECK(!contains_dec(&r, "3.0001", &ctx));
+
+    mk_dec(&a, "1.25", "0.25", &ctx);
+    mk_dec(&b, "0.75", "0.25", &ctx);
+    CHECK(bigdecimal_ball_add(&r, &a, &b, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(contains_dec(&r, "1.5", &ctx));
+    CHECK(contains_dec(&r, "2.5", &ctx));
+    CHECK(!contains_dec(&r, "2.6", &ctx));
+
+    mk_dec(&a, "1.5", "0.5", &ctx);
+    mk_dec(&b, "3.5", "0.5", &ctx);
+    CHECK(bigdecimal_ball_mul(&r, &a, &b, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(contains_dec(&r, "3", &ctx));
+    CHECK(contains_dec(&r, "8", &ctx));
+    CHECK(!contains_dec(&r, "8.1", &ctx));
+
+    mk_dec(&a, "7", "1", &ctx);
+    mk_dec(&b, "3", "1", &ctx);
+    CHECK(bigdecimal_ball_div(&r, &a, &b, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(contains_dec(&r, "1.5", &ctx));
+    CHECK(contains_dec(&r, "4", &ctx));
+    CHECK(!contains_dec(&r, "4.1", &ctx));
+
+    mk_dec(&b, "0", "1", &ctx);
+    CHECK(bigdecimal_ball_div(&r, &a, &b, &ctx) == BIGDECIMAL_ERR_INVALID_E);
+
+    bigdecimal_ball_free(&r);
+    bigdecimal_ball_free(&b);
+    bigdecimal_ball_free(&a);
+}
+
 int main(void) {
     const bigfloat_ctx_ty ctx = bigfloat_ctx_binary64();
     bigfloat_ball_ty a;
@@ -121,6 +188,8 @@ int main(void) {
     bigfloat_ball_free(&r);
     bigfloat_ball_free(&b);
     bigfloat_ball_free(&a);
+
+    test_decimal_ball();
 
     if (failures == 0) {
         printf("test_ball: all checks passed\n");
