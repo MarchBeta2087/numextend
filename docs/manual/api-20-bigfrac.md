@@ -384,4 +384,40 @@ bigfrac_err_ty bigfrac_series_binom(bigfrac_series_ty *dst, const bigfrac_ty *al
 
 **备注**：精确；order = 0 得零级数；alpha 为非负整数 n 时为 n 次多项式
 
+### `bigfrac_series_tail_geometric`
+
+```c
+bigfrac_err_ty bigfrac_series_tail_geometric(bigfrac_ty *out, const bigfrac_ty *A, const bigfrac_ty *B, const bigfrac_ty *r, size_t n);
+```
+
+**说明**：几何型全局尾界：若 |a_k| ≤ A·B^k（∀k）、|z| ≤ r 且 B·r < 1， 则 |Σ_{k≥n} a_k z^k| ≤ A·(B·r)^n / (1 − B·r)
+
+**参数**
+- `out`：输出上界（≥ 0）
+- `A`：系数幅度因子（≥ 0）
+- `B`：系数增长因子（≥ 0）
+- `r`：自变量幅度上界（≥ 0）
+- `n`：截断阶（保留 k < n 的项）
+
+**返回**：成功返回 BIGFRAC_OK_E；指针为 NULL 返回 BIGFRAC_ERR_INVALID_E； B·r ≥ 1 或任一参数为负返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：精确有理数上界；用于“精确系数 + 全局尾界”路线（design §15.6）
+
+### `bigfrac_series_order_geometric`
+
+```c
+bigfrac_err_ty bigfrac_series_order_geometric(size_t *out, const bigfrac_ty *A, const bigfrac_ty *B, const bigfrac_ty *r, const bigfrac_ty *eps);
+```
+
+**说明**：自适应截断阶：最小的 n 使 tail_geometric(A,B,r,n) ≤ eps
+
+**参数**
+- `out`：输出阶 n
+- `A,`：B, r 同 tail_geometric
+- `eps`：目标绝对误差上界（≥ 0）
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法或 B·r ≥ 1 返回 BIGFRAC_ERR_INVALID_E；超出内部迭代上限（q 极接近 1）返回 BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：精确比较 A·(B·r)^n ≤ eps·(1−B·r) 逐步确定 n；上限 1 000 000 阶
+
 NEX_BIGFRAC_H

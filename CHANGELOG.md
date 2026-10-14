@@ -24,6 +24,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **广义二项式系数与二项式级数（TODO §C2）**：`bigfrac_binom`（任意有理上
   指标）与 `bigfrac_series_binom`（`(1+z)^n` 的精确截断）；`design §15.5` 记
   录 `(c+ε)^n` 幂展开与误差传播/尾界公式。测试 `tests/test_binom.c`。
+- **级数误差路线 A（TODO §C2）**：几何型全局尾界
+  `bigfrac_series_tail_geometric`（`|a_k|≤A·B^k`、`|z|≤r`、`q=Br<1` 时
+  `≤A·qⁿ/(1−q)`）与自适应阶 `bigfrac_series_order_geometric`；`design §15.6`
+  规划路线 A（精确系数 + 全局尾界）与路线 B（球式）。测试 `tests/test_series_bound.c`。
 
 ## [1.2.0] - 2026-10-14
 

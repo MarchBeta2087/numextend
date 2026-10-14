@@ -116,6 +116,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME bigfrac_binom COMMAND test_binom)
 
+add_executable(test_series_bound test_series_bound.c)
+target_link_libraries(test_series_bound PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_series_bound PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigfrac_series_bound COMMAND test_series_bound)
+
 add_executable(convert_golden_driver golden_convert_driver.c)
 target_link_libraries(convert_golden_driver PRIVATE nex)
 
