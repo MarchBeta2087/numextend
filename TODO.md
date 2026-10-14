@@ -66,14 +66,24 @@
       `convert` 闭包正确排除无依赖的 `bigint_bin64`。
 - 未做：`NEX_MINIMAL` 预设（价值有限，暂缓）。
 
-### B3 函数级子集（二期，需评审）
+### B3 函数级子集 — ⏸ 暂缓（不承诺），改为低成本替代
 
-- [ ] 基于 B1 做**调用图闭包**裁剪；处理跨模块依赖（如
-      `bigcomplex_*_abs`→`sqrt`，删 `sqrt` 必须拒绝或连带裁剪）。
-- [ ] 复用现有条件编译先例：`NEX_DIV_NEWTON_PATH`、`NEX_POW_MOD_MONT`、
-      `NEX_BIN64_FORCE_PORTABLE`。
-- 风险/门槛：函数级 ABI 与 §1.4 稳定性政策的关系须先写明；维护成本高，
-  未定案前不进入实现。
+**评审结论（2026-10-14）**：
+
+- **裁剪不减小最终可执行文件**：同口径静态链接，全量库与 `bigint_bin` 子集库
+  产出**相同** text（90 068 B）；子集只减小归档/分发体积与构建面
+  （230 KB → 111 KB → 9 KB 等）。
+- **工具链 DCE 可近似函数级裁剪**：消费者用
+  `-ffunction-sections -fdata-sections` + `-Wl,--gc-sections`（ELF 有效；
+  PE/MinGW 基本无效），无需源码改动。
+- **成本高**：需精确函数级调用图（文件粒度是伪稠密）+ 定义/调用点条件编译
+  + 组合测试（2^203 不可测）+ ABI 政策调整（§1.4）。收益远不及成本。
+
+**替代（低成本）**：
+
+- [x] 文档化工具链 DCE 与“子集只减归档不减可执行”的事实（README / design §2.4）。
+- [ ] 若出现具体需求，做**粗粒度特性宏**（如 `NEX_ENABLE_BIGINT_BIN64`、
+      `NEX_ENABLE_POW_MOD`、`NEX_ENABLE_BIT_OPS`），只对少数重/可选功能加 `#if`。
 
 ### B4 单文件组合（amalgamation）— ✅ 已完成
 
