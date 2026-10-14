@@ -328,6 +328,8 @@ bigfrac_ty 的截断级数 S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i} val
 <li><a href="#bigfrac_series_mul" id="toc-bigfrac_series_mul"><code>bigfrac_series_mul</code></a></li>
 <li><a href="#bigfrac_series_inv" id="toc-bigfrac_series_inv"><code>bigfrac_series_inv</code></a></li>
 <li><a href="#bigfrac_series_eval" id="toc-bigfrac_series_eval"><code>bigfrac_series_eval</code></a></li>
+<li><a href="#bigfrac_binom" id="toc-bigfrac_binom"><code>bigfrac_binom</code></a></li>
+<li><a href="#bigfrac_series_binom" id="toc-bigfrac_series_binom"><code>bigfrac_series_binom</code></a></li>
 </ul></li>
 </ul></li>
 <li><a href="#bigfloat--可调精度二进制浮点" id="toc-bigfloat--可调精度二进制浮点">bigfloat —— 可调精度二进制浮点</a>
@@ -1879,6 +1881,34 @@ x^{val+i}</p>
 BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）</p>
 <p><strong>备注</strong>：精确；val &lt; 0（Laurent）按除以 x^{|val|}
 实现</p>
+<h3 id="bigfrac_binom"><code>bigfrac_binom</code></h3>
+<div class="sourceCode" id="cb132"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb132-1"><a href="#cb132-1" aria-hidden="true" tabindex="-1"></a>bigfrac_err_ty bigfrac_binom<span class="op">(</span>bigfrac_ty <span class="op">*</span>out<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>alpha<span class="op">,</span> <span class="dt">size_t</span> k<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：广义二项式系数 C(alpha, k) =
+alpha(alpha−1)···(alpha−k+1)/k!</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>out</code>：输出（已初始化）</li>
+<li><code>alpha</code>：上指标（任意有理数）</li>
+<li><code>k</code>：下指标</li>
+</ul>
+<p><strong>返回</strong>：成功返回 BIGFRAC_OK_E；指针为 NULL 返回
+BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）</p>
+<p><strong>备注</strong>：k = 0 返回 1；alpha 为非负整数且 k &gt; alpha
+时返回 0</p>
+<h3 id="bigfrac_series_binom"><code>bigfrac_series_binom</code></h3>
+<div class="sourceCode" id="cb133"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb133-1"><a href="#cb133-1" aria-hidden="true" tabindex="-1"></a>bigfrac_err_ty bigfrac_series_binom<span class="op">(</span>bigfrac_series_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>alpha<span class="op">,</span> <span class="dt">size_t</span> order<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：截断二项式级数 (1+z)^alpha = Σ_{k=0}^{order-1}
+C(alpha,k)·z^k</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>dst</code>：输出（已初始化）</li>
+<li><code>alpha</code>：指数（任意有理数）</li>
+<li><code>order</code>：保留项数</li>
+</ul>
+<p><strong>返回</strong>：成功返回 BIGFRAC_OK_E；参数非法返回
+BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）</p>
+<p><strong>备注</strong>：精确；order = 0 得零级数；alpha 为非负整数 n
+时为 n 次多项式</p>
 <p>NEX_BIGFRAC_H</p>
 <h1 id="bigfloat--可调精度二进制浮点">bigfloat ——
 可调精度二进制浮点</h1>
@@ -1899,65 +1929,65 @@ BIGFRAC_ERR_INVALID_E； 内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）</p
 构造时指数范围溢出。</li>
 </ul>
 <p>七标志：±0 / 正常值 / ±∞ / NaN</p>
-<div class="sourceCode" id="cb132"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb132-1"><a href="#cb132-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb132-2"><a href="#cb132-2" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_POS_ZERO_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>  <span class="co">// +0</span></span>
-<span id="cb132-3"><a href="#cb132-3" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_NEG_ZERO_E<span class="op">,</span>      <span class="co">// −0</span></span>
-<span id="cb132-4"><a href="#cb132-4" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_POS_E<span class="op">,</span>           <span class="co">// 正（正常值）</span></span>
-<span id="cb132-5"><a href="#cb132-5" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_NEG_E<span class="op">,</span>           <span class="co">// 负（正常值）</span></span>
-<span id="cb132-6"><a href="#cb132-6" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_POS_INF_E<span class="op">,</span>       <span class="co">// 正无穷</span></span>
-<span id="cb132-7"><a href="#cb132-7" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_NEG_INF_E<span class="op">,</span>       <span class="co">// 负无穷</span></span>
-<span id="cb132-8"><a href="#cb132-8" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_NAN_E            <span class="co">// 非数</span></span>
-<span id="cb132-9"><a href="#cb132-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_flag_ty<span class="op">;</span></span></code></pre></div>
-<p>五种舍入模式</p>
-<div class="sourceCode" id="cb133"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb133-1"><a href="#cb133-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb133-2"><a href="#cb133-2" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_NEAREST_EVEN_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>  <span class="co">// 最近舍入，平局取偶（默认，同 IEEE 754）</span></span>
-<span id="cb133-3"><a href="#cb133-3" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_TOWARD_ZERO_E<span class="op">,</span>       <span class="co">// 向零截断</span></span>
-<span id="cb133-4"><a href="#cb133-4" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_TOWARD_POS_E<span class="op">,</span>        <span class="co">// 向 +∞</span></span>
-<span id="cb133-5"><a href="#cb133-5" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_TOWARD_NEG_E<span class="op">,</span>        <span class="co">// 向 −∞</span></span>
-<span id="cb133-6"><a href="#cb133-6" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_AWAY_ZERO_E          <span class="co">// 远离零</span></span>
-<span id="cb133-7"><a href="#cb133-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_round_ty<span class="op">;</span></span></code></pre></div>
-<p>bigfloat 层错误码</p>
 <div class="sourceCode" id="cb134"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb134-1"><a href="#cb134-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb134-2"><a href="#cb134-2" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>          <span class="co">// 成功</span></span>
-<span id="cb134-3"><a href="#cb134-3" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ERR_OOM_E<span class="op">,</span>         <span class="co">// 内存分配失败</span></span>
-<span id="cb134-4"><a href="#cb134-4" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ERR_INVALID_E<span class="op">,</span>     <span class="co">// 非法参数（空指针、零长度、非法进制等）</span></span>
-<span id="cb134-5"><a href="#cb134-5" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ERR_OVERFLOW_E<span class="op">,</span>    <span class="co">// 结果超出目标类型表示范围（如 to_f64 溢出）</span></span>
-<span id="cb134-6"><a href="#cb134-6" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ERR_PARSE_E        <span class="co">// 字符串解析失败</span></span>
-<span id="cb134-7"><a href="#cb134-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_err_ty<span class="op">;</span></span></code></pre></div>
+<span id="cb134-2"><a href="#cb134-2" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_POS_ZERO_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>  <span class="co">// +0</span></span>
+<span id="cb134-3"><a href="#cb134-3" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_NEG_ZERO_E<span class="op">,</span>      <span class="co">// −0</span></span>
+<span id="cb134-4"><a href="#cb134-4" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_POS_E<span class="op">,</span>           <span class="co">// 正（正常值）</span></span>
+<span id="cb134-5"><a href="#cb134-5" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_NEG_E<span class="op">,</span>           <span class="co">// 负（正常值）</span></span>
+<span id="cb134-6"><a href="#cb134-6" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_POS_INF_E<span class="op">,</span>       <span class="co">// 正无穷</span></span>
+<span id="cb134-7"><a href="#cb134-7" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_NEG_INF_E<span class="op">,</span>       <span class="co">// 负无穷</span></span>
+<span id="cb134-8"><a href="#cb134-8" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_NAN_E            <span class="co">// 非数</span></span>
+<span id="cb134-9"><a href="#cb134-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_flag_ty<span class="op">;</span></span></code></pre></div>
+<p>五种舍入模式</p>
+<div class="sourceCode" id="cb135"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb135-1"><a href="#cb135-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb135-2"><a href="#cb135-2" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_NEAREST_EVEN_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>  <span class="co">// 最近舍入，平局取偶（默认，同 IEEE 754）</span></span>
+<span id="cb135-3"><a href="#cb135-3" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_TOWARD_ZERO_E<span class="op">,</span>       <span class="co">// 向零截断</span></span>
+<span id="cb135-4"><a href="#cb135-4" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_TOWARD_POS_E<span class="op">,</span>        <span class="co">// 向 +∞</span></span>
+<span id="cb135-5"><a href="#cb135-5" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_TOWARD_NEG_E<span class="op">,</span>        <span class="co">// 向 −∞</span></span>
+<span id="cb135-6"><a href="#cb135-6" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ROUND_AWAY_ZERO_E          <span class="co">// 远离零</span></span>
+<span id="cb135-7"><a href="#cb135-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_round_ty<span class="op">;</span></span></code></pre></div>
+<p>bigfloat 层错误码</p>
+<div class="sourceCode" id="cb136"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb136-1"><a href="#cb136-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb136-2"><a href="#cb136-2" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>          <span class="co">// 成功</span></span>
+<span id="cb136-3"><a href="#cb136-3" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ERR_OOM_E<span class="op">,</span>         <span class="co">// 内存分配失败</span></span>
+<span id="cb136-4"><a href="#cb136-4" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ERR_INVALID_E<span class="op">,</span>     <span class="co">// 非法参数（空指针、零长度、非法进制等）</span></span>
+<span id="cb136-5"><a href="#cb136-5" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ERR_OVERFLOW_E<span class="op">,</span>    <span class="co">// 结果超出目标类型表示范围（如 to_f64 溢出）</span></span>
+<span id="cb136-6"><a href="#cb136-6" aria-hidden="true" tabindex="-1"></a>BIGFLOAT_ERR_PARSE_E        <span class="co">// 字符串解析失败</span></span>
+<span id="cb136-7"><a href="#cb136-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_err_ty<span class="op">;</span></span></code></pre></div>
 <p>精度上下文：决定结果的舍入与范围</p>
-<div class="sourceCode" id="cb135"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb135-1"><a href="#cb135-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
-<span id="cb135-2"><a href="#cb135-2" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> mant_bits<span class="op">;</span>        <span class="co">// 尾数精度（位），对应 IEEE 754 的 p；必须 ≥ 2</span></span>
-<span id="cb135-3"><a href="#cb135-3" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> exp_bits<span class="op">;</span>         <span class="co">// 指数字段长度（位），决定可表示范围</span></span>
-<span id="cb135-4"><a href="#cb135-4" aria-hidden="true" tabindex="-1"></a>bigfloat_round_ty round<span class="op">;</span> <span class="co">// 舍入模式</span></span>
-<span id="cb135-5"><a href="#cb135-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_ctx_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb137"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb137-1"><a href="#cb137-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb137-2"><a href="#cb137-2" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> mant_bits<span class="op">;</span>        <span class="co">// 尾数精度（位），对应 IEEE 754 的 p；必须 ≥ 2</span></span>
+<span id="cb137-3"><a href="#cb137-3" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> exp_bits<span class="op">;</span>         <span class="co">// 指数字段长度（位），决定可表示范围</span></span>
+<span id="cb137-4"><a href="#cb137-4" aria-hidden="true" tabindex="-1"></a>bigfloat_round_ty round<span class="op">;</span> <span class="co">// 舍入模式</span></span>
+<span id="cb137-5"><a href="#cb137-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_ctx_ty<span class="op">;</span></span></code></pre></div>
 <p>可调精度二进制浮点数</p>
-<div class="sourceCode" id="cb136"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb136-1"><a href="#cb136-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
-<span id="cb136-2"><a href="#cb136-2" aria-hidden="true" tabindex="-1"></a>bigfloat_flag_ty flag<span class="op">;</span>  <span class="co">// 七标志</span></span>
-<span id="cb136-3"><a href="#cb136-3" aria-hidden="true" tabindex="-1"></a>bigint_bin_ty mant<span class="op">;</span>     <span class="co">// 尾数幅值；仅 POS/NEG（正常值）时有效，最高位恒 1</span></span>
-<span id="cb136-4"><a href="#cb136-4" aria-hidden="true" tabindex="-1"></a><span class="dt">int64_t</span> exp<span class="op">;</span>            <span class="co">// 二进制指数；仅正常值时有效</span></span>
-<span id="cb136-5"><a href="#cb136-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb138"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb138-1"><a href="#cb138-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb138-2"><a href="#cb138-2" aria-hidden="true" tabindex="-1"></a>bigfloat_flag_ty flag<span class="op">;</span>  <span class="co">// 七标志</span></span>
+<span id="cb138-3"><a href="#cb138-3" aria-hidden="true" tabindex="-1"></a>bigint_bin_ty mant<span class="op">;</span>     <span class="co">// 尾数幅值；仅 POS/NEG（正常值）时有效，最高位恒 1</span></span>
+<span id="cb138-4"><a href="#cb138-4" aria-hidden="true" tabindex="-1"></a><span class="dt">int64_t</span> exp<span class="op">;</span>            <span class="co">// 二进制指数；仅正常值时有效</span></span>
+<span id="cb138-5"><a href="#cb138-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigfloat_ty<span class="op">;</span></span></code></pre></div>
 <p>exp_bits 上界：2^61 远大于任何合理指数范围，且保证 emin 计算不溢出
 int64</p>
 <h2 id="生命周期与上下文">生命周期与上下文</h2>
 <h3 id="bigfloat_init"><code>bigfloat_init</code></h3>
-<div class="sourceCode" id="cb137"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb137-1"><a href="#cb137-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_init<span class="op">(</span>bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb139"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb139-1"><a href="#cb139-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_init<span class="op">(</span>bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：初始化为 +0</p>
 <p><strong>返回</strong>：成功返回 BIGFLOAT_OK_E；val 为 NULL 返回
 BIGFLOAT_ERR_INVALID_E</p>
 <h3 id="bigfloat_free"><code>bigfloat_free</code></h3>
-<div class="sourceCode" id="cb138"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb138-1"><a href="#cb138-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> bigfloat_free<span class="op">(</span>bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb140"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb140-1"><a href="#cb140-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> bigfloat_free<span class="op">(</span>bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：释放浮点数占用的内存（mant 的内部 bigint）</p>
 <p><strong>参数</strong></p>
 <ul>
 <li><code>val</code>：目标对象；可为 NULL（安全无操作）</li>
 </ul>
 <h3 id="bigfloat_copy"><code>bigfloat_copy</code></h3>
-<div class="sourceCode" id="cb139"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb139-1"><a href="#cb139-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_copy<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb141"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb141-1"><a href="#cb141-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_copy<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：深拷贝浮点数</p>
 <p><strong>返回</strong>：成功返回 BIGFLOAT_OK_E；内存不足返回
 BIGFLOAT_ERR_OOM_E（dst 不变）</p>
 <h3 id="bigfloat_ctx_make"><code>bigfloat_ctx_make</code></h3>
-<div class="sourceCode" id="cb140"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb140-1"><a href="#cb140-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_ctx_make<span class="op">(</span>bigfloat_ctx_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">size_t</span> mant_bits<span class="op">,</span> <span class="dt">size_t</span> exp_bits<span class="op">,</span> bigfloat_round_ty round<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb142"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb142-1"><a href="#cb142-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_ctx_make<span class="op">(</span>bigfloat_ctx_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">size_t</span> mant_bits<span class="op">,</span> <span class="dt">size_t</span> exp_bits<span class="op">,</span> bigfloat_round_ty round<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：构造精度上下文</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -1970,45 +2000,45 @@ emax] = [−2^(exp_bits−1), 2^(exp_bits−1) − 1]</li>
 BIGFLOAT_ERR_INVALID_E （dst 不变）；mant_bits &lt; 2 或 exp_bits == 0
 或 exp_bits &gt; 61 返回 BIGFLOAT_ERR_INVALID_E（dst 不变）</p>
 <h3 id="bigfloat_ctx_binary32"><code>bigfloat_ctx_binary32</code></h3>
-<div class="sourceCode" id="cb141"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb141-1"><a href="#cb141-1" aria-hidden="true" tabindex="-1"></a>bigfloat_ctx_ty bigfloat_ctx_binary32<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb143"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb143-1"><a href="#cb143-1" aria-hidden="true" tabindex="-1"></a>bigfloat_ctx_ty bigfloat_ctx_binary32<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：常用预设上下文：IEEE 754
 单精度（binary32）</p>
 <h3 id="bigfloat_ctx_binary64"><code>bigfloat_ctx_binary64</code></h3>
-<div class="sourceCode" id="cb142"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb142-1"><a href="#cb142-1" aria-hidden="true" tabindex="-1"></a>bigfloat_ctx_ty bigfloat_ctx_binary64<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb144"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb144-1"><a href="#cb144-1" aria-hidden="true" tabindex="-1"></a>bigfloat_ctx_ty bigfloat_ctx_binary64<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：常用预设上下文：IEEE 754
 双精度（binary64）</p>
 <h3 id="bigfloat_ctx_binary128"><code>bigfloat_ctx_binary128</code></h3>
-<div class="sourceCode" id="cb143"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb143-1"><a href="#cb143-1" aria-hidden="true" tabindex="-1"></a>bigfloat_ctx_ty bigfloat_ctx_binary128<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb145"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb145-1"><a href="#cb145-1" aria-hidden="true" tabindex="-1"></a>bigfloat_ctx_ty bigfloat_ctx_binary128<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：常用预设上下文：IEEE 754
 四倍精度（binary128）</p>
 <h2 id="分类断言纯标志判断不失败">分类断言（纯标志判断，不失败）</h2>
 <h3 id="bigfloat_is_zero"><code>bigfloat_is_zero</code></h3>
-<div class="sourceCode" id="cb144"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb144-1"><a href="#cb144-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_is_zero<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb146"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb146-1"><a href="#cb146-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_is_zero<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：判断是否为零（+0 或 −0）</p>
 <h3 id="bigfloat_is_inf"><code>bigfloat_is_inf</code></h3>
-<div class="sourceCode" id="cb145"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb145-1"><a href="#cb145-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_is_inf<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb147"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb147-1"><a href="#cb147-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_is_inf<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：判断是否为无穷（+∞ 或 −∞）</p>
 <h3 id="bigfloat_is_nan"><code>bigfloat_is_nan</code></h3>
-<div class="sourceCode" id="cb146"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb146-1"><a href="#cb146-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_is_nan<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb148"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb148-1"><a href="#cb148-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_is_nan<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：判断是否为 NaN</p>
 <h3 id="bigfloat_is_normal"><code>bigfloat_is_normal</code></h3>
-<div class="sourceCode" id="cb147"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb147-1"><a href="#cb147-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_is_normal<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb149"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb149-1"><a href="#cb149-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_is_normal<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：判断是否为正常值（POS_E 或 NEG_E）</p>
 <h2 id="构造与转换">构造与转换</h2>
 <h3 id="bigfloat_from_bigint"><code>bigfloat_from_bigint</code></h3>
-<div class="sourceCode" id="cb148"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb148-1"><a href="#cb148-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_from_bigint<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb150"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb150-1"><a href="#cb150-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_from_bigint<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：从大整数构造浮点数，按 ctx
 舍入；精确值可表示时无损</p>
 <p><strong>返回</strong>：成功返回 BIGFLOAT_OK_E；src 为 NULL 返回
 BIGFLOAT_ERR_INVALID_E （dst 不变）；内存不足返回
 BIGFLOAT_ERR_OOM_E（dst 不变）</p>
 <h3 id="bigfloat_from_f64"><code>bigfloat_from_f64</code></h3>
-<div class="sourceCode" id="cb149"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb149-1"><a href="#cb149-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_from_f64<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">double</span> value<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb151"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb151-1"><a href="#cb151-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_from_f64<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">double</span> value<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：从 double 构造浮点数，总是精确</p>
 <p><strong>返回</strong>：成功返回 BIGFLOAT_OK_E；dst 为 NULL 返回
 BIGFLOAT_ERR_INVALID_E； 内存不足返回 BIGFLOAT_ERR_OOM_E（dst 不变）</p>
 <h3 id="bigfloat_to_f64"><code>bigfloat_to_f64</code></h3>
-<div class="sourceCode" id="cb150"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb150-1"><a href="#cb150-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_to_f64<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">double</span> <span class="op">*</span>out<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb152"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb152-1"><a href="#cb152-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_to_f64<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">double</span> <span class="op">*</span>out<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：转为 double</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2018,7 +2048,7 @@ BIGFLOAT_ERR_INVALID_E； 内存不足返回 BIGFLOAT_ERR_OOM_E（dst 不变）<
 ±HUGE_VAL 并返回 BIGFLOAT_ERR_OVERFLOW_E（out 仍被写入）；参数为 NULL
 返回 BIGFLOAT_ERR_INVALID_E</p>
 <h3 id="bigfloat_from_str"><code>bigfloat_from_str</code></h3>
-<div class="sourceCode" id="cb151"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb151-1"><a href="#cb151-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_from_str<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>str<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">**</span>end<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb153"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb153-1"><a href="#cb153-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_from_str<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>str<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">**</span>end<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：从字符串解析浮点数</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2033,7 +2063,7 @@ BIGFLOAT_ERR_PARSE_E 且 dst 不变；内存不足返回 BIGFLOAT_ERR_OOM_E（ds
 <p><strong>备注</strong>：按 ctx 正确舍入；&quot;0x...&quot; 十六进制浮点不在 v1
 范围</p>
 <h3 id="bigfloat_to_str"><code>bigfloat_to_str</code></h3>
-<div class="sourceCode" id="cb152"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb152-1"><a href="#cb152-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_to_str<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">size_t</span> max_digits<span class="op">,</span> <span class="dt">char</span> <span class="op">*</span>buf<span class="op">,</span> <span class="dt">size_t</span> buf_len<span class="op">,</span> <span class="dt">size_t</span> <span class="op">*</span>needed<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb154"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb154-1"><a href="#cb154-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_to_str<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">size_t</span> max_digits<span class="op">,</span> <span class="dt">char</span> <span class="op">*</span>buf<span class="op">,</span> <span class="dt">size_t</span> buf_len<span class="op">,</span> <span class="dt">size_t</span> <span class="op">*</span>needed<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：输出&quot;最短且能按相同 ctx 往返&quot;的十进制表示</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2048,39 +2078,39 @@ BIGFLOAT_ERR_OVERFLOW_E （needed 仍被写出）</p>
 <h2 id="算术特殊值传播见设计-11有限结果的舍入与溢出见-73">算术（特殊值传播见设计
 §11；有限结果的舍入与溢出见 §7.3）</h2>
 <h3 id="bigfloat_add"><code>bigfloat_add</code></h3>
-<div class="sourceCode" id="cb153"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb153-1"><a href="#cb153-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_add<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb155"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb155-1"><a href="#cb155-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_add<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：加法 dst = lhs + rhs</p>
 <h3 id="bigfloat_sub"><code>bigfloat_sub</code></h3>
-<div class="sourceCode" id="cb154"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb154-1"><a href="#cb154-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_sub<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb156"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb156-1"><a href="#cb156-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_sub<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：减法 dst = lhs − rhs</p>
 <h3 id="bigfloat_mul"><code>bigfloat_mul</code></h3>
-<div class="sourceCode" id="cb155"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb155-1"><a href="#cb155-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_mul<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb157"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb157-1"><a href="#cb157-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_mul<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：乘法 dst = lhs × rhs</p>
 <h3 id="bigfloat_div"><code>bigfloat_div</code></h3>
-<div class="sourceCode" id="cb156"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb156-1"><a href="#cb156-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_div<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb158"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb158-1"><a href="#cb158-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_div<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：除法 dst = lhs / rhs</p>
 <h3 id="bigfloat_sqrt"><code>bigfloat_sqrt</code></h3>
-<div class="sourceCode" id="cb157"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb157-1"><a href="#cb157-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_sqrt<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb159"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb159-1"><a href="#cb159-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_sqrt<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：平方根 dst = sqrt(src)；负数产生 NaN</p>
 <h3 id="bigfloat_neg"><code>bigfloat_neg</code></h3>
-<div class="sourceCode" id="cb158"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb158-1"><a href="#cb158-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_neg<span class="op">(</span>bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb160"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb160-1"><a href="#cb160-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_neg<span class="op">(</span>bigfloat_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地取负（翻转符号标志，含 ±0、±∞；NaN
 不变）</p>
 <h2 id="比较0--0nan-与任何值含自身比较均不相等">比较：+0 == −0；NaN
 与任何值（含自身）比较均&quot;不相等&quot;，</h2>
 <p>cmp 遇 NaN 返回约定值 2</p>
 <h3 id="bigfloat_cmp"><code>bigfloat_cmp</code></h3>
-<div class="sourceCode" id="cb159"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb159-1"><a href="#cb159-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> bigfloat_cmp<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb161"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb161-1"><a href="#cb161-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> bigfloat_cmp<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：三路比较</p>
 <p><strong>返回</strong>：lhs &lt; rhs 为负，lhs == rhs 为 0，lhs &gt;
 rhs 为正； 任一操作数为 NaN 返回 2</p>
 <h3 id="bigfloat_eq"><code>bigfloat_eq</code></h3>
-<div class="sourceCode" id="cb160"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb160-1"><a href="#cb160-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_eq<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb162"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb162-1"><a href="#cb162-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigfloat_eq<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：相等判断（+0 == −0 为真；NaN
 与任何值均不相等）</p>
 <h2 id="分解与合成frexpldexp-式">分解与合成（frexp/ldexp 式）</h2>
 <h3 id="bigfloat_decompose"><code>bigfloat_decompose</code></h3>
-<div class="sourceCode" id="cb161"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb161-1"><a href="#cb161-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_decompose<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> bigint_bin_ty <span class="op">*</span>mant<span class="op">,</span> <span class="dt">int64_t</span> <span class="op">*</span>exp<span class="op">,</span> bigfloat_flag_ty <span class="op">*</span>flag<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb163"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb163-1"><a href="#cb163-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_decompose<span class="op">(</span><span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> bigint_bin_ty <span class="op">*</span>mant<span class="op">,</span> <span class="dt">int64_t</span> <span class="op">*</span>exp<span class="op">,</span> bigfloat_flag_ty <span class="op">*</span>flag<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：分解浮点数为尾数、指数与标志</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2092,7 +2122,7 @@ rhs 为正； 任一操作数为 NaN 返回 2</p>
 <p><strong>返回</strong>：成功返回 BIGFLOAT_OK_E；内存不足返回
 BIGFLOAT_ERR_OOM_E （输出参数不变）</p>
 <h3 id="bigfloat_compose"><code>bigfloat_compose</code></h3>
-<div class="sourceCode" id="cb162"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb162-1"><a href="#cb162-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_compose<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>mant<span class="op">,</span> <span class="dt">int64_t</span> exp<span class="op">,</span> bigfloat_flag_ty flag<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb164"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb164-1"><a href="#cb164-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_compose<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>mant<span class="op">,</span> <span class="dt">int64_t</span> exp<span class="op">,</span> bigfloat_flag_ty flag<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：合成浮点数，按 ctx 对尾数舍入/规范化</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2106,7 +2136,7 @@ BIGFLOAT_ERR_OOM_E （dst 不变）</p>
 <p><strong>备注</strong>：若 flag 为特殊值，mant / exp
 被忽略，结果为对应特殊值</p>
 <h3 id="bigfloat_poly_eval"><code>bigfloat_poly_eval</code></h3>
-<div class="sourceCode" id="cb163"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb163-1"><a href="#cb163-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_poly_eval<span class="op">(</span>bigfloat_ty <span class="op">*</span>out<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">size_t</span> degree<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>x<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb165"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb165-1"><a href="#cb165-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_poly_eval<span class="op">(</span>bigfloat_ty <span class="op">*</span>out<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">size_t</span> degree<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>x<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：多项式求值（秦九韶 / Horner 法）：out =
 Σ_{i=0}^{degree} coeffs[i]·x^i</p>
 <p><strong>参数</strong></p>
@@ -2141,71 +2171,71 @@ bigfloat 的&quot;最高位恒 1&quot;平行，§8.1）。</li>
 − 1) 不溢出 int64（10^18 − 1 &lt; INT64_MAX）。</li>
 </ul>
 <p>七标志：±0 / 正常值 / ±∞ / NaN</p>
-<div class="sourceCode" id="cb164"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb164-1"><a href="#cb164-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb164-2"><a href="#cb164-2" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_POS_ZERO_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>  <span class="co">// +0</span></span>
-<span id="cb164-3"><a href="#cb164-3" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_NEG_ZERO_E<span class="op">,</span>      <span class="co">// −0</span></span>
-<span id="cb164-4"><a href="#cb164-4" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_POS_E<span class="op">,</span>           <span class="co">// 正（正常值）</span></span>
-<span id="cb164-5"><a href="#cb164-5" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_NEG_E<span class="op">,</span>           <span class="co">// 负（正常值）</span></span>
-<span id="cb164-6"><a href="#cb164-6" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_POS_INF_E<span class="op">,</span>       <span class="co">// 正无穷</span></span>
-<span id="cb164-7"><a href="#cb164-7" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_NEG_INF_E<span class="op">,</span>       <span class="co">// 负无穷</span></span>
-<span id="cb164-8"><a href="#cb164-8" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_NAN_E            <span class="co">// 非数</span></span>
-<span id="cb164-9"><a href="#cb164-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_flag_ty<span class="op">;</span></span></code></pre></div>
-<p>五种舍入模式</p>
-<div class="sourceCode" id="cb165"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb165-1"><a href="#cb165-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb165-2"><a href="#cb165-2" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_NEAREST_EVEN_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>  <span class="co">// 最近舍入，平局取偶（默认，同 IEEE 754）</span></span>
-<span id="cb165-3"><a href="#cb165-3" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_TOWARD_ZERO_E<span class="op">,</span>       <span class="co">// 向零截断</span></span>
-<span id="cb165-4"><a href="#cb165-4" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_TOWARD_POS_E<span class="op">,</span>        <span class="co">// 向 +∞</span></span>
-<span id="cb165-5"><a href="#cb165-5" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_TOWARD_NEG_E<span class="op">,</span>        <span class="co">// 向 −∞</span></span>
-<span id="cb165-6"><a href="#cb165-6" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_AWAY_ZERO_E          <span class="co">// 远离零</span></span>
-<span id="cb165-7"><a href="#cb165-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_round_ty<span class="op">;</span></span></code></pre></div>
-<p>to_str 输出格式</p>
 <div class="sourceCode" id="cb166"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb166-1"><a href="#cb166-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb166-2"><a href="#cb166-2" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_FMT_FIXED_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>      <span class="co">// 定点：如 &quot;12.34&quot;、&quot;0.00123&quot;</span></span>
-<span id="cb166-3"><a href="#cb166-3" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_FMT_SCIENTIFIC_E      <span class="co">// 科学计数：如 &quot;1.234e+1&quot;、&quot;1e+100&quot;</span></span>
-<span id="cb166-4"><a href="#cb166-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_fmt_ty<span class="op">;</span></span></code></pre></div>
-<p>bigdecimal 层错误码</p>
+<span id="cb166-2"><a href="#cb166-2" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_POS_ZERO_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>  <span class="co">// +0</span></span>
+<span id="cb166-3"><a href="#cb166-3" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_NEG_ZERO_E<span class="op">,</span>      <span class="co">// −0</span></span>
+<span id="cb166-4"><a href="#cb166-4" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_POS_E<span class="op">,</span>           <span class="co">// 正（正常值）</span></span>
+<span id="cb166-5"><a href="#cb166-5" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_NEG_E<span class="op">,</span>           <span class="co">// 负（正常值）</span></span>
+<span id="cb166-6"><a href="#cb166-6" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_POS_INF_E<span class="op">,</span>       <span class="co">// 正无穷</span></span>
+<span id="cb166-7"><a href="#cb166-7" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_NEG_INF_E<span class="op">,</span>       <span class="co">// 负无穷</span></span>
+<span id="cb166-8"><a href="#cb166-8" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_NAN_E            <span class="co">// 非数</span></span>
+<span id="cb166-9"><a href="#cb166-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_flag_ty<span class="op">;</span></span></code></pre></div>
+<p>五种舍入模式</p>
 <div class="sourceCode" id="cb167"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb167-1"><a href="#cb167-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb167-2"><a href="#cb167-2" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>          <span class="co">// 成功</span></span>
-<span id="cb167-3"><a href="#cb167-3" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ERR_OOM_E<span class="op">,</span>         <span class="co">// 内存分配失败</span></span>
-<span id="cb167-4"><a href="#cb167-4" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ERR_INVALID_E<span class="op">,</span>     <span class="co">// 非法参数（空指针、非法进制等）</span></span>
-<span id="cb167-5"><a href="#cb167-5" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ERR_OVERFLOW_E<span class="op">,</span>    <span class="co">// 输出缓冲不足等</span></span>
-<span id="cb167-6"><a href="#cb167-6" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ERR_PARSE_E        <span class="co">// 字符串解析失败</span></span>
-<span id="cb167-7"><a href="#cb167-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_err_ty<span class="op">;</span></span></code></pre></div>
+<span id="cb167-2"><a href="#cb167-2" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_NEAREST_EVEN_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>  <span class="co">// 最近舍入，平局取偶（默认，同 IEEE 754）</span></span>
+<span id="cb167-3"><a href="#cb167-3" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_TOWARD_ZERO_E<span class="op">,</span>       <span class="co">// 向零截断</span></span>
+<span id="cb167-4"><a href="#cb167-4" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_TOWARD_POS_E<span class="op">,</span>        <span class="co">// 向 +∞</span></span>
+<span id="cb167-5"><a href="#cb167-5" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_TOWARD_NEG_E<span class="op">,</span>        <span class="co">// 向 −∞</span></span>
+<span id="cb167-6"><a href="#cb167-6" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ROUND_AWAY_ZERO_E          <span class="co">// 远离零</span></span>
+<span id="cb167-7"><a href="#cb167-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_round_ty<span class="op">;</span></span></code></pre></div>
+<p>to_str 输出格式</p>
+<div class="sourceCode" id="cb168"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb168-1"><a href="#cb168-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb168-2"><a href="#cb168-2" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_FMT_FIXED_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>      <span class="co">// 定点：如 &quot;12.34&quot;、&quot;0.00123&quot;</span></span>
+<span id="cb168-3"><a href="#cb168-3" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_FMT_SCIENTIFIC_E      <span class="co">// 科学计数：如 &quot;1.234e+1&quot;、&quot;1e+100&quot;</span></span>
+<span id="cb168-4"><a href="#cb168-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_fmt_ty<span class="op">;</span></span></code></pre></div>
+<p>bigdecimal 层错误码</p>
+<div class="sourceCode" id="cb169"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb169-1"><a href="#cb169-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb169-2"><a href="#cb169-2" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>          <span class="co">// 成功</span></span>
+<span id="cb169-3"><a href="#cb169-3" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ERR_OOM_E<span class="op">,</span>         <span class="co">// 内存分配失败</span></span>
+<span id="cb169-4"><a href="#cb169-4" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ERR_INVALID_E<span class="op">,</span>     <span class="co">// 非法参数（空指针、非法进制等）</span></span>
+<span id="cb169-5"><a href="#cb169-5" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ERR_OVERFLOW_E<span class="op">,</span>    <span class="co">// 输出缓冲不足等</span></span>
+<span id="cb169-6"><a href="#cb169-6" aria-hidden="true" tabindex="-1"></a>BIGDECIMAL_ERR_PARSE_E        <span class="co">// 字符串解析失败</span></span>
+<span id="cb169-7"><a href="#cb169-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_err_ty<span class="op">;</span></span></code></pre></div>
 <p>精度上下文：决定结果的舍入与范围</p>
-<div class="sourceCode" id="cb168"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb168-1"><a href="#cb168-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
-<span id="cb168-2"><a href="#cb168-2" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> mant_digits<span class="op">;</span>        <span class="co">// 十进制有效位数，必须 ≥ 1（对应 IEEE 754 十进制格式的 p）</span></span>
-<span id="cb168-3"><a href="#cb168-3" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> exp_digits<span class="op">;</span>         <span class="co">// 指数字段的十进制位数，决定范围 ±(10^exp_digits − 1)</span></span>
-<span id="cb168-4"><a href="#cb168-4" aria-hidden="true" tabindex="-1"></a>bigdecimal_round_ty round<span class="op">;</span> <span class="co">// 舍入模式</span></span>
-<span id="cb168-5"><a href="#cb168-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_ctx_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb170"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb170-1"><a href="#cb170-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb170-2"><a href="#cb170-2" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> mant_digits<span class="op">;</span>        <span class="co">// 十进制有效位数，必须 ≥ 1（对应 IEEE 754 十进制格式的 p）</span></span>
+<span id="cb170-3"><a href="#cb170-3" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> exp_digits<span class="op">;</span>         <span class="co">// 指数字段的十进制位数，决定范围 ±(10^exp_digits − 1)</span></span>
+<span id="cb170-4"><a href="#cb170-4" aria-hidden="true" tabindex="-1"></a>bigdecimal_round_ty round<span class="op">;</span> <span class="co">// 舍入模式</span></span>
+<span id="cb170-5"><a href="#cb170-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_ctx_ty<span class="op">;</span></span></code></pre></div>
 <p>可调精度十进制浮点数</p>
-<div class="sourceCode" id="cb169"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb169-1"><a href="#cb169-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
-<span id="cb169-2"><a href="#cb169-2" aria-hidden="true" tabindex="-1"></a>bigdecimal_flag_ty flag<span class="op">;</span>  <span class="co">// 七标志</span></span>
-<span id="cb169-3"><a href="#cb169-3" aria-hidden="true" tabindex="-1"></a>bigint_dec_ty mant<span class="op">;</span>       <span class="co">// 尾数幅值（十进制整数）；仅正常值有效，</span></span>
-<span id="cb169-4"><a href="#cb169-4" aria-hidden="true" tabindex="-1"></a><span class="co">// 规范化：个位非 0（无尾随零）</span></span>
-<span id="cb169-5"><a href="#cb169-5" aria-hidden="true" tabindex="-1"></a><span class="dt">int64_t</span> exp<span class="op">;</span>              <span class="co">// 十进制指数；仅正常值时有效</span></span>
-<span id="cb169-6"><a href="#cb169-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb171"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb171-1"><a href="#cb171-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb171-2"><a href="#cb171-2" aria-hidden="true" tabindex="-1"></a>bigdecimal_flag_ty flag<span class="op">;</span>  <span class="co">// 七标志</span></span>
+<span id="cb171-3"><a href="#cb171-3" aria-hidden="true" tabindex="-1"></a>bigint_dec_ty mant<span class="op">;</span>       <span class="co">// 尾数幅值（十进制整数）；仅正常值有效，</span></span>
+<span id="cb171-4"><a href="#cb171-4" aria-hidden="true" tabindex="-1"></a><span class="co">// 规范化：个位非 0（无尾随零）</span></span>
+<span id="cb171-5"><a href="#cb171-5" aria-hidden="true" tabindex="-1"></a><span class="dt">int64_t</span> exp<span class="op">;</span>              <span class="co">// 十进制指数；仅正常值时有效</span></span>
+<span id="cb171-6"><a href="#cb171-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigdecimal_ty<span class="op">;</span></span></code></pre></div>
 <p>exp_digits 上界：10^18 − 1 &lt; INT64_MAX，保证 emin 计算不溢出
 int64</p>
 <h2 id="生命周期与上下文-1">生命周期与上下文</h2>
 <h3 id="bigdecimal_init"><code>bigdecimal_init</code></h3>
-<div class="sourceCode" id="cb170"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb170-1"><a href="#cb170-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_init<span class="op">(</span>bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb172"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb172-1"><a href="#cb172-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_init<span class="op">(</span>bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：初始化为 +0</p>
 <p><strong>返回</strong>：成功返回 BIGDECIMAL_OK_E；val 为 NULL 返回
 BIGDECIMAL_ERR_INVALID_E</p>
 <h3 id="bigdecimal_free"><code>bigdecimal_free</code></h3>
-<div class="sourceCode" id="cb171"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb171-1"><a href="#cb171-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> bigdecimal_free<span class="op">(</span>bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb173"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb173-1"><a href="#cb173-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> bigdecimal_free<span class="op">(</span>bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：释放浮点数占用的内存（mant 的内部 bigint）</p>
 <p><strong>参数</strong></p>
 <ul>
 <li><code>val</code>：目标对象；可为 NULL（安全无操作）</li>
 </ul>
 <h3 id="bigdecimal_copy"><code>bigdecimal_copy</code></h3>
-<div class="sourceCode" id="cb172"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb172-1"><a href="#cb172-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_copy<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb174"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb174-1"><a href="#cb174-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_copy<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：深拷贝浮点数</p>
 <p><strong>返回</strong>：成功返回 BIGDECIMAL_OK_E；内存不足返回
 BIGDECIMAL_ERR_OOM_E（dst 不变）</p>
 <h3 id="bigdecimal_ctx_make"><code>bigdecimal_ctx_make</code></h3>
-<div class="sourceCode" id="cb173"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb173-1"><a href="#cb173-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_ctx_make<span class="op">(</span>bigdecimal_ctx_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">size_t</span> mant_digits<span class="op">,</span> <span class="dt">size_t</span> exp_digits<span class="op">,</span> bigdecimal_round_ty round<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb175"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb175-1"><a href="#cb175-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_ctx_make<span class="op">(</span>bigdecimal_ctx_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">size_t</span> mant_digits<span class="op">,</span> <span class="dt">size_t</span> exp_digits<span class="op">,</span> bigdecimal_round_ty round<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：构造精度上下文</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2219,40 +2249,40 @@ BIGDECIMAL_ERR_INVALID_E（dst 不变）；mant_digits &lt; 1 或 exp_digits
 == 0 或 exp_digits &gt; BIGDECIMAL_MAX_EXP_DIGITS 返回
 BIGDECIMAL_ERR_INVALID_E（dst 不变）</p>
 <h3 id="bigdecimal_ctx_decimal32"><code>bigdecimal_ctx_decimal32</code></h3>
-<div class="sourceCode" id="cb174"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb174-1"><a href="#cb174-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_ctx_ty bigdecimal_ctx_decimal32<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb176"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb176-1"><a href="#cb176-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_ctx_ty bigdecimal_ctx_decimal32<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：常用预设上下文：IEEE 754 decimal32（7
 位有效数字，指数 ±99）</p>
 <h3 id="bigdecimal_ctx_decimal64"><code>bigdecimal_ctx_decimal64</code></h3>
-<div class="sourceCode" id="cb175"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb175-1"><a href="#cb175-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_ctx_ty bigdecimal_ctx_decimal64<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb177"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb177-1"><a href="#cb177-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_ctx_ty bigdecimal_ctx_decimal64<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：常用预设上下文：IEEE 754 decimal64（16
 位有效数字，指数 ±999）</p>
 <h3 id="bigdecimal_ctx_decimal128"><code>bigdecimal_ctx_decimal128</code></h3>
-<div class="sourceCode" id="cb176"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb176-1"><a href="#cb176-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_ctx_ty bigdecimal_ctx_decimal128<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb178"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb178-1"><a href="#cb178-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_ctx_ty bigdecimal_ctx_decimal128<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：常用预设上下文：IEEE 754 decimal128（34
 位有效数字，指数 ±9999）</p>
 <h2 id="分类断言纯标志判断不失败-1">分类断言（纯标志判断，不失败）</h2>
 <h3 id="bigdecimal_is_zero"><code>bigdecimal_is_zero</code></h3>
-<div class="sourceCode" id="cb177"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb177-1"><a href="#cb177-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_is_zero<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb179"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb179-1"><a href="#cb179-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_is_zero<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：判断是否为零（+0 或 −0）</p>
 <h3 id="bigdecimal_is_inf"><code>bigdecimal_is_inf</code></h3>
-<div class="sourceCode" id="cb178"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb178-1"><a href="#cb178-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_is_inf<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb180"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb180-1"><a href="#cb180-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_is_inf<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：判断是否为无穷（+∞ 或 −∞）</p>
 <h3 id="bigdecimal_is_nan"><code>bigdecimal_is_nan</code></h3>
-<div class="sourceCode" id="cb179"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb179-1"><a href="#cb179-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_is_nan<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb181"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb181-1"><a href="#cb181-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_is_nan<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：判断是否为 NaN</p>
 <h3 id="bigdecimal_is_normal"><code>bigdecimal_is_normal</code></h3>
-<div class="sourceCode" id="cb180"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb180-1"><a href="#cb180-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_is_normal<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb182"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb182-1"><a href="#cb182-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_is_normal<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：判断是否为正常值（POS_E 或 NEG_E）</p>
 <h2 id="构造与转换-1">构造与转换</h2>
 <h3 id="bigdecimal_from_bigint"><code>bigdecimal_from_bigint</code></h3>
-<div class="sourceCode" id="cb181"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb181-1"><a href="#cb181-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_from_bigint<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_dec_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb183"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb183-1"><a href="#cb183-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_from_bigint<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_dec_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：从大整数（十进制肢）构造浮点数，按 ctx
 舍入；精确值可表示时无损</p>
 <p><strong>返回</strong>：成功返回 BIGDECIMAL_OK_E；src 为 NULL 返回
 BIGDECIMAL_ERR_INVALID_E（dst 不变）；内存不足返回
 BIGDECIMAL_ERR_OOM_E（dst 不变）</p>
 <h3 id="bigdecimal_from_str"><code>bigdecimal_from_str</code></h3>
-<div class="sourceCode" id="cb182"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb182-1"><a href="#cb182-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_from_str<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>str<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">**</span>end<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb184"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb184-1"><a href="#cb184-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_from_str<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>str<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">**</span>end<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：从字符串解析浮点数（精确解析）</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2268,7 +2298,7 @@ BIGDECIMAL_ERR_OOM_E（dst 不变）</p>
 时完全精确；超长时按 ctx 正确 舍入（一次舍入，无双重舍入）。&quot;0x...&quot;
 十六进制不在 v1 范围</p>
 <h3 id="bigdecimal_to_str"><code>bigdecimal_to_str</code></h3>
-<div class="sourceCode" id="cb183"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb183-1"><a href="#cb183-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_to_str<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">,</span> bigdecimal_fmt_ty fmt<span class="op">,</span> <span class="dt">char</span> <span class="op">*</span>buf<span class="op">,</span> <span class="dt">size_t</span> buf_len<span class="op">,</span> <span class="dt">size_t</span> <span class="op">*</span>needed<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb185"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb185-1"><a href="#cb185-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_to_str<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">,</span> bigdecimal_fmt_ty fmt<span class="op">,</span> <span class="dt">char</span> <span class="op">*</span>buf<span class="op">,</span> <span class="dt">size_t</span> buf_len<span class="op">,</span> <span class="dt">size_t</span> <span class="op">*</span>needed<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：精确输出十进制表示（value = mant × 10^exp
 直接展开，无舍入）</p>
 <p><strong>参数</strong></p>
@@ -2285,39 +2315,39 @@ BIGDECIMAL_ERR_OVERFLOW_E（needed 仍被写出）</p>
 <h2 id="算术特殊值传播见-11有限结果的舍入与溢出见-73--81">算术（特殊值传播见
 §11；有限结果的舍入与溢出见 §7.3 / §8.1）</h2>
 <h3 id="bigdecimal_add"><code>bigdecimal_add</code></h3>
-<div class="sourceCode" id="cb184"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb184-1"><a href="#cb184-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_add<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb186"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb186-1"><a href="#cb186-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_add<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：加法 dst = lhs + rhs</p>
 <h3 id="bigdecimal_sub"><code>bigdecimal_sub</code></h3>
-<div class="sourceCode" id="cb185"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb185-1"><a href="#cb185-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_sub<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb187"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb187-1"><a href="#cb187-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_sub<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：减法 dst = lhs − rhs</p>
 <h3 id="bigdecimal_mul"><code>bigdecimal_mul</code></h3>
-<div class="sourceCode" id="cb186"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb186-1"><a href="#cb186-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_mul<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb188"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb188-1"><a href="#cb188-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_mul<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：乘法 dst = lhs × rhs</p>
 <h3 id="bigdecimal_div"><code>bigdecimal_div</code></h3>
-<div class="sourceCode" id="cb187"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb187-1"><a href="#cb187-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_div<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb189"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb189-1"><a href="#cb189-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_div<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：除法 dst = lhs / rhs</p>
 <h3 id="bigdecimal_sqrt"><code>bigdecimal_sqrt</code></h3>
-<div class="sourceCode" id="cb188"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb188-1"><a href="#cb188-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_sqrt<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb190"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb190-1"><a href="#cb190-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_sqrt<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：平方根 dst = sqrt(src)；负数产生 NaN</p>
 <h3 id="bigdecimal_neg"><code>bigdecimal_neg</code></h3>
-<div class="sourceCode" id="cb189"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb189-1"><a href="#cb189-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_neg<span class="op">(</span>bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb191"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb191-1"><a href="#cb191-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_neg<span class="op">(</span>bigdecimal_ty <span class="op">*</span>val<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地取负（翻转符号标志，含 ±0、±∞；NaN
 不变）</p>
 <h2 id="比较0--0nan-与任何值含自身比较均不相等-1">比较：+0 == −0；NaN
 与任何值（含自身）比较均&quot;不相等&quot;，</h2>
 <p>cmp 遇 NaN 返回约定值 2</p>
 <h3 id="bigdecimal_cmp"><code>bigdecimal_cmp</code></h3>
-<div class="sourceCode" id="cb190"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb190-1"><a href="#cb190-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> bigdecimal_cmp<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb192"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb192-1"><a href="#cb192-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> bigdecimal_cmp<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：三路比较</p>
 <p><strong>返回</strong>：lhs &lt; rhs 为负，lhs == rhs 为 0，lhs &gt;
 rhs 为正； 任一操作数为 NaN 返回 2</p>
 <h3 id="bigdecimal_eq"><code>bigdecimal_eq</code></h3>
-<div class="sourceCode" id="cb191"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb191-1"><a href="#cb191-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_eq<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb193"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb193-1"><a href="#cb193-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigdecimal_eq<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：相等判断（+0 == −0 为真；NaN
 与任何值均不相等）</p>
 <h2 id="分解与合成">分解与合成</h2>
 <h3 id="bigdecimal_decompose"><code>bigdecimal_decompose</code></h3>
-<div class="sourceCode" id="cb192"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb192-1"><a href="#cb192-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_decompose<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">,</span> bigint_dec_ty <span class="op">*</span>mant<span class="op">,</span> <span class="dt">int64_t</span> <span class="op">*</span>exp<span class="op">,</span> bigdecimal_flag_ty <span class="op">*</span>flag<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb194"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb194-1"><a href="#cb194-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_decompose<span class="op">(</span><span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">,</span> bigint_dec_ty <span class="op">*</span>mant<span class="op">,</span> <span class="dt">int64_t</span> <span class="op">*</span>exp<span class="op">,</span> bigdecimal_flag_ty <span class="op">*</span>flag<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：分解浮点数为尾数、指数与标志</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2329,7 +2359,7 @@ rhs 为正； 任一操作数为 NaN 返回 2</p>
 <p><strong>返回</strong>：成功返回 BIGDECIMAL_OK_E；内存不足返回
 BIGDECIMAL_ERR_OOM_E （输出参数不变）</p>
 <h3 id="bigdecimal_compose"><code>bigdecimal_compose</code></h3>
-<div class="sourceCode" id="cb193"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb193-1"><a href="#cb193-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_compose<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_dec_ty <span class="op">*</span>mant<span class="op">,</span> <span class="dt">int64_t</span> exp<span class="op">,</span> bigdecimal_flag_ty flag<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb195"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb195-1"><a href="#cb195-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_compose<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_dec_ty <span class="op">*</span>mant<span class="op">,</span> <span class="dt">int64_t</span> exp<span class="op">,</span> bigdecimal_flag_ty flag<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：合成浮点数，按 ctx 对尾数舍入/规范化</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2343,7 +2373,7 @@ BIGDECIMAL_ERR_OOM_E （dst 不变）</p>
 <p><strong>备注</strong>：若 flag 为特殊值，mant / exp
 被忽略，结果为对应特殊值</p>
 <h3 id="bigdecimal_poly_eval"><code>bigdecimal_poly_eval</code></h3>
-<div class="sourceCode" id="cb194"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb194-1"><a href="#cb194-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_poly_eval<span class="op">(</span>bigdecimal_ty <span class="op">*</span>out<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">size_t</span> degree<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>x<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb196"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb196-1"><a href="#cb196-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty bigdecimal_poly_eval<span class="op">(</span>bigdecimal_ty <span class="op">*</span>out<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">size_t</span> degree<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>x<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：多项式求值（秦九韶 / Horner 法）：out =
 Σ_{i=0}^{degree} coeffs[i]·x^i</p>
 <p><strong>参数</strong></p>
@@ -2367,43 +2397,43 @@ BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（out
 §9）。</p>
 <p>复数本身不新增标志；特殊值语义完全由分量的七标志组合表达（§9.3）。
 API 与 bigcomplex_decimal_ty 平行（十进制版见 decimal/ 子目录）。</p>
-<div class="sourceCode" id="cb195"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb195-1"><a href="#cb195-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
-<span id="cb195-2"><a href="#cb195-2" aria-hidden="true" tabindex="-1"></a>bigfloat_ty re<span class="op">;</span>  <span class="co">// 实部</span></span>
-<span id="cb195-3"><a href="#cb195-3" aria-hidden="true" tabindex="-1"></a>bigfloat_ty im<span class="op">;</span>  <span class="co">// 虚部</span></span>
-<span id="cb195-4"><a href="#cb195-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigcomplex_float_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb197"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb197-1"><a href="#cb197-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb197-2"><a href="#cb197-2" aria-hidden="true" tabindex="-1"></a>bigfloat_ty re<span class="op">;</span>  <span class="co">// 实部</span></span>
+<span id="cb197-3"><a href="#cb197-3" aria-hidden="true" tabindex="-1"></a>bigfloat_ty im<span class="op">;</span>  <span class="co">// 虚部</span></span>
+<span id="cb197-4"><a href="#cb197-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigcomplex_float_ty<span class="op">;</span></span></code></pre></div>
 <p>bigcomplex（float 版）错误码</p>
-<div class="sourceCode" id="cb196"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb196-1"><a href="#cb196-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb196-2"><a href="#cb196-2" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>          <span class="co">// 成功</span></span>
-<span id="cb196-3"><a href="#cb196-3" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_OOM_E<span class="op">,</span>         <span class="co">// 内存分配失败</span></span>
-<span id="cb196-4"><a href="#cb196-4" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_INVALID_E<span class="op">,</span>     <span class="co">// 非法参数</span></span>
-<span id="cb196-5"><a href="#cb196-5" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_OVERFLOW_E<span class="op">,</span>    <span class="co">// 输出缓冲不足等</span></span>
-<span id="cb196-6"><a href="#cb196-6" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_PARSE_E<span class="op">,</span>       <span class="co">// 字符串解析失败</span></span>
-<span id="cb196-7"><a href="#cb196-7" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_UNSUPPORTED_E  <span class="co">// 已登记但当前版本未实现的功能</span></span>
-<span id="cb196-8"><a href="#cb196-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigcomplex_float_err_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb198"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb198-1"><a href="#cb198-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb198-2"><a href="#cb198-2" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>          <span class="co">// 成功</span></span>
+<span id="cb198-3"><a href="#cb198-3" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_OOM_E<span class="op">,</span>         <span class="co">// 内存分配失败</span></span>
+<span id="cb198-4"><a href="#cb198-4" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_INVALID_E<span class="op">,</span>     <span class="co">// 非法参数</span></span>
+<span id="cb198-5"><a href="#cb198-5" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_OVERFLOW_E<span class="op">,</span>    <span class="co">// 输出缓冲不足等</span></span>
+<span id="cb198-6"><a href="#cb198-6" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_PARSE_E<span class="op">,</span>       <span class="co">// 字符串解析失败</span></span>
+<span id="cb198-7"><a href="#cb198-7" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_FLOAT_ERR_UNSUPPORTED_E  <span class="co">// 已登记但当前版本未实现的功能</span></span>
+<span id="cb198-8"><a href="#cb198-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigcomplex_float_err_ty<span class="op">;</span></span></code></pre></div>
 <h2 id="生命周期与构造92">生命周期与构造（§9.2）</h2>
 <h3 id="bigcomplex_float_init"><code>bigcomplex_float_init</code></h3>
-<div class="sourceCode" id="cb197"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb197-1"><a href="#cb197-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_init<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb199"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb199-1"><a href="#cb199-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_init<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：初始化为 0 + 0i</p>
 <p><strong>返回</strong>：成功返回 BIGCOMPLEX_FLOAT_OK_E；cpx 为 NULL
 返回 INVALID</p>
 <h3 id="bigcomplex_float_free"><code>bigcomplex_float_free</code></h3>
-<div class="sourceCode" id="cb198"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb198-1"><a href="#cb198-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> bigcomplex_float_free<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb200"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb200-1"><a href="#cb200-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> bigcomplex_float_free<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：释放复数占用的内存（两个分量各自释放）</p>
 <p><strong>参数</strong></p>
 <ul>
 <li><code>cpx</code>：目标对象；可为 NULL（安全无操作）</li>
 </ul>
 <h3 id="bigcomplex_float_copy"><code>bigcomplex_float_copy</code></h3>
-<div class="sourceCode" id="cb199"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb199-1"><a href="#cb199-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_copy<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb201"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb201-1"><a href="#cb201-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_copy<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：深拷贝复数</p>
 <p><strong>返回</strong>：成功返回 OK；内存不足返回 OOM（dst 不变）</p>
 <h3 id="bigcomplex_float_from_parts"><code>bigcomplex_float_from_parts</code></h3>
-<div class="sourceCode" id="cb200"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb200-1"><a href="#cb200-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_from_parts<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>re<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>im<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb202"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb202-1"><a href="#cb202-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_from_parts<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>re<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>im<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：从实部/虚部构造复数（深拷贝分量）</p>
 <p><strong>返回</strong>：成功返回 OK；任一参数为 NULL 返回 INVALID（cpx
 不变）</p>
 <h3 id="bigcomplex_float_from_str"><code>bigcomplex_float_from_str</code></h3>
-<div class="sourceCode" id="cb201"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb201-1"><a href="#cb201-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_from_str<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>str<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">**</span>end<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb203"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb203-1"><a href="#cb203-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_from_str<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>str<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">**</span>end<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：从字符串解析复数</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2418,7 +2448,7 @@ PARSE （cpx 不变）；内存不足返回 OOM（cpx 不变）</p>
 结尾，否则整字面量非法（PARSE）；
 完整字面量后的尾随字符按部分消费约定处理</p>
 <h3 id="bigcomplex_float_to_str"><code>bigcomplex_float_to_str</code></h3>
-<div class="sourceCode" id="cb202"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb202-1"><a href="#cb202-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_to_str<span class="op">(</span><span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">size_t</span> max_digits<span class="op">,</span> <span class="dt">char</span> <span class="op">*</span>buf<span class="op">,</span> <span class="dt">size_t</span> buf_len<span class="op">,</span> <span class="dt">size_t</span> <span class="op">*</span>needed<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb204"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb204-1"><a href="#cb204-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_to_str<span class="op">(</span><span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">size_t</span> max_digits<span class="op">,</span> <span class="dt">char</span> <span class="op">*</span>buf<span class="op">,</span> <span class="dt">size_t</span> buf_len<span class="op">,</span> <span class="dt">size_t</span> <span class="op">*</span>needed<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：输出 &quot;a+bi&quot; 形式（分量按 bigfloat_to_str
 的最短往返表示）</p>
 <p><strong>参数</strong></p>
@@ -2432,28 +2462,28 @@ PARSE （cpx 不变）；内存不足返回 OOM（cpx 不变）</p>
 时仅输出虚部 + &quot;i&quot;； 否则 &quot;a±|b|i&quot;（虚部负号用连接符 &#39;-&#39; 表达）</p>
 <h2 id="分量访问与一元运算92">分量访问与一元运算（§9.2）</h2>
 <h3 id="bigcomplex_float_conj"><code>bigcomplex_float_conj</code></h3>
-<div class="sourceCode" id="cb203"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb203-1"><a href="#cb203-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_conj<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb205"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb205-1"><a href="#cb205-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_conj<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：共轭 cpx = conj(cpx)（虚部取负；NaN
 虚部不变）</p>
 <h3 id="bigcomplex_float_abs"><code>bigcomplex_float_abs</code></h3>
-<div class="sourceCode" id="cb204"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb204-1"><a href="#cb204-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_abs<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb206"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb206-1"><a href="#cb206-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_abs<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：模 |src| = sqrt(re² +
 im²)（分量运算，中间量可能过早溢出， 缩放算法列为后续方向，§9.2）</p>
 <p><strong>返回</strong>：成功返回 OK；内存不足返回 OOM（dst 不变）</p>
 <h2 id="四则92">四则（§9.2）</h2>
 <h3 id="bigcomplex_float_add"><code>bigcomplex_float_add</code></h3>
-<div class="sourceCode" id="cb205"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb205-1"><a href="#cb205-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_add<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb207"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb207-1"><a href="#cb207-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_add<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：加法 dst = lhs + rhs（分量加法）</p>
 <h3 id="bigcomplex_float_sub"><code>bigcomplex_float_sub</code></h3>
-<div class="sourceCode" id="cb206"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb206-1"><a href="#cb206-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_sub<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb208"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb208-1"><a href="#cb208-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_sub<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：减法 dst = lhs − rhs（分量减法）</p>
 <h3 id="bigcomplex_float_mul"><code>bigcomplex_float_mul</code></h3>
-<div class="sourceCode" id="cb207"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb207-1"><a href="#cb207-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_mul<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb209"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb209-1"><a href="#cb209-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_mul<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：乘法 dst = lhs × rhs</p>
 <p><strong>备注</strong>：(a+bi)(c+di) = (ac−bd) + (bc+ad)i；v1
 朴素四乘二加 （Karatsuba 三乘式列为后续，§9.2）</p>
 <h3 id="bigcomplex_float_div"><code>bigcomplex_float_div</code></h3>
-<div class="sourceCode" id="cb208"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb208-1"><a href="#cb208-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_div<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb210"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb210-1"><a href="#cb210-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_div<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：除法 dst = lhs / rhs</p>
 <p><strong>备注</strong>：共轭法 (a+bi)/(c+di) =
 (a+bi)(c−di)/(c²+d²)；中间量可能过早 溢出/下溢（如 ∞ 分量经中间乘法产生
@@ -2462,7 +2492,7 @@ NaN），Smith 缩放算法列为 后续方向（§9.2），v1
 <h2 id="相等性复数无序不提供-cmp92">相等性（复数无序，不提供
 cmp，§9.2）</h2>
 <h3 id="bigcomplex_float_eq"><code>bigcomplex_float_eq</code></h3>
-<div class="sourceCode" id="cb209"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb209-1"><a href="#cb209-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigcomplex_float_eq<span class="op">(</span><span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb211"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb211-1"><a href="#cb211-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigcomplex_float_eq<span class="op">(</span><span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：相等判断（分量各自 eq；任一分量 NaN 则
 false）</p>
 <p>NEX_BIGCOMPLEX_FLOAT_H</p>
@@ -2473,43 +2503,43 @@ false）</p>
 <p>与 bigcomplex_float_ty 平行（float 版见 float/
 子目录）：复数本身不新增
 标志，特殊值语义完全由分量的七标志组合表达（§9.3）。</p>
-<div class="sourceCode" id="cb210"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb210-1"><a href="#cb210-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
-<span id="cb210-2"><a href="#cb210-2" aria-hidden="true" tabindex="-1"></a>bigdecimal_ty re<span class="op">;</span>  <span class="co">// 实部</span></span>
-<span id="cb210-3"><a href="#cb210-3" aria-hidden="true" tabindex="-1"></a>bigdecimal_ty im<span class="op">;</span>  <span class="co">// 虚部</span></span>
-<span id="cb210-4"><a href="#cb210-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigcomplex_decimal_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb212"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb212-1"><a href="#cb212-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb212-2"><a href="#cb212-2" aria-hidden="true" tabindex="-1"></a>bigdecimal_ty re<span class="op">;</span>  <span class="co">// 实部</span></span>
+<span id="cb212-3"><a href="#cb212-3" aria-hidden="true" tabindex="-1"></a>bigdecimal_ty im<span class="op">;</span>  <span class="co">// 虚部</span></span>
+<span id="cb212-4"><a href="#cb212-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigcomplex_decimal_ty<span class="op">;</span></span></code></pre></div>
 <p>bigcomplex（decimal 版）错误码</p>
-<div class="sourceCode" id="cb211"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb211-1"><a href="#cb211-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb211-2"><a href="#cb211-2" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>          <span class="co">// 成功</span></span>
-<span id="cb211-3"><a href="#cb211-3" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_OOM_E<span class="op">,</span>         <span class="co">// 内存分配失败</span></span>
-<span id="cb211-4"><a href="#cb211-4" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_INVALID_E<span class="op">,</span>     <span class="co">// 非法参数</span></span>
-<span id="cb211-5"><a href="#cb211-5" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_OVERFLOW_E<span class="op">,</span>    <span class="co">// 输出缓冲不足等</span></span>
-<span id="cb211-6"><a href="#cb211-6" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_PARSE_E<span class="op">,</span>       <span class="co">// 字符串解析失败</span></span>
-<span id="cb211-7"><a href="#cb211-7" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_UNSUPPORTED_E  <span class="co">// 已登记但当前版本未实现的功能</span></span>
-<span id="cb211-8"><a href="#cb211-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigcomplex_decimal_err_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb213"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb213-1"><a href="#cb213-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb213-2"><a href="#cb213-2" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>          <span class="co">// 成功</span></span>
+<span id="cb213-3"><a href="#cb213-3" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_OOM_E<span class="op">,</span>         <span class="co">// 内存分配失败</span></span>
+<span id="cb213-4"><a href="#cb213-4" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_INVALID_E<span class="op">,</span>     <span class="co">// 非法参数</span></span>
+<span id="cb213-5"><a href="#cb213-5" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_OVERFLOW_E<span class="op">,</span>    <span class="co">// 输出缓冲不足等</span></span>
+<span id="cb213-6"><a href="#cb213-6" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_PARSE_E<span class="op">,</span>       <span class="co">// 字符串解析失败</span></span>
+<span id="cb213-7"><a href="#cb213-7" aria-hidden="true" tabindex="-1"></a>BIGCOMPLEX_DECIMAL_ERR_UNSUPPORTED_E  <span class="co">// 已登记但当前版本未实现的功能</span></span>
+<span id="cb213-8"><a href="#cb213-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> bigcomplex_decimal_err_ty<span class="op">;</span></span></code></pre></div>
 <h2 id="生命周期与构造92-1">生命周期与构造（§9.2）</h2>
 <h3 id="bigcomplex_decimal_init"><code>bigcomplex_decimal_init</code></h3>
-<div class="sourceCode" id="cb212"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb212-1"><a href="#cb212-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_init<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb214"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb214-1"><a href="#cb214-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_init<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：初始化为 0 + 0i</p>
 <p><strong>返回</strong>：成功返回 BIGCOMPLEX_DECIMAL_OK_E；cpx 为 NULL
 返回 INVALID</p>
 <h3 id="bigcomplex_decimal_free"><code>bigcomplex_decimal_free</code></h3>
-<div class="sourceCode" id="cb213"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb213-1"><a href="#cb213-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> bigcomplex_decimal_free<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb215"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb215-1"><a href="#cb215-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> bigcomplex_decimal_free<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：释放复数占用的内存（两个分量各自释放）</p>
 <p><strong>参数</strong></p>
 <ul>
 <li><code>cpx</code>：目标对象；可为 NULL（安全无操作）</li>
 </ul>
 <h3 id="bigcomplex_decimal_copy"><code>bigcomplex_decimal_copy</code></h3>
-<div class="sourceCode" id="cb214"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb214-1"><a href="#cb214-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_copy<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb216"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb216-1"><a href="#cb216-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_copy<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：深拷贝复数</p>
 <p><strong>返回</strong>：成功返回 OK；内存不足返回 OOM（dst 不变）</p>
 <h3 id="bigcomplex_decimal_from_parts"><code>bigcomplex_decimal_from_parts</code></h3>
-<div class="sourceCode" id="cb215"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb215-1"><a href="#cb215-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_from_parts<span class="op">(</span> bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>re<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>im<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb217"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb217-1"><a href="#cb217-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_from_parts<span class="op">(</span> bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>re<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>im<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：从实部/虚部构造复数（深拷贝分量）</p>
 <p><strong>返回</strong>：成功返回 OK；任一参数为 NULL 返回 INVALID（cpx
 不变）</p>
 <h3 id="bigcomplex_decimal_from_str"><code>bigcomplex_decimal_from_str</code></h3>
-<div class="sourceCode" id="cb216"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb216-1"><a href="#cb216-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_from_str<span class="op">(</span> bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>str<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">**</span>end<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb218"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb218-1"><a href="#cb218-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_from_str<span class="op">(</span> bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>str<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">**</span>end<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：从字符串解析复数</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2524,7 +2554,7 @@ PARSE （cpx 不变）；内存不足返回 OOM（cpx 不变）</p>
 结尾，否则整字面量非法（PARSE）；
 完整字面量后的尾随字符按部分消费约定处理</p>
 <h3 id="bigcomplex_decimal_to_str"><code>bigcomplex_decimal_to_str</code></h3>
-<div class="sourceCode" id="cb217"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb217-1"><a href="#cb217-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_to_str<span class="op">(</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">,</span> bigdecimal_fmt_ty fmt<span class="op">,</span> <span class="dt">char</span> <span class="op">*</span>buf<span class="op">,</span> <span class="dt">size_t</span> buf_len<span class="op">,</span> <span class="dt">size_t</span> <span class="op">*</span>needed<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb219"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb219-1"><a href="#cb219-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_to_str<span class="op">(</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">,</span> bigdecimal_fmt_ty fmt<span class="op">,</span> <span class="dt">char</span> <span class="op">*</span>buf<span class="op">,</span> <span class="dt">size_t</span> buf_len<span class="op">,</span> <span class="dt">size_t</span> <span class="op">*</span>needed<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：输出 &quot;a+bi&quot; 形式（分量按 bigdecimal_to_str
 精确展开）</p>
 <p><strong>参数</strong></p>
@@ -2537,25 +2567,25 @@ PARSE （cpx 不变）；内存不足返回 OOM（cpx 不变）</p>
 时仅输出实部；实部为 +0 时仅 输出虚部 + &quot;i&quot;；否则 &quot;a±|b|i&quot;</p>
 <h2 id="分量访问与一元运算92-1">分量访问与一元运算（§9.2）</h2>
 <h3 id="bigcomplex_decimal_conj"><code>bigcomplex_decimal_conj</code></h3>
-<div class="sourceCode" id="cb218"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb218-1"><a href="#cb218-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_conj<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb220"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb220-1"><a href="#cb220-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_conj<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>cpx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：共轭 cpx = conj(cpx)（虚部取负；NaN
 虚部不变）</p>
 <h3 id="bigcomplex_decimal_abs"><code>bigcomplex_decimal_abs</code></h3>
-<div class="sourceCode" id="cb219"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb219-1"><a href="#cb219-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_abs<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb221"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb221-1"><a href="#cb221-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_abs<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：模 |src| = sqrt(re² +
 im²)（分量运算，中间量可能过早溢出， 缩放算法列为后续方向，§9.2）</p>
 <h2 id="四则92-1">四则（§9.2）</h2>
 <h3 id="bigcomplex_decimal_add"><code>bigcomplex_decimal_add</code></h3>
-<div class="sourceCode" id="cb220"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb220-1"><a href="#cb220-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_add<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb222"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb222-1"><a href="#cb222-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_add<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：加法 dst = lhs + rhs（分量加法）</p>
 <h3 id="bigcomplex_decimal_sub"><code>bigcomplex_decimal_sub</code></h3>
-<div class="sourceCode" id="cb221"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb221-1"><a href="#cb221-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_sub<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb223"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb223-1"><a href="#cb223-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_sub<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：减法 dst = lhs − rhs（分量减法）</p>
 <h3 id="bigcomplex_decimal_mul"><code>bigcomplex_decimal_mul</code></h3>
-<div class="sourceCode" id="cb222"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb222-1"><a href="#cb222-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_mul<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb224"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb224-1"><a href="#cb224-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_mul<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：乘法 dst = lhs × rhs（分量四乘二加，§9.2）</p>
 <h3 id="bigcomplex_decimal_div"><code>bigcomplex_decimal_div</code></h3>
-<div class="sourceCode" id="cb223"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb223-1"><a href="#cb223-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_div<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb225"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb225-1"><a href="#cb225-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_div<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：除法 dst = lhs / rhs</p>
 <p><strong>备注</strong>：共轭法 (a+bi)/(c+di) =
 (a+bi)(c−di)/(c²+d²)；中间量可能过早溢出/ 下溢，Smith
@@ -2563,7 +2593,7 @@ im²)（分量运算，中间量可能过早溢出， 缩放算法列为后续�
 <h2 id="相等性复数无序不提供-cmp92-1">相等性（复数无序，不提供
 cmp，§9.2）</h2>
 <h3 id="bigcomplex_decimal_eq"><code>bigcomplex_decimal_eq</code></h3>
-<div class="sourceCode" id="cb224"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb224-1"><a href="#cb224-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigcomplex_decimal_eq<span class="op">(</span><span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb226"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb226-1"><a href="#cb226-1" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> bigcomplex_decimal_eq<span class="op">(</span><span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：相等判断（分量各自 eq；任一分量 NaN 则
 false）</p>
 <p>NEX_BIGCOMPLEX_DECIMAL_H</p>
@@ -2584,89 +2614,89 @@ INVALID，不做静默截断；复数 → 实数仅当虚部为 ±0。</li>
 <p>命名：nex_convert_&lt;源&gt;<em>to</em>&lt;目标&gt;，源/目标 ∈ {bin,
 dec, frac, float, decimal, cpx_float, cpx_decimal}。</p>
 <p>转换单元错误码</p>
-<div class="sourceCode" id="cb225"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb225-1"><a href="#cb225-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb225-2"><a href="#cb225-2" aria-hidden="true" tabindex="-1"></a>NEX_CONVERT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>        <span class="co">// 成功</span></span>
-<span id="cb225-3"><a href="#cb225-3" aria-hidden="true" tabindex="-1"></a>NEX_CONVERT_ERR_OOM_E<span class="op">,</span>       <span class="co">// 内存分配失败</span></span>
-<span id="cb225-4"><a href="#cb225-4" aria-hidden="true" tabindex="-1"></a>NEX_CONVERT_ERR_INVALID_E<span class="op">,</span>   <span class="co">// 非法参数 / 精确转换要求不满足（非整数等）</span></span>
-<span id="cb225-5"><a href="#cb225-5" aria-hidden="true" tabindex="-1"></a>NEX_CONVERT_ERR_OVERFLOW_E   <span class="co">// 输出缓冲不足等</span></span>
-<span id="cb225-6"><a href="#cb225-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> nex_convert_err_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb227"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb227-1"><a href="#cb227-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb227-2"><a href="#cb227-2" aria-hidden="true" tabindex="-1"></a>NEX_CONVERT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>        <span class="co">// 成功</span></span>
+<span id="cb227-3"><a href="#cb227-3" aria-hidden="true" tabindex="-1"></a>NEX_CONVERT_ERR_OOM_E<span class="op">,</span>       <span class="co">// 内存分配失败</span></span>
+<span id="cb227-4"><a href="#cb227-4" aria-hidden="true" tabindex="-1"></a>NEX_CONVERT_ERR_INVALID_E<span class="op">,</span>   <span class="co">// 非法参数 / 精确转换要求不满足（非整数等）</span></span>
+<span id="cb227-5"><a href="#cb227-5" aria-hidden="true" tabindex="-1"></a>NEX_CONVERT_ERR_OVERFLOW_E   <span class="co">// 输出缓冲不足等</span></span>
+<span id="cb227-6"><a href="#cb227-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> nex_convert_err_ty<span class="op">;</span></span></code></pre></div>
 <h2 id="精确互转10bigint--bigfrac浮点--bigfrac">精确互转（§10：bigint ↔︎
 bigfrac、浮点 → bigfrac）</h2>
 <h3 id="nex_convert_bin_to_frac"><code>nex_convert_bin_to_frac</code></h3>
-<div class="sourceCode" id="cb226"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb226-1"><a href="#cb226-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_bin_to_frac<span class="op">(</span>bigfrac_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb228"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb228-1"><a href="#cb228-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_bin_to_frac<span class="op">(</span>bigfrac_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigint_bin → bigfrac（den = 1，精确）</p>
 <h3 id="nex_convert_dec_to_frac"><code>nex_convert_dec_to_frac</code></h3>
-<div class="sourceCode" id="cb227"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb227-1"><a href="#cb227-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_dec_to_frac<span class="op">(</span>bigfrac_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_dec_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb229"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb229-1"><a href="#cb229-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_dec_to_frac<span class="op">(</span>bigfrac_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_dec_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigint_dec → bigfrac（经 bin 转换单元，den =
 1，精确）</p>
 <h3 id="nex_convert_frac_to_bin"><code>nex_convert_frac_to_bin</code></h3>
-<div class="sourceCode" id="cb228"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb228-1"><a href="#cb228-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_frac_to_bin<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb230"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb230-1"><a href="#cb230-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_frac_to_bin<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigfrac → bigint_bin（仅当 den == 1；否则
 INVALID，不截断）</p>
 <h3 id="nex_convert_frac_to_dec"><code>nex_convert_frac_to_dec</code></h3>
-<div class="sourceCode" id="cb229"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb229-1"><a href="#cb229-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_frac_to_dec<span class="op">(</span>bigint_dec_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb231"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb231-1"><a href="#cb231-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_frac_to_dec<span class="op">(</span>bigint_dec_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigfrac → bigint_dec（仅当 den == 1；经
 bin，否则 INVALID）</p>
 <h3 id="nex_convert_float_to_frac"><code>nex_convert_float_to_frac</code></h3>
-<div class="sourceCode" id="cb230"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb230-1"><a href="#cb230-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_float_to_frac<span class="op">(</span>bigfrac_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb232"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb232-1"><a href="#cb232-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_float_to_frac<span class="op">(</span>bigfrac_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigfloat → bigfrac（精确：value = mant × 2^exp
 化简为分数）</p>
 <p><strong>备注</strong>：±0 → 0/1；±∞ / NaN → INVALID</p>
 <h3 id="nex_convert_decimal_to_frac"><code>nex_convert_decimal_to_frac</code></h3>
-<div class="sourceCode" id="cb231"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb231-1"><a href="#cb231-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_decimal_to_frac<span class="op">(</span>bigfrac_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb233"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb233-1"><a href="#cb233-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_decimal_to_frac<span class="op">(</span>bigfrac_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigdecimal → bigfrac（精确：value = mant ×
 10^exp 化简为分数）</p>
 <p><strong>备注</strong>：±0 → 0/1；±∞ / NaN → INVALID</p>
 <h2 id="逆向精确转换10浮点--整数仅整数值且有限">逆向精确转换（§10：浮点
 → 整数，仅整数值且有限）</h2>
 <h3 id="nex_convert_float_to_bin"><code>nex_convert_float_to_bin</code></h3>
-<div class="sourceCode" id="cb232"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb232-1"><a href="#cb232-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_float_to_bin<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb234"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb234-1"><a href="#cb234-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_float_to_bin<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigfloat → bigint_bin（仅当值为有限整数；否则
 INVALID）</p>
 <h3 id="nex_convert_float_to_dec"><code>nex_convert_float_to_dec</code></h3>
-<div class="sourceCode" id="cb233"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb233-1"><a href="#cb233-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_float_to_dec<span class="op">(</span>bigint_dec_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb235"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb235-1"><a href="#cb235-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_float_to_dec<span class="op">(</span>bigint_dec_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigfloat → bigint_dec（经
 bin；仅当值为有限整数；否则 INVALID）</p>
 <h3 id="nex_convert_decimal_to_bin"><code>nex_convert_decimal_to_bin</code></h3>
-<div class="sourceCode" id="cb234"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb234-1"><a href="#cb234-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_decimal_to_bin<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb236"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb236-1"><a href="#cb236-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_decimal_to_bin<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigdecimal →
 bigint_bin（仅当值为有限整数；否则 INVALID）</p>
 <h3 id="nex_convert_decimal_to_dec"><code>nex_convert_decimal_to_dec</code></h3>
-<div class="sourceCode" id="cb235"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb235-1"><a href="#cb235-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_decimal_to_dec<span class="op">(</span>bigint_dec_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb237"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb237-1"><a href="#cb237-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_decimal_to_dec<span class="op">(</span>bigint_dec_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigdecimal →
 bigint_dec（仅当值为有限整数；否则 INVALID）</p>
 <h2 id="有损互转10显式-ctx单次舍入超范围按目标-ctx-产生-flush">有损互转（§10：显式
 ctx、单次舍入；超范围按目标 ctx 产生 ±∞/flush）</h2>
 <h3 id="nex_convert_frac_to_float"><code>nex_convert_frac_to_float</code></h3>
-<div class="sourceCode" id="cb236"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb236-1"><a href="#cb236-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_frac_to_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb238"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb238-1"><a href="#cb238-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_frac_to_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigfrac → bigfloat（num/den 带保护位整数除法 +
 一次舍入）</p>
 <h3 id="nex_convert_frac_to_decimal"><code>nex_convert_frac_to_decimal</code></h3>
-<div class="sourceCode" id="cb237"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb237-1"><a href="#cb237-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_frac_to_decimal<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb239"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb239-1"><a href="#cb239-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_frac_to_decimal<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigfrac → bigdecimal（num/den 带保护位整数除法
 + 一次舍入）</p>
 <h3 id="nex_convert_dec_to_float"><code>nex_convert_dec_to_float</code></h3>
-<div class="sourceCode" id="cb238"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb238-1"><a href="#cb238-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_dec_to_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_dec_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb240"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb240-1"><a href="#cb240-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_dec_to_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_dec_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigint_dec →
 bigfloat（精确值可表示时无损，否则按 ctx 舍入）</p>
 <h3 id="nex_convert_float_to_decimal"><code>nex_convert_float_to_decimal</code></h3>
-<div class="sourceCode" id="cb239"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb239-1"><a href="#cb239-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_float_to_decimal<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb241"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb241-1"><a href="#cb241-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_float_to_decimal<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigfloat →
 bigdecimal（经精确有理数中间值，一次舍入，§10）</p>
 <p><strong>备注</strong>：实现走 value = mant × 2^exp → mant × 5^|exp| /
 10^|exp| 的 十进制精确表示后按 ctx 舍入，无双重舍入</p>
 <h3 id="nex_convert_decimal_to_float"><code>nex_convert_decimal_to_float</code></h3>
-<div class="sourceCode" id="cb240"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb240-1"><a href="#cb240-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_decimal_to_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb242"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb242-1"><a href="#cb242-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_decimal_to_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>src<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigdecimal →
 bigfloat（经精确有理数中间值，一次舍入，§10）</p>
 <h2 id="复数--实数10仅当虚部为-0取实部">复数 → 实数（§10：仅当虚部为
 ±0，取实部）</h2>
 <h3 id="nex_convert_cpx_float_to_float"><code>nex_convert_cpx_float_to_float</code></h3>
-<div class="sourceCode" id="cb241"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb241-1"><a href="#cb241-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_cpx_float_to_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb243"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb243-1"><a href="#cb243-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_cpx_float_to_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigcomplex_float → bigfloat（仅当 im 为
 ±0；否则 INVALID）</p>
 <h3 id="nex_convert_cpx_decimal_to_decimal"><code>nex_convert_cpx_decimal_to_decimal</code></h3>
-<div class="sourceCode" id="cb242"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb242-1"><a href="#cb242-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_cpx_decimal_to_decimal<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb244"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb244-1"><a href="#cb244-1" aria-hidden="true" tabindex="-1"></a>nex_convert_err_ty nex_convert_cpx_decimal_to_decimal<span class="op">(</span>bigdecimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>src<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：bigcomplex_decimal → bigdecimal（仅当 im 为
 ±0；否则 INVALID）</p>
 <p>NEX_CONVERT_H</p>
@@ -2691,12 +2721,12 @@ fft_forward(buf_a, log2n); fft_forward(buf_b, log2n);
 fft_pointwise_mul(buf_a, buf_a, buf_b, n); fft_inverse(buf_a, log2n); //
 buf_a 为循环卷积结果</p>
 <p>FFT 模块错误码</p>
-<div class="sourceCode" id="cb243"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb243-1"><a href="#cb243-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb243-2"><a href="#cb243-2" aria-hidden="true" tabindex="-1"></a>FFT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>       <span class="co">// 成功</span></span>
-<span id="cb243-3"><a href="#cb243-3" aria-hidden="true" tabindex="-1"></a>FFT_ERR_INVALID_E   <span class="co">// 非法参数（空指针、log2n 越界等）</span></span>
-<span id="cb243-4"><a href="#cb243-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> fft_err_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb245"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb245-1"><a href="#cb245-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb245-2"><a href="#cb245-2" aria-hidden="true" tabindex="-1"></a>FFT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>       <span class="co">// 成功</span></span>
+<span id="cb245-3"><a href="#cb245-3" aria-hidden="true" tabindex="-1"></a>FFT_ERR_INVALID_E   <span class="co">// 非法参数（空指针、log2n 越界等）</span></span>
+<span id="cb245-4"><a href="#cb245-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> fft_err_ty<span class="op">;</span></span></code></pre></div>
 <h3 id="fft_forward"><code>fft_forward</code></h3>
-<div class="sourceCode" id="cb244"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb244-1"><a href="#cb244-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_forward<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb246"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb246-1"><a href="#cb246-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_forward<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地正变换（DIF 蝶形；自然序输入 →
 位反转输出）</p>
 <p><strong>参数</strong></p>
@@ -2706,11 +2736,11 @@ double，就地改写）</li>
 <li><code>log2n</code>：变换长度对数，须满足 log2n ≤ 30</li>
 </ul>
 <h3 id="fft_inverse"><code>fft_inverse</code></h3>
-<div class="sourceCode" id="cb245"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb245-1"><a href="#cb245-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_inverse<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb247"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb247-1"><a href="#cb247-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_inverse<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地逆变换（DIT 蝶形；位反转输入 →
 自然序输出，含 1/N 归一化）</p>
 <h3 id="fft_pointwise_mul"><code>fft_pointwise_mul</code></h3>
-<div class="sourceCode" id="cb246"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb246-1"><a href="#cb246-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_pointwise_mul<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">double</span> <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> <span class="dt">double</span> <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb248"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb248-1"><a href="#cb248-1" aria-hidden="true" tabindex="-1"></a>fft_err_ty fft_pointwise_mul<span class="op">(</span><span class="dt">double</span> <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">double</span> <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> <span class="dt">double</span> <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：频域点乘 dst = lhs·rhs（逐元素复乘）</p>
 <p><strong>备注</strong>：dst 允许与 lhs / rhs 别名</p>
 <p>NEX_FFT_H</p>
@@ -2737,24 +2767,24 @@ log2n, mod); ntt_forward(buf_b, log2n, mod); ntt_pointwise_mul(buf_a,
 buf_a, buf_b, n, mod); ntt_inverse(buf_a, log2n, mod); // buf_a
 为循环卷积结果</p>
 <p>NTT 模数：素数 p = k·2^c + 1 及其 2^c 次本原单位根</p>
-<div class="sourceCode" id="cb247"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb247-1"><a href="#cb247-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
-<span id="cb247-2"><a href="#cb247-2" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> p<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb249"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb249-1"><a href="#cb249-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb249-2"><a href="#cb249-2" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> p<span class="op">;</span></span></code></pre></div>
 <p>素数，p = k·2^c + 1</p>
 <p>奇部，k = (p−1) / 2^c</p>
 <p>p−1 中 2 的最大幂指数（2^c || p−1，= 最大变换长度对数）</p>
 <p>2^c 次本原单位根：w^(2^(c−1)) ≡ −1 (mod p)</p>
 <p>NTT 模块错误码</p>
-<div class="sourceCode" id="cb248"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb248-1"><a href="#cb248-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
-<span id="cb248-2"><a href="#cb248-2" aria-hidden="true" tabindex="-1"></a>NTT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>       <span class="co">// 成功</span></span>
-<span id="cb248-3"><a href="#cb248-3" aria-hidden="true" tabindex="-1"></a>NTT_ERR_INVALID_E<span class="op">,</span>  <span class="co">// 非法参数（空指针、log2n 超出模数能力等）</span></span>
-<span id="cb248-4"><a href="#cb248-4" aria-hidden="true" tabindex="-1"></a>NTT_ERR_MODULUS_E   <span class="co">// 模数校验失败（合数、根阶不符等）</span></span>
-<span id="cb248-5"><a href="#cb248-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> ntt_err_ty<span class="op">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb250"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb250-1"><a href="#cb250-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb250-2"><a href="#cb250-2" aria-hidden="true" tabindex="-1"></a>NTT_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span>       <span class="co">// 成功</span></span>
+<span id="cb250-3"><a href="#cb250-3" aria-hidden="true" tabindex="-1"></a>NTT_ERR_INVALID_E<span class="op">,</span>  <span class="co">// 非法参数（空指针、log2n 超出模数能力等）</span></span>
+<span id="cb250-4"><a href="#cb250-4" aria-hidden="true" tabindex="-1"></a>NTT_ERR_MODULUS_E   <span class="co">// 模数校验失败（合数、根阶不符等）</span></span>
+<span id="cb250-5"><a href="#cb250-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> ntt_err_ty<span class="op">;</span></span></code></pre></div>
 <h3 id="ntt_mod_count"><code>ntt_mod_count</code></h3>
-<div class="sourceCode" id="cb249"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb249-1"><a href="#cb249-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> ntt_mod_count<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb251"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb251-1"><a href="#cb251-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> ntt_mod_count<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：内置模数个数（设计文档 §4.3 素数表）</p>
 <p><strong>返回</strong>：内置表长度</p>
 <h3 id="ntt_mod_get"><code>ntt_mod_get</code></h3>
-<div class="sourceCode" id="cb250"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb250-1"><a href="#cb250-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>ntt_mod_get<span class="op">(</span><span class="dt">size_t</span> idx<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb252"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb252-1"><a href="#cb252-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>ntt_mod_get<span class="op">(</span><span class="dt">size_t</span> idx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：取第 idx 个内置模数</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2762,7 +2792,7 @@ buf_a, buf_b, n, mod); ntt_inverse(buf_a, log2n, mod); // buf_a
 </ul>
 <p><strong>返回</strong>：指向内置表中元素的指针；idx 越界返回 NULL</p>
 <h3 id="ntt_mod_validate"><code>ntt_mod_validate</code></h3>
-<div class="sourceCode" id="cb251"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb251-1"><a href="#cb251-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_mod_validate<span class="op">(</span><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb253"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb253-1"><a href="#cb253-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_mod_validate<span class="op">(</span><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：校验模数合法性（纯函数，无副作用）</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -2777,20 +2807,20 @@ NTT_ERR_INVALID_E</p>
 为素数时等价于 w 的阶 恰为 2^c。合数模下 Z/mZ 单位群非循环，不存在 2^c
 阶根， radix-2 NTT 无正确性保证，故合数一律不可用</p>
 <h3 id="ntt_mod_mul"><code>ntt_mod_mul</code></h3>
-<div class="sourceCode" id="cb252"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb252-1"><a href="#cb252-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_mul<span class="op">(</span><span class="dt">uint32_t</span> a<span class="op">,</span> <span class="dt">uint32_t</span> b<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb254"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb254-1"><a href="#cb254-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_mul<span class="op">(</span><span class="dt">uint32_t</span> a<span class="op">,</span> <span class="dt">uint32_t</span> b<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：模乘 a·b mod p</p>
 <p><strong>备注</strong>：中间量经 uint64_t（C99 无 128 位扩展，设计文档
 §4.3）；a、b 无须小于 p，结果恒在 [0, p)</p>
 <h3 id="ntt_mod_pow"><code>ntt_mod_pow</code></h3>
-<div class="sourceCode" id="cb253"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb253-1"><a href="#cb253-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_pow<span class="op">(</span><span class="dt">uint32_t</span> base<span class="op">,</span> <span class="dt">uint32_t</span> exp<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb255"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb255-1"><a href="#cb255-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_pow<span class="op">(</span><span class="dt">uint32_t</span> base<span class="op">,</span> <span class="dt">uint32_t</span> exp<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：模幂 base^exp mod p（平方-乘）</p>
 <h3 id="ntt_mod_inv"><code>ntt_mod_inv</code></h3>
-<div class="sourceCode" id="cb254"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb254-1"><a href="#cb254-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_inv<span class="op">(</span><span class="dt">uint32_t</span> a<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb256"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb256-1"><a href="#cb256-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> ntt_mod_inv<span class="op">(</span><span class="dt">uint32_t</span> a<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：模逆 a^(p−2) mod p（Fermat 小定理）</p>
 <p><strong>备注</strong>：要求 p 为素数且 a 非零（调用方契约；a 无须小于
 p）</p>
 <h3 id="ntt_forward"><code>ntt_forward</code></h3>
-<div class="sourceCode" id="cb255"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb255-1"><a href="#cb255-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_forward<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb257"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb257-1"><a href="#cb257-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_forward<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地正变换（DIF 蝶形；自然序输入 →
 位反转输出）</p>
 <p><strong>参数</strong></p>
@@ -2799,16 +2829,16 @@ p）</p>
 <li><code>log2n</code>：变换长度对数，须满足 log2n ≤ mod-&gt;c</li>
 </ul>
 <h3 id="ntt_inverse"><code>ntt_inverse</code></h3>
-<div class="sourceCode" id="cb256"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb256-1"><a href="#cb256-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_inverse<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb258"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb258-1"><a href="#cb258-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_inverse<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：就地逆变换（DIT 蝶形；位反转输入 →
 自然序输出，含 N^-1 归一化）</p>
 <h3 id="ntt_pointwise_mul"><code>ntt_pointwise_mul</code></h3>
-<div class="sourceCode" id="cb257"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb257-1"><a href="#cb257-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_pointwise_mul<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb259"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb259-1"><a href="#cb259-1" aria-hidden="true" tabindex="-1"></a>ntt_err_ty ntt_pointwise_mul<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：频域点乘 dst[i] = lhs[i]·rhs[i] mod
 p（逐元素）</p>
 <p><strong>备注</strong>：dst 允许与 lhs / rhs 别名</p>
 <h3 id="ntt_crt_reconstruct_one"><code>ntt_crt_reconstruct_one</code></h3>
-<div class="sourceCode" id="cb258"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb258-1"><a href="#cb258-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint64_t</span> ntt_crt_reconstruct_one<span class="op">(</span><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>residues<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span><span class="dt">const</span> <span class="op">*</span>mods<span class="op">,</span> <span class="dt">size_t</span> mod_count<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb260"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb260-1"><a href="#cb260-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint64_t</span> ntt_crt_reconstruct_one<span class="op">(</span><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>residues<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span><span class="dt">const</span> <span class="op">*</span>mods<span class="op">,</span> <span class="dt">size_t</span> mod_count<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：单系数 CRT 重构（Garner 递推），恢复精确系数
 v（0 ≤ v &lt; Πp）</p>
 <p><strong>参数</strong></p>
@@ -2838,11 +2868,11 @@ v（0 ≤ v &lt; Πp）</p>
 </ul>
 <p>分配失败注入计数器（SIZE_MAX = 不注入，默认）。测试直接赋值。</p>
 <h3 id="nex_malloc"><code>nex_malloc</code></h3>
-<div class="sourceCode" id="cb259"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb259-1"><a href="#cb259-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> <span class="op">*</span>nex_malloc<span class="op">(</span><span class="dt">size_t</span> size<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb261"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb261-1"><a href="#cb261-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> <span class="op">*</span>nex_malloc<span class="op">(</span><span class="dt">size_t</span> size<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：分配 size 字节；失败返回
 NULL（与标准库一致）</p>
 <h3 id="nex_realloc"><code>nex_realloc</code></h3>
-<div class="sourceCode" id="cb260"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb260-1"><a href="#cb260-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> <span class="op">*</span>nex_realloc<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>ptr<span class="op">,</span> <span class="dt">size_t</span> size<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb262"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb262-1"><a href="#cb262-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> <span class="op">*</span>nex_realloc<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>ptr<span class="op">,</span> <span class="dt">size_t</span> size<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：重分配 ptr 为 size 字节；失败返回 NULL（ptr
 仍有效）</p>
 <p>NEX_ALLOC_H</p>

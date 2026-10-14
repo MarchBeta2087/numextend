@@ -287,6 +287,30 @@ bigfrac_err_ty bigfrac_series_inv(bigfrac_series_ty *dst,
 bigfrac_err_ty bigfrac_series_eval(bigfrac_ty *out,
         const bigfrac_series_ty *s, const bigfrac_ty *x);
 
+/*
+ * brief: 广义二项式系数 C(alpha, k) = alpha(alpha−1)···(alpha−k+1)/k!
+ * param: out   输出（已初始化）
+ * param: alpha 上指标（任意有理数）
+ * param: k     下指标
+ * return: 成功返回 BIGFRAC_OK_E；指针为 NULL 返回 BIGFRAC_ERR_INVALID_E；
+ *         内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+ * note: k = 0 返回 1；alpha 为非负整数且 k > alpha 时返回 0
+ */
+bigfrac_err_ty bigfrac_binom(bigfrac_ty *out, const bigfrac_ty *alpha,
+        size_t k);
+
+/*
+ * brief: 截断二项式级数 (1+z)^alpha = Σ_{k=0}^{order-1} C(alpha,k)·z^k
+ * param: dst   输出（已初始化）
+ * param: alpha 指数（任意有理数）
+ * param: order 保留项数
+ * return: 成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E；
+ *         内存不足返回 BIGFRAC_ERR_OOM_E（dst 不变）
+ * note: 精确；order = 0 得零级数；alpha 为非负整数 n 时为 n 次多项式
+ */
+bigfrac_err_ty bigfrac_series_binom(bigfrac_series_ty *dst,
+        const bigfrac_ty *alpha, size_t order);
+
 #ifdef __cplusplus
 }
 #endif

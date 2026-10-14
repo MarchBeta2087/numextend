@@ -21,6 +21,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   （`val` / `coeffs` / `len` / `cap`）+ `from_array` / `copy` / `add` / `sub` /
   `mul`（截断 `order`）/ `inv`（支持 Laurent）/ `eval`（含负幂）。精确、允许
   别名、OOM 时输出不变；测试 `tests/test_series.c`。
+- **广义二项式系数与二项式级数（TODO §C2）**：`bigfrac_binom`（任意有理上
+  指标）与 `bigfrac_series_binom`（`(1+z)^n` 的精确截断）；`design §15.5` 记
+  录 `(c+ε)^n` 幂展开与误差传播/尾界公式。测试 `tests/test_binom.c`。
 
 ## [1.2.0] - 2026-10-14
 

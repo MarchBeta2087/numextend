@@ -117,6 +117,8 @@
 - [ ] **C2 幂级数**（进行中：`bigfrac` 精确版已落地）
   - [x] `bigfrac_series_ty` + `from_array`/`copy`/`add`/`sub`/`mul`（截断
         `order`）/`inv`（Laurent）/`eval`（含负幂）；测试 `tests/test_series.c`。
+  - [x] 广义二项式系数 `bigfrac_binom` + 二项式级数 `bigfrac_series_binom`；
+        测试 `tests/test_binom.c`；误差传播公式入 design §15.5。
   - [ ] `bigfloat`/`bigdecimal` 级数 + **严谨误差界** + 自适应截断。
   - [ ] 级数复合与求导 / 积分。
 - [ ] **C3 Padé 逼近**（有理函数逼近，作为 `exp`/`atan` 等的可选核）。
