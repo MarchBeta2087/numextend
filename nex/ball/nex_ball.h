@@ -138,6 +138,21 @@ bigfloat_err_ty bigfloat_ball_tan(bigfloat_ball_ty *dst,
         const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
 
 /*
+ * brief: 球式 asin(x) = atan(x/√(1−x²))，|x| ≤ 1（±1 取 ±π/2）
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法/含 NaN/±∞/|x|>1 返回 INVALID；
+ *         内存不足返回 OOM（dst 不变）
+ */
+bigfloat_err_ty bigfloat_ball_asin(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 球式 acos(x) = π/2 − asin(x)，|x| ≤ 1
+ * return: 同 bigfloat_ball_asin
+ */
+bigfloat_err_ty bigfloat_ball_acos(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
  * brief: 球式平方根（要求 x 的下界 ≥ 0）
  * return: 成功返回 BIGFLOAT_OK_E；参数非法、含 NaN/±∞ 或下界 < 0 返回
  *         BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E（dst 不变）
@@ -350,6 +365,20 @@ bigdecimal_err_ty bigdecimal_ball_cos(bigdecimal_ball_ty *dst,
  * return: 同 bigfloat_ball_tan（错误码对应更换）
  */
 bigdecimal_err_ty bigdecimal_ball_tan(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 球式 asin(x)，|x| ≤ 1（十进制版；语义同 bigfloat_ball_asin）
+ * return: 同 bigfloat_ball_asin（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_ball_asin(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 球式 acos(x) = π/2 − asin(x)，|x| ≤ 1（十进制版）
+ * return: 同 bigfloat_ball_asin（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_ball_acos(bigdecimal_ball_ty *dst,
         const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
 
 /*

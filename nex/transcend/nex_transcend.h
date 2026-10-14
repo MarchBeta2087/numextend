@@ -81,6 +81,23 @@ bigfloat_err_ty bigfloat_tan(bigfloat_ty *out, const bigfloat_ty *x,
         const bigfloat_ctx_ty *ctx);
 
 /*
+ * brief: 反正弦 out = asin(x)，|x| ≤ 1，按 ctx 正确舍入
+ * param: out 输出；x 自变量（有限值，|x| ≤ 1）；ctx 目标精度上下文
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法/x 非有限/|x|>1 返回 INVALID；
+ *         内存不足返回 OOM（out 不变）
+ * note: 球式 atan(x/√(1−x²)) + Ziv 正确舍入
+ */
+bigfloat_err_ty bigfloat_asin(bigfloat_ty *out, const bigfloat_ty *x,
+        const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 反余弦 out = acos(x) = π/2 − asin(x)，|x| ≤ 1，按 ctx 正确舍入
+ * return: 同 bigfloat_asin
+ */
+bigfloat_err_ty bigfloat_acos(bigfloat_ty *out, const bigfloat_ty *x,
+        const bigfloat_ctx_ty *ctx);
+
+/*
  * brief: 反正切 out = atan(x)，按 ctx 正确舍入（十进制版）
  * param: out 输出；x 自变量（有限值）；ctx 目标精度上下文
  * return: 成功返回 BIGDECIMAL_OK_E；参数非法或 x 非有限返回
@@ -139,6 +156,20 @@ bigdecimal_err_ty bigdecimal_cos(bigdecimal_ty *out, const bigdecimal_ty *x,
  * return: 同 bigfloat_tan（错误码对应更换）
  */
 bigdecimal_err_ty bigdecimal_tan(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 反正弦 out = asin(x)，|x| ≤ 1，按 ctx 正确舍入（十进制版）
+ * return: 同 bigfloat_asin（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_asin(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 反余弦 out = acos(x)，|x| ≤ 1，按 ctx 正确舍入（十进制版）
+ * return: 同 bigfloat_asin（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_acos(bigdecimal_ty *out, const bigdecimal_ty *x,
         const bigdecimal_ctx_ty *ctx);
 
 #ifdef __cplusplus

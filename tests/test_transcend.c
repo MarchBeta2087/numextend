@@ -299,6 +299,27 @@ int main(void) {
     check_trig_dec("cos", "2", "-0.4161468365471424", bigdecimal_cos, &dctx);
     check_trig_dec("tan", "1", "1.557407724654902", bigdecimal_tan, &dctx);
     check_trig_dec("tan", "0.5", "0.5463024898437905", bigdecimal_tan, &dctx);
+
+    /* asin / acos：正确舍入（binary64 / decimal64） */
+    check_trig("asin", "0", "0", bigfloat_asin, &ctx);
+    check_trig("asin", "0.5", "0.5235987755982989", bigfloat_asin, &ctx);
+    check_trig("asin", "-0.5", "-0.5235987755982989", bigfloat_asin, &ctx);
+    check_trig("asin", "1", "1.5707963267948966", bigfloat_asin, &ctx);
+    check_trig("asin", "-1", "-1.5707963267948966", bigfloat_asin, &ctx);
+    check_trig("acos", "0", "1.5707963267948966", bigfloat_acos, &ctx);
+    check_trig("acos", "0.5", "1.0471975511965979", bigfloat_acos, &ctx);
+    check_trig("acos", "-0.5", "2.0943951023931957", bigfloat_acos, &ctx);
+    check_trig("acos", "1", "0", bigfloat_acos, &ctx);
+    check_trig("acos", "-1", "3.141592653589793", bigfloat_acos, &ctx);
+    check_trig_dec("asin", "0.5", "0.5235987755982989", bigdecimal_asin,
+            &dctx);
+    check_trig_dec("asin", "-1", "-1.570796326794897", bigdecimal_asin,
+            &dctx);
+    check_trig_dec("acos", "0", "1.570796326794897", bigdecimal_acos, &dctx);
+    check_trig_dec("acos", "0.5", "1.047197551196598", bigdecimal_acos,
+            &dctx);
+    check_trig_dec("acos", "-1", "3.141592653589793", bigdecimal_acos,
+            &dctx);
     /* log 定义域 */
     {
         bigfloat_ty nx;

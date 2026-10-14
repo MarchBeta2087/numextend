@@ -627,3 +627,13 @@ bigfloat_err_ty bigfloat_tan(bigfloat_ty *out, const bigfloat_ty *x,
         const bigfloat_ctx_ty *ctx) {
     return bf_ziv_unary(out, x, bigfloat_ball_tan, ctx);
 }
+
+bigfloat_err_ty bigfloat_asin(bigfloat_ty *out, const bigfloat_ty *x,
+        const bigfloat_ctx_ty *ctx) {
+    return bf_ziv_unary(out, x, bigfloat_ball_asin, ctx);
+}
+
+bigfloat_err_ty bigfloat_acos(bigfloat_ty *out, const bigfloat_ty *x,
+        const bigfloat_ctx_ty *ctx) {
+    return bf_ziv_unary(out, x, bigfloat_ball_acos, ctx);
+}
