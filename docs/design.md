@@ -553,7 +553,7 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
 |------|---------|--------|----------|
 | 加 / 减 | 逐肢带进位扫描 | O(n) | — |
 | 乘法 | schoolbook；肢数 ≥ 32 切换 Karatsuba；≥ 512 切换 Toom-3；≥ 16384 切换多模数 CRT NTT；`mul_ex` 可强制选择各算法（FFT 已实现但不参与 AUTO，见 §4.3） | O(n²) / O(n^1.585) / O(n log n) | FFT 的 SIMD 化与 AUTO 启用再评估、分治基数转换（见 §13） |
-| 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正） | O(n·m) | 递归除法 |
+| 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正）；大输入（除数 ≥ 64 肢且被除数 ≥ 2×）则 Burnikel-Ziegler 递归除法 | O(n·m) / 亚二次 | — |
 | 平方 | 专用 schoolbook 平方（利用对称性减半乘累加） | O(n²/2) | 随乘法升级 |
 | 模幂 | 平方-乘，滑动窗口列为后续 | O(log e 次模乘） | Montgomery 约减 |
 | bin→dec | 分治（2 的幂切半 + 平方链表），小规模回退反复除 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
@@ -731,7 +731,8 @@ size_t        bigint_dec_digit_len(const bigint_dec_ty *val);          // 十进
 
 ### 5.3 内部算法
 
-算法族与 bin 相同（schoolbook + Karatsuba、Knuth D），仅基不同。乘法方法类型与
+算法族与 bin 相同（schoolbook + Karatsuba、Knuth D、大输入 Burnikel-Ziegler
+递归除法），仅基不同。乘法方法类型与
 分派策略和 bin 一致（§4.2.4）：v1 实现 schoolbook 与 Karatsuba，其余已预留方法
 同样返回 `BIGINT_ERR_UNSUPPORTED_E`。基 10^9 的正确性论证（写入实现注释）：
 
@@ -1216,8 +1217,9 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 1. Toom-3（bin 侧 v0.14、dec 侧 v0.15 落地；阈值 512 肢，交叉点 ~600）与多模
    NTT 乘法（分节约定、模数表与位反转策略见 §4.3；NTT 已实现）、递归除法
    （Burnikel-Ziegler v0.16 修复并启用：随机大数 + 稀疏/全 1/2 的幂/负数黄金
-   对拍全过，块直写优化后 a/b=256 时较 Knuth D 快 ~22%）、Newton 迭代除法
-   与开方；
+   对拍全过，块直写优化后 a/b=256 时较 Knuth D 快 ~22%；dec 侧 v1.5.0 移植，
+   基 10⁹ 以 Knuth-D 归一化因子 d + 肢移位 pad 代替 bin 的位规约，除数 ≥ 64
+   肢分派，10⁵ 位 ≈ 45 ms 约 8×）、Newton 迭代除法与开方；
 2. Montgomery 模幂、半 gcd（Lehmer gcd 已落地，v0.14）；
 3. 64 位肢变体：核心已落地（`nex/bigint/bin64/`，v0.13）——加/减/乘
    （schoolbook + Karatsuba），等位长下约 2 倍提速；64×64→128 经编译
@@ -1253,7 +1255,7 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 | SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3） |
 | 函数级子集 | 非目标（1.x 暂缓） | 成本高、收益低；替代见 §2.4 / §13 #11 |
 | 自定义分配器钩子 | 后续 | 现为内部统一分配器 `nex_alloc`（§13 #6） |
-| 十进制侧亚二次除法 | 限制 | `bigint_dec` 仅 Knuth D（O(n²)）；bin 侧已有 BZ |
+| 十进制侧亚二次除法 | 已实现 | `bigint_dec` 大输入走 Burnikel-Ziegler（除数 ≥ 64 肢分派）；基 10⁹ 以 Knuth-D 归一化因子 + 肢移位规约（§13 #1） |
 | 超大输入 gcd | 限制 | Lehmer 仍 O(n²)；半 gcd 为后续（§13 #2） |
 | 大端平台 | 未验证 | 实现为值语义，预期端序无关；当前仅小端验证（§1.3） |
 | 32 位平台 | 未验证 | CI 仅覆盖 64 位 |

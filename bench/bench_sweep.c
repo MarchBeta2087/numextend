@@ -243,7 +243,7 @@ static void sweep_div(void) {
     printf("\n");
 }
 
-/* ---------------- dec 除法扫描（Knuth D O(n²)；为 §I 量化） ---------------- */
+/* ---------------- dec 除法扫描（Burnikel-Ziegler 亚二次；为 §I 量化） ---------------- */
 
 typedef struct {
     bigint_dec_ty *q, *r, *a, *b;
@@ -257,7 +257,7 @@ static void sweep_dec_div(void) {
     static const size_t sizes[] = {64, 128, 256, 512, 1024, 2048, 4096, 8192,
                                    16384U, 32768U};
     const size_t nsizes = sizeof(sizes) / sizeof(sizes[0]);
-    printf("== bigint_dec 除法扫描（被除数 2n 肢 / 除数 n 肢；Knuth D O(n²)）==\n");
+    printf("== bigint_dec 除法扫描（被除数 2n 肢 / 除数 n 肢；Burnikel-Ziegler 亚二次）==\n");
     printf("%8s %12s\n", "n", "div_rem");
     const size_t nmax = mode_max(1024U, 8192U, 32768U);
     begin_section(8);
