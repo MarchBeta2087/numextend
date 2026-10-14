@@ -359,3 +359,19 @@
   - `nex_series_sin_eval_decimal`
   - `nex_series_sin_eval_float`
   - `nex_series_sin_order`
+
+### `ball`
+
+- 直接依赖：`bigfloat`
+- 源文件：`nex/ball/nex_ball.c`
+- 公开头：`nex/ball/nex_ball.h`
+- 公开函数（9）：
+  - `bigfloat_ball_add`
+  - `bigfloat_ball_contains`
+  - `bigfloat_ball_copy`
+  - `bigfloat_ball_div`
+  - `bigfloat_ball_free`
+  - `bigfloat_ball_init`
+  - `bigfloat_ball_mul`
+  - `bigfloat_ball_set`
+  - `bigfloat_ball_sub`

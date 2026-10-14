@@ -1386,10 +1386,13 @@ C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
   - 已落地（逆幂核）：`nex_series_ln1p_order`/`atan_order` 与
     `nex_series_{ln1p,atan}_eval_float`/`_decimal`（`ln(1+z)`、`atan(z)`，
     常数比值尾界 `r^step/(1−r^step)`；|z| ≲ 1/2）。
-- **路线 B：球式（中心 + 误差半径）**（后做）
-  - 每个系数/结果携带误差半径，运算传播半径；系数自身的舍入误差与复合、
-    累加误差都被覆盖。
-  - 通用但更重；将复用路线 A 的尾界函数作为「截断项」的半径来源。
+- **路线 B：球式（中心 + 误差半径）**（第一阶段已落地）
+  - `nex/ball/`：`bigfloat_ball_ty` = `{mid, rad}`（区间 `[mid−rad, mid+rad]`）；
+    `add/sub/mul/div` 在端点间用**定向舍入**（`TOWARD_POS/NEG`）求严格包含区间，
+    再由中心化 `from_interval` 归一（半径余量覆盖中心舍入）；`contains` 向内
+    舍入以避免假阳性。
+  - 后续：`bigdecimal` 版；`exp/sin/cos` 的**实参规约**（halving+squaring /
+    half-angle）用球传播半径，并以路线 A 的尾界作初始半径。
 - **关系**：路线 A 是路线 B 的轻量特例；B 在 A 之上加半径传播。分阶段交付，
   B 作为可选层，避免一次性扩大公开面。
 

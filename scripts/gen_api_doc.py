@@ -38,6 +38,8 @@ MODULES = [
      "convert —— 跨类型转换矩阵"),
     ("nex/series/nex_series.h", "api-55-series",
      "series —— 幂级数求值（精确系数 + 全局尾界）"),
+    ("nex/ball/nex_ball.h", "api-56-ball",
+     "ball —— 球式（中心 + 半径）算术"),
     ("nex/fft/nex_fft.h", "api-60-fft",
      "fft —— 浮点复数 FFT 核心（低层）"),
     ("nex/ntt/nex_ntt.h", "api-61-ntt",
