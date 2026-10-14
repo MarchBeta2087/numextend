@@ -452,3 +452,230 @@ bigfloat_err_ty bigfloat_ball_cos(bigfloat_ball_ty *dst,
     bigfloat_ball_free(&s);
     return err;
 }
+
+/* ------------------------------------------------------------------ */
+/* 球式 sqrt 与 atan（§D 超越函数的基础）                                */
+/* ------------------------------------------------------------------ */
+
+bigfloat_err_ty bigfloat_ball_sqrt(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !e_ball_ok(x)) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ctx_ty dn;
+    bigfloat_ctx_ty up;
+    bigfloat_err_ty err = e_dir_ctx(&dn, ctx, BIGFLOAT_ROUND_TOWARD_NEG_E);
+    if (err == BIGFLOAT_OK_E) {
+        err = e_dir_ctx(&up, ctx, BIGFLOAT_ROUND_TOWARD_POS_E);
+    }
+    bigfloat_ty lo;
+    bigfloat_ty hi;
+    bigfloat_ty zero;
+    bigfloat_ty m;
+    bigfloat_ty slo;
+    bigfloat_ty shi;
+    bigfloat_ty d1;
+    bigfloat_ty d2;
+    bigfloat_ty a1;
+    bigfloat_ty a2;
+    bigfloat_ty rad;
+    bigfloat_ty u;
+    bigfloat_init(&lo);
+    bigfloat_init(&hi);
+    bigfloat_init(&zero);
+    bigfloat_init(&m);
+    bigfloat_init(&slo);
+    bigfloat_init(&shi);
+    bigfloat_init(&d1);
+    bigfloat_init(&d2);
+    bigfloat_init(&a1);
+    bigfloat_init(&a2);
+    bigfloat_init(&rad);
+    bigfloat_init(&u);
+
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sub(&lo, &x->mid, &x->rad, &dn);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_add(&hi, &x->mid, &x->rad, &up);
+    }
+    if (err == BIGFLOAT_OK_E && bigfloat_cmp(&lo, &zero) < 0) {
+        err = BIGFLOAT_ERR_INVALID_E;   /* 负数无实平方根 */
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sqrt(&m, &x->mid, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sqrt(&slo, &lo, &dn);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sqrt(&shi, &hi, &up);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sub(&d1, &m, &slo, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sub(&d2, &shi, &m, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = e_abs(&a1, &d1);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = e_abs(&a2, &d2);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = (bigfloat_cmp(&a1, &a2) >= 0) ? bigfloat_copy(&rad, &a1)
+                                            : bigfloat_copy(&rad, &a2);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = e_ulp(&u, &m, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_add(&rad, &rad, &u, &up);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_set(dst, &m, &rad, ctx);
+    }
+
+    bigfloat_free(&u);
+    bigfloat_free(&rad);
+    bigfloat_free(&a2);
+    bigfloat_free(&a1);
+    bigfloat_free(&d2);
+    bigfloat_free(&d1);
+    bigfloat_free(&shi);
+    bigfloat_free(&slo);
+    bigfloat_free(&m);
+    bigfloat_free(&zero);
+    bigfloat_free(&hi);
+    bigfloat_free(&lo);
+    return err;
+}
+
+bigfloat_err_ty bigfloat_ball_atan(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !e_ball_ok(x)) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ctx_ty up;
+    bigfloat_err_ty err = e_dir_ctx(&up, ctx, BIGFLOAT_ROUND_TOWARD_POS_E);
+
+    bigfloat_ball_ty t;
+    bigfloat_ball_ty one_b;
+    bigfloat_ball_init(&t);
+    bigfloat_ball_init(&one_b);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_copy(&t, x);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        bigfloat_ty one;
+        bigfloat_ty zero;
+        bigfloat_init(&one);
+        bigfloat_init(&zero);
+        (void)bigfloat_from_f64(&one, 1.0);
+        err = bigfloat_ball_set(&one_b, &one, &zero, ctx);
+        bigfloat_free(&zero);
+        bigfloat_free(&one);
+    }
+
+    bigfloat_ty half;
+    bigfloat_init(&half);
+    if (err == BIGFLOAT_OK_E) {
+        (void)bigfloat_from_f64(&half, 0.5);
+    }
+
+    /* 折半：atan(t) = 2·atan(t/(1+sqrt(1+t²)))，直到 |t| ≤ 1/2 */
+    size_t k = 0U;
+    while (err == BIGFLOAT_OK_E) {
+        bigfloat_ty am;
+        bigfloat_ty M;
+        bigfloat_init(&am);
+        bigfloat_init(&M);
+        err = e_abs(&am, &t.mid);
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_add(&M, &am, &t.rad, &up);
+        }
+        bool done = (err == BIGFLOAT_OK_E && bigfloat_cmp(&M, &half) <= 0);
+        bigfloat_free(&M);
+        bigfloat_free(&am);
+        if (err != BIGFLOAT_OK_E || done) {
+            break;
+        }
+        if (k >= 32U) {
+            err = BIGFLOAT_ERR_INVALID_E;   /* |x| 过大 */
+            break;
+        }
+        bigfloat_ball_ty t2;
+        bigfloat_ball_ty s;
+        bigfloat_ball_ty r;
+        bigfloat_ball_ty d;
+        bigfloat_ball_init(&t2);
+        bigfloat_ball_init(&s);
+        bigfloat_ball_init(&r);
+        bigfloat_ball_init(&d);
+        err = bigfloat_ball_mul(&t2, &t, &t, ctx);
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_ball_add(&s, &one_b, &t2, ctx);
+        }
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_ball_sqrt(&r, &s, ctx);
+        }
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_ball_add(&d, &one_b, &r, ctx);
+        }
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_ball_div(&t, &t, &d, ctx);
+        }
+        bigfloat_ball_free(&d);
+        bigfloat_ball_free(&r);
+        bigfloat_ball_free(&s);
+        bigfloat_ball_free(&t2);
+        k++;
+    }
+
+    bigfrac_ty eps;
+    bigfrac_init(&eps);
+    if (err == BIGFLOAT_OK_E) {
+        bigfrac_err_ty ferr = frac_pow2_neg(&eps, ctx->mant_bits + 20U);
+        if (ferr != BIGFRAC_OK_E) {
+            err = (ferr == BIGFRAC_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                              : BIGFLOAT_ERR_INVALID_E;
+        }
+    }
+    bigfloat_ty P;
+    bigfloat_ty eb;
+    bigfloat_init(&P);
+    bigfloat_init(&eb);
+    if (err == BIGFLOAT_OK_E) {
+        err = nex_series_atan_eval_float(&P, &eb, &t.mid, &eps, ctx);
+    }
+    bigfloat_ball_ty at;
+    bigfloat_ball_init(&at);
+    if (err == BIGFLOAT_OK_E) {
+        err = make_eval_ball(&at, &P, &eb, &t.rad, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        bigfloat_ty p2;
+        bigfloat_init(&p2);
+        err = bf_pow2(&p2, (int64_t)k, ctx);
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_mul(&at.mid, &at.mid, &p2, ctx);
+        }
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_mul(&at.rad, &at.rad, &p2, ctx);
+        }
+        bigfloat_free(&p2);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_copy(dst, &at);
+    }
+
+    bigfloat_ball_free(&at);
+    bigfloat_free(&eb);
+    bigfloat_free(&P);
+    bigfrac_free(&eps);
+    bigfloat_free(&half);
+    bigfloat_ball_free(&one_b);
+    bigfloat_ball_free(&t);
+    return err;
+}

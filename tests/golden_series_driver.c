@@ -17,6 +17,7 @@
 #include "nex/bigfrac/nex_bigfrac.h"
 #include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/series/nex_series.h"
+#include "nex/transcend/nex_transcend.h"
 
 static bigfloat_ctx_ty g_ctx;
 static bigfrac_ty g_eps;
@@ -62,6 +63,8 @@ int main(void) {
                 err = nex_series_ln1p_eval_float(&out, NULL, &z, &g_eps, &g_ctx);
             } else if (strcmp(cmd, "atan") == 0) {
                 err = nex_series_atan_eval_float(&out, NULL, &z, &g_eps, &g_ctx);
+            } else if (strcmp(cmd, "atanpub") == 0) {
+                err = bigfloat_atan(&out, &z, &g_ctx);
             }
         }
 

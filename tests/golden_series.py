@@ -22,6 +22,7 @@ FUNCS = {
     "cos": lambda mp, x: mp.cos(x),
     "ln1p": lambda mp, x: mp.log(1 + x),
     "atan": lambda mp, x: mp.atan(x),
+    "atanpub": lambda mp, x: mp.atan(x),
 }
 
 CASES = [
@@ -36,6 +37,9 @@ CASES = [
     ("ln1p", 128, "0.25"),
     ("atan", 64, "0.5"),
     ("atan", 128, "0.25"),
+    ("atanpub", 64, "1"),
+    ("atanpub", 128, "2"),
+    ("atanpub", 256, "-10"),
 ]
 
 

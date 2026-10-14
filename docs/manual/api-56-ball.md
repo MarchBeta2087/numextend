@@ -143,6 +143,26 @@ bigfloat_err_ty bigfloat_ball_cos(bigfloat_ball_ty *dst, const bigfloat_ball_ty 
 
 **返回**：同 exp
 
+### `bigfloat_ball_sqrt`
+
+```c
+bigfloat_err_ty bigfloat_ball_sqrt(bigfloat_ball_ty *dst, const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：球式平方根（要求 x 的下界 ≥ 0）
+
+**返回**：成功返回 BIGFLOAT_OK_E；参数非法、含 NaN/±∞ 或下界 < 0 返回 BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E（dst 不变）
+
+### `bigfloat_ball_atan`
+
+```c
+bigfloat_err_ty bigfloat_ball_atan(bigfloat_ball_ty *dst, const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：球式 atan（实参规约：折半 t←t/(1+√(1+t²)) 至 |t| ≤ 1/2 → 级数 → ×2^k）
+
+**返回**：同 sqrt（|x| 过大时返回 INVALID）
+
 bigfloat_ball_series_ty：系数为 bigfloat_ball_ty 的截断级数（§I，v1.5.0）  S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}  每个系数携带误差半径，运算全程由球传播，得到严谨的数值级数。规范化： len == 0 为零级数（val 归 0）；否则末项为非零球。
 
 ```c
