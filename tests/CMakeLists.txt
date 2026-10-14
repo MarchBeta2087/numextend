@@ -130,6 +130,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME series_binom_eval COMMAND test_series_eval)
 
+add_executable(test_ball test_ball.c)
+target_link_libraries(test_ball PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_ball PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME ball_unit COMMAND test_ball)
+
 add_executable(convert_golden_driver golden_convert_driver.c)
 target_link_libraries(convert_golden_driver PRIVATE nex)
 

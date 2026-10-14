@@ -41,6 +41,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `atan_order` 与 `nex_series_{ln1p,atan}_eval_float` / `_decimal`（常数比值
   尾界 `r^step/(1−r^step)`，含可选误差输出）；测试含 `ln(1.5)`、`atan(0.5)`
   十进制已知值对照。
+- **路线 B 第一阶段：球式算术（TODO §C2）**：新模块 `nex/ball/`——
+  `bigfloat_ball_ty`（`mid`/`rad`，区间 `[mid−rad, mid+rad]`）+ `add/sub/mul/div`
+  （端点间定向舍入求严格包含区间 + 中心化半径余量）、`contains`（向内舍入，
+  无假阳性）。测试 `tests/test_ball.c`。
 
 ## [1.2.0] - 2026-10-14
 
