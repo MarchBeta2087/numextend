@@ -48,6 +48,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **路线 B：`bigdecimal` 球式（TODO §C2）**：`bigdecimal_ball_ty` +
   `init/free/copy/set/contains/add/sub/mul/div`（十进制定向舍入严格区间）；测试
   覆盖 `[1,1]+[2,2]`、区间乘/除/减法与除零区间。
+- **路线 B 实参规约（TODO §C2）**：`bigfloat_ball_exp/sin/cos`——折半（2 的幂
+  精确缩放）→ 路线 A 级数得初始球 → `exp` 反复球平方 / `sin/cos` half-angle
+  倍角；半径严格传播。测试含 `exp(1)≈e`、`exp(2)≈e²`、`sin(1)`、`cos(1)`、
+  过大 |x| 报错。
 
 ## [1.2.0] - 2026-10-14
 

@@ -133,9 +133,10 @@
   - [x] 逆幂核：`nex_series_ln1p_order`/`atan_order` 与
         `nex_series_{ln1p,atan}_eval_float`/`_decimal`；测试含 `ln(1.5)`、
         `atan(0.5)` 十进制已知值对照。
-  - [~] 路线 B（第一阶段）：`nex/ball/` 的 `bigfloat_ball_ty` /
+  - [~] 路线 B（第一/二阶段）：`nex/ball/` 的 `bigfloat_ball_ty` /
         `bigdecimal_ball_ty` + `add/sub/mul/div/contains`（定向舍入严格区间）；
-        测试 `tests/test_ball.c`。待续：`exp/sin/cos` 实参规约。
+        实参规约 `bigfloat_ball_exp/sin/cos`（折半 + 球平方 / half-angle）；
+        测试 `tests/test_ball.c`。待续：`bigdecimal` 版规约；更大 |x|。
   - [ ] `bigfloat`/`bigdecimal` 级数 + **严谨误差界** + 自适应截断。
   - [ ] 级数复合与求导 / 积分。
 - [ ] **C3 Padé 逼近**（有理函数逼近，作为 `exp`/`atan` 等的可选核）。
