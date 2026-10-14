@@ -162,9 +162,11 @@
 > 前置：C1–C5。每阶段须有**误差分析 + 外部黄金 + 定向边界用例**；
 > `bigfloat` 与 `bigdecimal` 的规约各自实现。
 
-- [~] **D1 `atan`**：✅ `bigfloat_atan` + `bigdecimal_atan`（正确舍入：球式实参
-      规约 + Ziv；design §16；含 `bigdecimal_ball_sqrt`/`bigdecimal_ball_atan`）；
-      测试 + mpmath 黄金对拍。待续：重新引入复数辐角 `bigcomplex_*_arg`。
+- [x] **D1 `atan` / `atan2` / `arg`**：✅ `bigfloat_atan` + `bigdecimal_atan`
+      （正确舍入：球式规约 + Ziv；含 `bigdecimal_ball_sqrt`/`bigdecimal_ball_atan`）；
+      ✅ `bigfloat_atan2` / `bigdecimal_atan2`（直角分象限 + π 球，避大参数与
+      灾难抵消）与复数辐角 `bigcomplex_float_arg` / `bigcomplex_decimal_arg`
+      （重新引入，§9.2）；单元测试（含象限/轴/负实轴）+ 随机 mpmath 压测。
 - [ ] **D2 `exp` / `log` / `ln`**（二进制 + 十进制各一套）。
 - [ ] **D3 `sin` / `cos` / `tan`**：含**大参数 Payne–Hanek 规约**（需高精度 π）。
 - [ ] **D4 `asin` / `acos` / `atan`**。

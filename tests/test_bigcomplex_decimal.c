@@ -283,9 +283,56 @@ static void test_abs_conj(void) {
     expect_str("conj nan", &z, "nan-1i");
     CHECK(bigcomplex_decimal_conj(NULL) == BIGCOMPLEX_DECIMAL_ERR_INVALID_E);
 
-    /* arg 已移出 v1 公开面（依赖 atan，设计文档 §9.2） */
+    /* arg 见 test_arg（依赖 atan，设计文档 §9.2） */
 
     bigdecimal_free(&v);
+    bigcomplex_decimal_free(&z);
+}
+
+static void test_arg(void) {
+    bigcomplex_decimal_ty z;
+    bigdecimal_ty a;
+    bigcomplex_decimal_init(&z);
+    bigdecimal_init(&a);
+
+    CHECK(parse(&z, "1+1i") == 0);
+    CHECK(bigcomplex_decimal_arg(&a, &z, g_ctx) == BIGCOMPLEX_DECIMAL_OK_E);
+    expect_re("arg(1+1i)", &a, "0.7853981633974483");      /* π/4 */
+    CHECK(parse(&z, "-1+0i") == 0);
+    CHECK(bigcomplex_decimal_arg(&a, &z, g_ctx) == BIGCOMPLEX_DECIMAL_OK_E);
+    expect_re("arg(-1)", &a, "3.141592653589793");         /* π */
+    CHECK(parse(&z, "0+1i") == 0);
+    bigcomplex_decimal_arg(&a, &z, g_ctx);
+    expect_re("arg(i)", &a, "1.570796326794897");          /* π/2 */
+    CHECK(parse(&z, "1+0i") == 0);
+    bigcomplex_decimal_arg(&a, &z, g_ctx);
+    expect_re("arg(1)", &a, "0");
+    CHECK(parse(&z, "-1+1i") == 0);
+    bigcomplex_decimal_arg(&a, &z, g_ctx);
+    expect_re("arg(-1+i)", &a, "2.356194490192345");       /* 3π/4 */
+    CHECK(parse(&z, "0-1i") == 0);
+    bigcomplex_decimal_arg(&a, &z, g_ctx);
+    expect_re("arg(-i)", &a, "-1.570796326794897");
+    CHECK(parse(&z, "3+4i") == 0);
+    bigcomplex_decimal_arg(&a, &z, g_ctx);
+    expect_re("arg(3+4i)", &a, "0.9272952180016122");      /* atan(4/3) */
+
+    /* NaN 分量传播；±∞ → INVALID；错误路径 */
+    CHECK(parse(&z, "nan+1i") == 0);
+    CHECK(bigcomplex_decimal_arg(&a, &z, g_ctx) == BIGCOMPLEX_DECIMAL_OK_E);
+    CHECK(bigdecimal_is_nan(&a));
+    CHECK(parse(&z, "inf+0i") == 0);
+    CHECK(bigcomplex_decimal_arg(&a, &z, g_ctx) ==
+            BIGCOMPLEX_DECIMAL_ERR_INVALID_E);
+    CHECK(parse(&z, "1+1i") == 0);
+    CHECK(bigcomplex_decimal_arg(NULL, &z, g_ctx) ==
+            BIGCOMPLEX_DECIMAL_ERR_INVALID_E);
+    CHECK(bigcomplex_decimal_arg(&a, NULL, g_ctx) ==
+            BIGCOMPLEX_DECIMAL_ERR_INVALID_E);
+    CHECK(bigcomplex_decimal_arg(&a, &z, NULL) ==
+            BIGCOMPLEX_DECIMAL_ERR_INVALID_E);
+
+    bigdecimal_free(&a);
     bigcomplex_decimal_free(&z);
 }
 
@@ -340,6 +387,7 @@ int main(void) {
     test_to_str();
     test_arith();
     test_abs_conj();
+    test_arg();
     test_special_eq();
 
     if (g_fail == 0) {

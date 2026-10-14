@@ -25,6 +25,12 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   规约；除数 ≥ 64 肢且被除数 ≥ 2×除数自动分派。回归
   `tests/test_bigint_dec::test_bz`（分派边界/随机/稀疏/全 9/精确整除）；10⁵ 位
   ≈ 45 ms（原 Knuth D ≈ 360 ms，约 8×）。
+- **复数辐角 `arg` 重新引入**（TODO §D1）：`bigcomplex_float_arg` /
+  `bigcomplex_decimal_arg` 经新公开的 `bigfloat_atan2` / `bigdecimal_atan2`
+  正确舍入实现（直角分象限 `atan(y/x)`，`x<0` 用 `sign(y)·(π−atan(|y|/|x|))`，
+  `t>1` 用 `π/2−atan(1/t)` 归约；π、π/2 由球式 `4·atan(1)`/`2·atan(1)` 严格
+  得到）。单元测试含象限/轴/负实轴；随机 mpmath 压测 float 84 例 / decimal
+  81 例全过。
 
 ## [1.4.0] - 2026-10-14
 

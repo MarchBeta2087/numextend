@@ -275,12 +275,13 @@
 
 ### `bigcomplex_float`
 
-- 直接依赖：`bigint_common`, `bigint_bin`, `bigfloat`, `nex_alloc`
+- 直接依赖：`bigint_common`, `bigint_bin`, `bigfloat`, `transcend`, `nex_alloc`
 - 源文件：`nex/bigcomplex/float/nex_bigcomplex_float.c`
 - 公开头：`nex/bigcomplex/float/nex_bigcomplex_float.h`
-- 公开函数（13）：
+- 公开函数（14）：
   - `bigcomplex_float_abs`
   - `bigcomplex_float_add`
+  - `bigcomplex_float_arg`
   - `bigcomplex_float_conj`
   - `bigcomplex_float_copy`
   - `bigcomplex_float_div`
@@ -295,12 +296,13 @@
 
 ### `bigcomplex_decimal`
 
-- 直接依赖：`bigdecimal`, `nex_alloc`
+- 直接依赖：`bigdecimal`, `transcend`, `nex_alloc`
 - 源文件：`nex/bigcomplex/decimal/nex_bigcomplex_decimal.c`
 - 公开头：`nex/bigcomplex/decimal/nex_bigcomplex_decimal.h`
-- 公开函数（13）：
+- 公开函数（14）：
   - `bigcomplex_decimal_abs`
   - `bigcomplex_decimal_add`
+  - `bigcomplex_decimal_arg`
   - `bigcomplex_decimal_conj`
   - `bigcomplex_decimal_copy`
   - `bigcomplex_decimal_div`
@@ -425,6 +427,8 @@
 - 直接依赖：`bigfloat`, `bigdecimal`, `ball`
 - 源文件：`nex/transcend/nex_transcend.c`, `nex/transcend/nex_transcend_dec.c`
 - 公开头：`nex/transcend/nex_transcend.h`
-- 公开函数（2）：
+- 公开函数（4）：
   - `bigdecimal_atan`
+  - `bigdecimal_atan2`
   - `bigfloat_atan`
+  - `bigfloat_atan2`

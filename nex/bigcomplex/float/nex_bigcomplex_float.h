@@ -102,6 +102,16 @@ bigcomplex_float_err_ty bigcomplex_float_conj(bigcomplex_float_ty *cpx);
 bigcomplex_float_err_ty bigcomplex_float_abs(bigfloat_ty *dst,
         const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
 
+/*
+ * brief: 辐角 arg(src) = atan2(im, re)，主值 ∈ (−π, π]（正确舍入，§9.2/§16）
+ * param: dst 输出（bigfloat）；src 输入复数；ctx 精度上下文
+ * return: 成功返回 OK（任一分量为 NaN 时 dst 置 NaN）；参数非法或含 ±∞
+ *         返回 INVALID；内存不足返回 OOM（dst 不变）
+ * note: 经 bigfloat_atan2（球式半角规约 + Ziv）；负实轴（im=0, re<0）取 +π
+ */
+bigcomplex_float_err_ty bigcomplex_float_arg(bigfloat_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+
 /* ------------------------------------------------------------------ */
 /* 四则（§9.2）                                                        */
 /* ------------------------------------------------------------------ */

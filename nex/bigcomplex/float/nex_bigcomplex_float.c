@@ -14,6 +14,7 @@
  */
 
 #include "nex/bigcomplex/float/nex_bigcomplex_float.h"
+#include "nex/transcend/nex_transcend.h"
 #include "nex/nex_alloc.h"
 
 #include <stdlib.h>
@@ -341,6 +342,24 @@ cleanup:
     bigfloat_free(&im2);
     bigfloat_free(&sum);
     return map_bf_err(berr);
+}
+
+bigcomplex_float_err_ty bigcomplex_float_arg(bigfloat_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        bigfloat_free(dst);
+        bigfloat_init(dst);
+        dst->flag = BIGFLOAT_NAN_E;
+        return BIGCOMPLEX_FLOAT_OK_E;
+    }
+    if (bigfloat_is_inf(&src->re) || bigfloat_is_inf(&src->im)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    return map_bf_err(bigfloat_atan2(dst, &src->im, &src->re, ctx));
 }
 
 /* ------------------------------------------------------------------ */

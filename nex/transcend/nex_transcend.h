@@ -27,6 +27,16 @@ bigfloat_err_ty bigfloat_atan(bigfloat_ty *out, const bigfloat_ty *x,
         const bigfloat_ctx_ty *ctx);
 
 /*
+ * brief: 双参反正切 out = atan2(y, x) = arg(x + iy)，按 ctx 正确舍入
+ * param: out 输出；y, x 坐标（有限值）；ctx 目标精度上下文
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法或 y/x 非有限返回 INVALID；
+ *         内存不足返回 OOM（out 不变）
+ * note: 主值 ∈ (−π, π]；球式半角规约 + Ziv 正确舍入
+ */
+bigfloat_err_ty bigfloat_atan2(bigfloat_ty *out, const bigfloat_ty *y,
+        const bigfloat_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
  * brief: 反正切 out = atan(x)，按 ctx 正确舍入（十进制版）
  * param: out 输出；x 自变量（有限值）；ctx 目标精度上下文
  * return: 成功返回 BIGDECIMAL_OK_E；参数非法或 x 非有限返回
@@ -35,6 +45,16 @@ bigfloat_err_ty bigfloat_atan(bigfloat_ty *out, const bigfloat_ty *x,
  */
 bigdecimal_err_ty bigdecimal_atan(bigdecimal_ty *out, const bigdecimal_ty *x,
         const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 双参反正切 out = atan2(y, x) = arg(x + iy)，按 ctx 正确舍入（十进制版）
+ * param: out 输出；y, x 坐标（有限值）；ctx 目标精度上下文
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法或 y/x 非有限返回
+ *         BIGDECIMAL_ERR_INVALID_E；内存不足返回 OOM（out 不变）
+ * note: 主值 ∈ (−π, π]；球式半角规约 + Ziv 正确舍入
+ */
+bigdecimal_err_ty bigdecimal_atan2(bigdecimal_ty *out, const bigdecimal_ty *y,
+        const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx);
 
 #ifdef __cplusplus
 }
