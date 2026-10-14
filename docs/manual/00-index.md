@@ -9,6 +9,9 @@ Numextend（库前缀 `nex`）是一个**纯 C99、零依赖**的任意精度数
 - **浮点**：`bigfloat`（二进制）、`bigdecimal`（十进制），精度与指数范围可调，
   逐运算正确舍入。
 - **复数**：`bigcomplex_float`、`bigcomplex_decimal`。
+- **超越函数**：`nex/transcend` 提供正确舍入的 `atan`/`atan2`/`exp`/`log`/
+  `sin`/`cos`/`tan`/`asin`/`acos`（`bigfloat`/`bigdecimal` 各一套）及复数超越
+  函数 `exp`/`log`/`sqrt`/`sin`/`cos`/`tan`。
 
 本手册面向**使用者**，说明每种类型的公开 API、语义与约定。
 设计原理、算法与内部结构见仓库内 [`../design.md`](../design.md)。

@@ -10,8 +10,8 @@ Numextend 的目标是：在保持**纯 C99、零外部依赖**的前提下，�
 | `bigint_bin` / `bigint_dec` | 加减乘除（带余）、幂、模幂、gcd、移位、按位运算、整数平方根、字符串 I/O（进制 2..36）、比较与符号；`bin ↔ dec` 互转 |
 | `bigint_bin64` | 64 位肢整数核心（加减乘、除法；用例见头文件） |
 | `bigfrac` | 精确有理数四则与约分、比较、与整数互转 |
-| `bigfloat` / `bigdecimal` | 四则、`sqrt`、正确舍入、特殊值（±0/±∞/NaN）、分解/合成、字符串 I/O；`bigdecimal` 十进制 I/O 完全精确 |
-| `bigcomplex_float` / `bigcomplex_decimal` | 加减乘除、共轭、模、相等 |
+| `bigfloat` / `bigdecimal` | 四则、`sqrt`、正确舍入、特殊值（±0/±∞/NaN）、分解/合成、字符串 I/O；**正确舍入超越函数** `atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos`（球式 + Ziv）；`bigdecimal` 十进制 I/O 完全精确 |
+| `bigcomplex_float` / `bigcomplex_decimal` | 加减乘除、共轭、模、辐角 `arg`、相等；超越函数 `exp`/`log`/`sqrt`/`sin`/`cos`/`tan`（分量运算） |
 | `convert` | 七类型之间的精确/有损转换矩阵 |
 
 ## 1.2 设计取舍
@@ -19,8 +19,9 @@ Numextend 的目标是：在保持**纯 C99、零外部依赖**的前提下，�
 1. **正确性优先**，其次可读性，再次性能；
 2. **无隐式精度**：任何有损转换都必须显式传入目标精度上下文；
 3. **强异常安全**：内存不足或非法参数时，输出参数保持调用前状态；
-4. **不做**（v1 非目标）：SIMD/GPU/内部多线程、超越函数（仅保留 `sqrt`）、
-   次正规浮点、复数辐角 `arg`（依赖 `atan`）。
+4. **不做**（v1.x 非目标）：SIMD/GPU/内部多线程（跨平台线程封装列为独立
+   可选目标，不进核心）、次正规浮点、超大 `|x|`（> 2⁶³）三角函数的
+   Payne–Hanek 规约（当前折半上限覆盖 |x| ≲ 2⁶³）。
 
 ## 1.3 基本用法
 
