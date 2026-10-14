@@ -152,3 +152,39 @@ bigfrac_err_ty bigfrac_series_order_geometric(size_t *out,
     bigfrac_free(&zero);
     return err;
 }
+
+bigfrac_err_ty bigfrac_series_tail_ratio(bigfrac_ty *out,
+        const bigfrac_ty *first_omitted, const bigfrac_ty *q) {
+    if (out == NULL || first_omitted == NULL || q == NULL) {
+        return BIGFRAC_ERR_INVALID_E;
+    }
+
+    bigfrac_ty zero;
+    bigfrac_ty one;
+    bigfrac_ty one_minus_q;
+    bigfrac_init(&zero);
+    bigfrac_init(&one);
+    bigfrac_init(&one_minus_q);
+
+    bigfrac_err_ty err = BIGFRAC_OK_E;
+    if (bigfrac_cmp(first_omitted, &zero) < 0 || bigfrac_cmp(q, &zero) < 0) {
+        err = BIGFRAC_ERR_INVALID_E;
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = frac_u64(&one, 1U);
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_sub(&one_minus_q, &one, q);
+        if (err == BIGFRAC_OK_E && bigfrac_cmp(&one_minus_q, &zero) <= 0) {
+            err = BIGFRAC_ERR_INVALID_E;        /* 需 q < 1 */
+        }
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_div(out, first_omitted, &one_minus_q);
+    }
+
+    bigfrac_free(&one_minus_q);
+    bigfrac_free(&one);
+    bigfrac_free(&zero);
+    return err;
+}

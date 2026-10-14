@@ -126,6 +126,10 @@
         `nex_series_binom_order`、`nex_series_binom_eval_float` / `_decimal`
         （bigfloat/bigdecimal 点自适应求值，精确部分和 + 终值一次舍入）；
         测试 `tests/test_series_eval.c`；design §15.6。
+  - [x] 比值型尾界 + 阶乘核：`bigfrac_series_tail_ratio`；
+        `nex_series_exp/cos/sin_order` 与 `_eval_float`/`_decimal`；求值新增可选
+        `err_out` 输出截断尾上界（二项式版同步支持）；测试含十进制
+        `exp(1)/cos(1)/sin(1)` 已知值对照。
   - [ ] 路线 B：球式（中心 + 误差半径）表示与半径传播。
   - [ ] `bigfloat`/`bigdecimal` 级数 + **严谨误差界** + 自适应截断。
   - [ ] 级数复合与求导 / 积分。

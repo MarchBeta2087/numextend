@@ -1380,6 +1380,9 @@ C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
     `nex_series_binom_order`（自适应阶）、`nex_series_binom_eval_float` /
     `_decimal`（在 bigfloat/bigdecimal 点的自适应截断求值，精确部分和 +
     最终一次正确舍入，误差 ≤ eps + 舍入）。
+  - 已落地（续）：比值型尾界 `bigfrac_series_tail_ratio`（`t_n/(1−q_n)`）用于
+    阶乘型系数；`nex_series_exp/cos/sin_order` + `nex_series_{exp,cos,sin}_eval_float`
+    /`_decimal`（在数值点自适应求值，**可选 `err_out` 输出截断尾严格上界**）。
 - **路线 B：球式（中心 + 误差半径）**（后做）
   - 每个系数/结果携带误差半径，运算传播半径；系数自身的舍入误差与复合、
     累加误差都被覆盖。

@@ -342,6 +342,19 @@ bigfrac_err_ty bigfrac_series_order_geometric(size_t *out,
         const bigfrac_ty *A, const bigfrac_ty *B, const bigfrac_ty *r,
         const bigfrac_ty *eps);
 
+/*
+ * brief: 比值型尾界：若自首个略去项起相邻项幅度比 ≤ q（q < 1），则
+ *        尾部之和 ≤ first_omitted / (1 − q)
+ * param: out 输出上界（≥ 0）
+ * param: first_omitted 首个略去项的幅度（≥ 0）
+ * param: q 相邻项幅度比上界（0 ≤ q < 1）
+ * return: 成功返回 BIGFRAC_OK_E；指针为 NULL / 参数为负 / q ≥ 1 返回
+ *         BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+ * note: 适合阶乘型系数（exp/sin/cos），比几何型界更紧；用于 design §15.6 路线 A
+ */
+bigfrac_err_ty bigfrac_series_tail_ratio(bigfrac_ty *out,
+        const bigfrac_ty *first_omitted, const bigfrac_ty *q);
+
 #ifdef __cplusplus
 }
 #endif
