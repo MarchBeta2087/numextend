@@ -1,8 +1,8 @@
 # TODO（v1.1 及以后路线图）
 
-> **活文档**：v1.0.0 – v1.3.0 已发布，本文件记录 **v1.3 之后的规划**。只收录已评估、
+> **活文档**：v1.0.0 – v1.4.0 已发布，本文件记录 **v1.4 之后的规划**。只收录已评估、
 > 可执行的方向；未决/否定的候选集中列在文末。优先级见 §0。
-> 最后更新：2026-10-14（v1.3.0：§C 幂级数基础设施完成）
+> 最后更新：2026-10-14（v1.4.0：§G 已知技术债收口）
 
 ---
 
@@ -192,22 +192,25 @@
 
 ---
 
-## G. 保留：已知技术债 / 风险（沿用 v1.0）
+## G. 已知技术债 / 风险（v1.4.0 后）
 
-- **构建优化级别**：默认 `-O0` 曾被修复；基准必须与基线同优化级别，
-  否则算法交叉点会颠倒。
-- **16-bit FFT 舍入安全界**：✅ 已关闭——16-bit 强制路径限 `S ≤ NEX_MUL_FFT_B16_MAX_SUM`
-  （1024），超限返回 `BIGINT_ERR_UNSUPPORTED_E`（此前仅自动路径校验，强制路径可越界）；
-  8-bit 节已验证至 65536 肢安全。测试 `test_fft_mul::test_fft16_cap`。
-- **`bigint_dec` 无亚二次除法**：仅性能问题，不影响语义正确性。
-- **未规范化视图比较**：✅ 已关闭——`bz_mag_cmp` 现先裁剪前导零；审计内部
-  比较仅此一处依赖视图（`cmp_mag_exp`/`b64_cmp_abs` 依赖规范化不变式）；
-  规则写入 design §3.4。
-- **值相关缺陷**：✅ 已覆盖——`test_bigint_bin::test_sparse`（`(2^k+1)(2^j−1)`
-  闭式、`gcd(2^a−1,2^b−1)=2^gcd(a,b)−1` 闭式）+ BZ 稀疏除法用例 +
-  golden `10^k` 邻域。
-- **大端平台 / 32 位平台**：已新增 CI——`linux-32bit`（`-m32`）与
-  `linux-bigendian`（s390x 交叉 + QEMU `qemu-s390x`；交叉构建跳过 Python 黄金测试）。（§1.3、§14）
+- **`bigint_dec` 无亚二次除法**：⏳ **延后**——仅性能（`bigint_dec` 仍 Knuth D
+  O(n²)），不影响语义正确性；bin 侧已有 BZ。列为后续性能方向（§13），
+  非 v1.4.0 阻塞。
+
+### v1.4.0 已关闭
+
+- **构建优化级别**：✅ 已解决——`CMakeLists.txt` 未指定 build type 时默认
+  `RelWithDebInfo`（-O2 -g）；“基准须同优化级别”的纪律移入「流程与约定」。
+- **16-bit FFT 舍入安全界**：✅ 16-bit 强制路径限
+  `S ≤ NEX_MUL_FFT_B16_MAX_SUM`（1024），超限返回 `BIGINT_ERR_UNSUPPORTED_E`；
+  8-bit 已验证至 65536 肢。测试 `test_fft_mul::test_fft16_cap`。
+- **未规范化视图比较**：✅ `bz_mag_cmp` 先裁剪前导零；审计内部比较仅此一处
+  依赖视图（其余依赖规范化不变式）；规则入 design §3.4。
+- **值相关缺陷**：✅ `test_bigint_bin::test_sparse`（乘法/gcd 闭式）+ BZ 稀疏
+  除法用例 + golden `10^k` 邻域。
+- **大端 / 32 位平台**：✅ CI 覆盖——`linux-32bit`（`-m32 -msse2 -mfpmath=sse`）与
+  `linux-bigendian`（s390x + QEMU；交叉构建跳过 Python 黄金测试）。（§1.3、§14）
 
 ---
 
@@ -229,8 +232,10 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 ## 流程与约定
 
 - **分支**：`feature/*` / `chore/*` → PR → `dev` → `main`；PR 触发多平台 CI。
-- **性能**：用 `-O2` 构建；`bench_sweep`（交错采样）做规模扫描。
-- **测试**：`ctest --test-dir build`（当前 33 项，含 Python 黄金对拍）。
+- **性能**：用 `-O2` 构建；`bench_sweep`（交错采样）做规模扫描。**基准必须与
+  对比基线同优化级别**——不同 level 会颠倒算法交叉点（如 FFT 与 Toom-3）。
+- **测试**：`ctest --test-dir build`（当前 41 项，含 Python/mpmath 黄金对拍）；
+  平台矩阵含 32 位（`-m32 -msse2 -mfpmath=sse`）与大端（s390x + QEMU）。
 - **文档**：算法与决策入 `docs/design.md`；API 手册由 `sh scripts/docs.sh` 生成
   （API 页取自头文件 + Pandoc 合成 `docs/manual.html`），手写页随能力更新；
   发版前按 `docs/maintenance.md` §4.1 清单同步。本文件只维护规划状态与优先级。
