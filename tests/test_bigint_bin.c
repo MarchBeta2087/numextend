@@ -813,6 +813,52 @@ static void test_sqrt(void) {
     bigint_bin_free(&a);
 }
 
+/*
+ * brief: 稀疏值与 2 的幂的定向用例（TODO §G 值相关缺陷）：
+ *        (2^k+1)(2^j−1) 闭式；gcd(2^a−1, 2^b−1) = 2^gcd(a,b)−1
+ */
+static void test_sparse(void) {
+    bigint_bin_ty one, a, b, p, e, want;
+    CHECK(bigint_bin_init(&one) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&a) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&b) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&p) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&e) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&want) == BIGINT_OK_E);
+    CHECK(bigint_bin_from_u64(&one, 1U) == BIGINT_OK_E);
+
+    /* a = 2^17000 + 1, b = 2^13000 − 1, a·b = 2^30000 − 2^17000 + 2^13000 − 1 */
+    CHECK(bigint_bin_shl(&a, &one, 17000U) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&a, &a, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&b, &one, 13000U) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&b, &b, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_mul(&p, &a, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&want, &one, 30000U) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&e, &one, 17000U) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&want, &want, &e) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&e, &one, 13000U) == BIGINT_OK_E);
+    CHECK(bigint_bin_add(&want, &want, &e) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&want, &want, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp(&p, &want) == 0);
+
+    /* gcd(2^120−1, 2^80−1) = 2^40−1 */
+    CHECK(bigint_bin_shl(&a, &one, 120U) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&a, &a, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&b, &one, 80U) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&b, &b, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_gcd(&p, &a, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_shl(&want, &one, 40U) == BIGINT_OK_E);
+    CHECK(bigint_bin_sub(&want, &want, &one) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp(&p, &want) == 0);
+
+    bigint_bin_free(&want);
+    bigint_bin_free(&e);
+    bigint_bin_free(&p);
+    bigint_bin_free(&b);
+    bigint_bin_free(&a);
+    bigint_bin_free(&one);
+}
+
 int main(void) {
 #ifdef _MSC_VER
     /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
@@ -828,6 +874,7 @@ int main(void) {
     test_bits();
     test_bz_div();
     test_sqrt();
+    test_sparse();
     if (g_fail == 0) {
         printf("ALL TESTS PASSED\n");
         return 0;
