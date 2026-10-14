@@ -63,6 +63,20 @@ double/float 逐位对照）+ tie 舍入边界构造 + OOM 注入（12 运算 ×
 黄金对拍参考实现位于 `tests/golden_*.py`（`fractions.Fraction` / `decimal` 精确
 复刻各类型语义），随机种子可配置：`NEX_GOLDEN_SEED=... ctest -R golden`。
 
+## 子集构建（可选）
+
+默认构建全部模块。只需部分模块时可经 `NEX_MODULES` 裁剪（按
+`cmake/nex_modules.txt` 的依赖闭包自动补齐，文件级子集）：
+
+```sh
+cmake -S . -B build -DNEX_MODULES="bigint_bin,bigfrac"   # 只保留整数/有理数
+cmake --build build
+```
+
+`convert`（跨类型转换）依赖全部类型；未选模块不编译、不安装、也不导出符号。
+子集构建不提供完整测试与 ABI 承诺。清单与闭包可用
+`python scripts/modules.py list` / `closure <mod...>` 查看。
+
 ## 性能
 
 Release（-O2）实测节选（Intel i5-13500H / GCC 15.2.0；完整报告与规模扫描见
