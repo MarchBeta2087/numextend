@@ -1254,7 +1254,7 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 
 | 项目 | 状态 | 说明 / 后续 |
 |------|------|--------------|
-| 超越函数 exp/log/sin/cos | 部分落地 | `atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan` 已落地（float + decimal，§16）；复数 `arg` 重新引入；反三角/复数超越为 §D 后续 |
+| 超越函数 exp/log/sin/cos | 部分落地 | `atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos` 已落地（float + decimal，§16）；复数 `arg` 重新引入；复数超越为 §D 后续 |
 | 次正规（subnormal）浮点 | 非目标 | 需放松“最高位恒 1”不变式，影响面大（§7.3） |
 | SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3）；跨平台线程封装列为**独立可选目标**（`contrib/nex_thread`，不进核心/amalgam，TODO §F） |
 | 函数级子集 | 非目标（1.x 暂缓） | 成本高、收益低；替代见 §2.4 / §13 #11 |
@@ -1474,6 +1474,9 @@ S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}
 - **`sin`/`cos`/`tan`**：球式折半（2 的幂精确缩放）+ half-angle 倍角
   （`cos2θ=2cos²θ−1`、`sin2θ=2 sinθ cosθ`）；球式 `tan` = `sin/cos`；折半上限
   64（覆盖 |x| ≲ 2⁶³），超大 |x| 的 Payne–Hanek 归约待续。
+- **`asin`/`acos`**：`asin(x) = atan(x/√(1−x²))`（±1 → ±π/2）；
+  `acos(x) = π/2 − asin(x)`；`acos(1)=0` 特判（结果恰 0、对称球跨 0 时 Ziv
+  无法收敛）。Ziv 正确舍入。
 - **规模提示**：路线 A 精确有理求值 `invpow_eval_frac` 的公共分母随阶数阶乘级
   膨胀，高精度（≳ 80 位 / 256 bit）显著变慢，float / decimal 同量级；后续可
   改逐项浮点或分块求值。

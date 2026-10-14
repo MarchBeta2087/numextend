@@ -847,3 +847,164 @@ bigfloat_err_ty bigfloat_ball_tan(bigfloat_ball_ty *dst,
     bigfloat_ball_free(&s);
     return err;
 }
+
+/* π/2 球 = 2·atan(1)（atan 球严格） */
+static bigfloat_err_ty bf_ball_halfpi(bigfloat_ball_ty *out,
+        const bigfloat_ctx_ty *ctx) {
+    bigfloat_ball_ty one;
+    bigfloat_ball_init(&one);
+    bigfloat_ty o;
+    bigfloat_ty z;
+    bigfloat_init(&o);
+    bigfloat_init(&z);
+    (void)bigfloat_from_f64(&o, 1.0);
+    bigfloat_err_ty err = bigfloat_ball_set(&one, &o, &z, ctx);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_atan(out, &one, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_add(out, out, out, ctx);
+    }
+    bigfloat_free(&z);
+    bigfloat_free(&o);
+    bigfloat_ball_free(&one);
+    return err;
+}
+
+/* asin(x) = atan(x / √(1−x²))，|x| ≤ 1；±1 取 ±π/2 */
+bigfloat_err_ty bigfloat_ball_asin(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !e_ball_ok(x)) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ctx_ty dn;
+    bigfloat_ctx_ty up;
+    bigfloat_err_ty err = e_dir_ctx(&dn, ctx, BIGFLOAT_ROUND_TOWARD_NEG_E);
+    if (err == BIGFLOAT_OK_E) {
+        err = e_dir_ctx(&up, ctx, BIGFLOAT_ROUND_TOWARD_POS_E);
+    }
+    bigfloat_ty one;
+    bigfloat_ty negone;
+    bigfloat_ty zero;
+    bigfloat_ty lo;
+    bigfloat_ty hi;
+    bigfloat_init(&one);
+    bigfloat_init(&negone);
+    bigfloat_init(&zero);
+    bigfloat_init(&lo);
+    bigfloat_init(&hi);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_from_f64(&one, 1.0);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_from_f64(&negone, -1.0);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sub(&lo, &x->mid, &x->rad, &dn);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_add(&hi, &x->mid, &x->rad, &up);
+    }
+    if (err == BIGFLOAT_OK_E &&
+            (bigfloat_cmp(&lo, &negone) < 0 || bigfloat_cmp(&hi, &one) > 0)) {
+        err = BIGFLOAT_ERR_INVALID_E;   /* 定义域 |x| ≤ 1 */
+    }
+    const bool exact_one = (bigfloat_cmp(&x->rad, &zero) == 0) &&
+                           (bigfloat_cmp(&x->mid, &one) == 0);
+    const bool exact_neg = (bigfloat_cmp(&x->rad, &zero) == 0) &&
+                           (bigfloat_cmp(&x->mid, &negone) == 0);
+    if (err == BIGFLOAT_OK_E && (exact_one || exact_neg)) {
+        bigfloat_ball_ty hp;
+        bigfloat_ball_init(&hp);
+        err = bf_ball_halfpi(&hp, ctx);
+        if (err == BIGFLOAT_OK_E && exact_neg) {
+            err = bigfloat_neg(&hp.mid);
+        }
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_ball_copy(dst, &hp);
+        }
+        bigfloat_ball_free(&hp);
+        bigfloat_free(&hi);
+        bigfloat_free(&lo);
+        bigfloat_free(&zero);
+        bigfloat_free(&negone);
+        bigfloat_free(&one);
+        return err;
+    }
+
+    bigfloat_ball_ty oneb;
+    bigfloat_ball_ty x2;
+    bigfloat_ball_ty om;
+    bigfloat_ball_ty rt;
+    bigfloat_ball_ty t;
+    bigfloat_ball_init(&oneb);
+    bigfloat_ball_init(&x2);
+    bigfloat_ball_init(&om);
+    bigfloat_ball_init(&rt);
+    bigfloat_ball_init(&t);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_set(&oneb, &one, &zero, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_mul(&x2, x, x, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_sub(&om, &oneb, &x2, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_sqrt(&rt, &om, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_div(&t, x, &rt, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_atan(dst, &t, ctx);
+    }
+    bigfloat_ball_free(&t);
+    bigfloat_ball_free(&rt);
+    bigfloat_ball_free(&om);
+    bigfloat_ball_free(&x2);
+    bigfloat_ball_free(&oneb);
+    bigfloat_free(&hi);
+    bigfloat_free(&lo);
+    bigfloat_free(&zero);
+    bigfloat_free(&negone);
+    bigfloat_free(&one);
+    return err;
+}
+
+/* acos(x) = π/2 − asin(x) */
+bigfloat_err_ty bigfloat_ball_acos(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !e_ball_ok(x)) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    /* 精确 x == 1 → 0（结果恰可表示，避免对称球跨 0 时 Ziv 不收敛） */
+    bigfloat_ty zz;
+    bigfloat_ty oo;
+    bigfloat_init(&zz);
+    bigfloat_init(&oo);
+    (void)bigfloat_from_f64(&oo, 1.0);
+    if (bigfloat_cmp(&x->rad, &zz) == 0 && bigfloat_cmp(&x->mid, &oo) == 0) {
+        bigfloat_err_ty e = bigfloat_ball_set(dst, &zz, &zz, ctx);
+        bigfloat_free(&oo);
+        bigfloat_free(&zz);
+        return e;
+    }
+    bigfloat_free(&oo);
+    bigfloat_free(&zz);
+    bigfloat_ball_ty a;
+    bigfloat_ball_ty hp;
+    bigfloat_ball_init(&a);
+    bigfloat_ball_init(&hp);
+    bigfloat_err_ty err = bigfloat_ball_asin(&a, x, ctx);
+    if (err == BIGFLOAT_OK_E) {
+        err = bf_ball_halfpi(&hp, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_sub(dst, &hp, &a, ctx);
+    }
+    bigfloat_ball_free(&hp);
+    bigfloat_ball_free(&a);
+    return err;
+}

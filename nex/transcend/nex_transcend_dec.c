@@ -635,3 +635,13 @@ bigdecimal_err_ty bigdecimal_tan(bigdecimal_ty *out, const bigdecimal_ty *x,
         const bigdecimal_ctx_ty *ctx) {
     return bd_ziv_unary(out, x, bigdecimal_ball_tan, ctx);
 }
+
+bigdecimal_err_ty bigdecimal_asin(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx) {
+    return bd_ziv_unary(out, x, bigdecimal_ball_asin, ctx);
+}
+
+bigdecimal_err_ty bigdecimal_acos(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx) {
+    return bd_ziv_unary(out, x, bigdecimal_ball_acos, ctx);
+}

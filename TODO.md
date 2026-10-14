@@ -175,7 +175,9 @@
       （球式折半 + half-angle 倍角 + Ziv；球式 `ball_tan` = sin/cos）；折半上限
       提到 64（覆盖 |x| ≲ 2⁶³）；修复 `sincos_reduced` 的 `one_ball` 半径错误
       （原为 [0,2]）。待续：超大 |x|（> 2⁶³）的 Payne–Hanek 规约（需高精度 π）。
-- [ ] **D4 `asin` / `acos` / `atan`**。
+- [x] **D4 `asin` / `acos` / `atan`**：✅ `bigfloat_asin`/`acos` 与
+      `bigdecimal_asin`/`acos` 正确舍入（球式 `asin = atan(x/√(1−x²))`、`acos =
+      π/2 − asin`；`atan` 见 D1）；特判 `acos(1)=0` 避免对称球跨 0 时 Ziv 不收敛。
 - [ ] **D5 复数超越函数**（`bigcomplex_float` / `bigcomplex_decimal`）。
 - [ ] **D6 正确舍入**：保护位 + 粘位、无双重舍入；补 §7/§9 语义规范。
 

@@ -860,3 +860,165 @@ bigdecimal_err_ty bigdecimal_ball_tan(bigdecimal_ball_ty *dst,
     bigdecimal_ball_free(&s);
     return err;
 }
+
+/* π/2 球 = 2·atan(1)（十进制） */
+static bigdecimal_err_ty bd_ball_halfpi(bigdecimal_ball_ty *out,
+        const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ball_ty one;
+    bigdecimal_ball_init(&one);
+    bigdecimal_ty o;
+    bigdecimal_ty z;
+    bigdecimal_init(&o);
+    bigdecimal_init(&z);
+    bigdecimal_err_ty err = bigdecimal_from_str(&o, "1", ctx, NULL);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_set(&one, &o, &z, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_atan(out, &one, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_add(out, out, out, ctx);
+    }
+    bigdecimal_free(&z);
+    bigdecimal_free(&o);
+    bigdecimal_ball_free(&one);
+    return err;
+}
+
+bigdecimal_err_ty bigdecimal_ball_asin(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !ed_ball_ok(x)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ctx_ty dn;
+    bigdecimal_ctx_ty up;
+    bigdecimal_err_ty err = ed_dir_ctx(&dn, ctx, BIGDECIMAL_ROUND_TOWARD_NEG_E);
+    if (err == BIGDECIMAL_OK_E) {
+        err = ed_dir_ctx(&up, ctx, BIGDECIMAL_ROUND_TOWARD_POS_E);
+    }
+    bigdecimal_ty one;
+    bigdecimal_ty negone;
+    bigdecimal_ty zero;
+    bigdecimal_ty lo;
+    bigdecimal_ty hi;
+    bigdecimal_init(&one);
+    bigdecimal_init(&negone);
+    bigdecimal_init(&zero);
+    bigdecimal_init(&lo);
+    bigdecimal_init(&hi);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_from_str(&one, "1", ctx, NULL);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_from_str(&negone, "-1", ctx, NULL);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(&lo, &x->mid, &x->rad, &dn);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&hi, &x->mid, &x->rad, &up);
+    }
+    if (err == BIGDECIMAL_OK_E &&
+            (bigdecimal_cmp(&lo, &negone) < 0 || bigdecimal_cmp(&hi, &one) > 0)) {
+        err = BIGDECIMAL_ERR_INVALID_E;
+    }
+    const bool exact_one = (bigdecimal_cmp(&x->rad, &zero) == 0) &&
+                           (bigdecimal_cmp(&x->mid, &one) == 0);
+    const bool exact_neg = (bigdecimal_cmp(&x->rad, &zero) == 0) &&
+                           (bigdecimal_cmp(&x->mid, &negone) == 0);
+    if (err == BIGDECIMAL_OK_E && (exact_one || exact_neg)) {
+        bigdecimal_ball_ty hp;
+        bigdecimal_ball_init(&hp);
+        err = bd_ball_halfpi(&hp, ctx);
+        if (err == BIGDECIMAL_OK_E && exact_neg) {
+            err = bigdecimal_neg(&hp.mid);
+        }
+        if (err == BIGDECIMAL_OK_E) {
+            err = bigdecimal_ball_copy(dst, &hp);
+        }
+        bigdecimal_ball_free(&hp);
+        bigdecimal_free(&hi);
+        bigdecimal_free(&lo);
+        bigdecimal_free(&zero);
+        bigdecimal_free(&negone);
+        bigdecimal_free(&one);
+        return err;
+    }
+
+    bigdecimal_ball_ty oneb;
+    bigdecimal_ball_ty x2;
+    bigdecimal_ball_ty om;
+    bigdecimal_ball_ty rt;
+    bigdecimal_ball_ty t;
+    bigdecimal_ball_init(&oneb);
+    bigdecimal_ball_init(&x2);
+    bigdecimal_ball_init(&om);
+    bigdecimal_ball_init(&rt);
+    bigdecimal_ball_init(&t);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_set(&oneb, &one, &zero, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_mul(&x2, x, x, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_sub(&om, &oneb, &x2, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_sqrt(&rt, &om, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_div(&t, x, &rt, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_atan(dst, &t, ctx);
+    }
+    bigdecimal_ball_free(&t);
+    bigdecimal_ball_free(&rt);
+    bigdecimal_ball_free(&om);
+    bigdecimal_ball_free(&x2);
+    bigdecimal_ball_free(&oneb);
+    bigdecimal_free(&hi);
+    bigdecimal_free(&lo);
+    bigdecimal_free(&zero);
+    bigdecimal_free(&negone);
+    bigdecimal_free(&one);
+    return err;
+}
+
+bigdecimal_err_ty bigdecimal_ball_acos(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !ed_ball_ok(x)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    /* 精确 x == 1 → 0 */
+    bigdecimal_ty zz;
+    bigdecimal_ty oo;
+    bigdecimal_init(&zz);
+    bigdecimal_init(&oo);
+    if (bigdecimal_from_str(&oo, "1", ctx, NULL) == BIGDECIMAL_OK_E &&
+            bigdecimal_cmp(&x->rad, &zz) == 0 &&
+            bigdecimal_cmp(&x->mid, &oo) == 0) {
+        bigdecimal_err_ty e = bigdecimal_ball_set(dst, &zz, &zz, ctx);
+        bigdecimal_free(&oo);
+        bigdecimal_free(&zz);
+        return e;
+    }
+    bigdecimal_free(&oo);
+    bigdecimal_free(&zz);
+    bigdecimal_ball_ty a;
+    bigdecimal_ball_ty hp;
+    bigdecimal_ball_init(&a);
+    bigdecimal_ball_init(&hp);
+    bigdecimal_err_ty err = bigdecimal_ball_asin(&a, x, ctx);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bd_ball_halfpi(&hp, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_sub(dst, &hp, &a, ctx);
+    }
+    bigdecimal_ball_free(&hp);
+    bigdecimal_ball_free(&a);
+    return err;
+}

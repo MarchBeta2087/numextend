@@ -42,6 +42,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   舍入（球式折半 + half-angle 倍角 + Ziv）；球式 `ball_tan` = sin/cos；折半上限
   20→64（覆盖 |x| ≲ 2⁶³）；`golden_series` 新增 `sinpub`/`cospub`/`tanpub` 与
   十进制版。
+- **反三角 `asin` / `acos`（TODO §D4）**：`bigfloat_asin/acos` 与
+  `bigdecimal_asin/acos` 正确舍入（球式 `asin = atan(x/√(1−x²))`、`acos = π/2 −
+  asin`）；特判 `acos(1)=0`（对称球跨 0 时 Ziv 不收敛）；`golden_series` 新增
+  `asinpub`/`acospub` 与十进制版。
 
 ### 修复
 
