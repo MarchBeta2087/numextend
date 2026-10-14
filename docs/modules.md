@@ -61,9 +61,9 @@
 ### `bigint_bin`
 
 - 直接依赖：`bigint_common`, `bigint_conv`, `fft`, `ntt`, `nex_alloc`
-- 源文件：`nex/bigint/bin/nex_bigint_bin.c`, `nex/bigint/bin/nex_bigint_bin_mul.c`, `nex/bigint/bin/nex_bigint_bin_div.c`, `nex/bigint/bin/nex_bigint_bin_gcd.c`
+- 源文件：`nex/bigint/bin/nex_bigint_bin.c`, `nex/bigint/bin/nex_bigint_bin_mul.c`, `nex/bigint/bin/nex_bigint_bin_div.c`, `nex/bigint/bin/nex_bigint_bin_gcd.c`, `nex/bigint/bin/nex_bigint_bin_poly.c`
 - 公开头：`nex/bigint/bin/nex_bigint_bin.h`
-- 公开函数（36）：
+- 公开函数（37）：
   - `bigint_bin_abs`
   - `bigint_bin_add`
   - `bigint_bin_bit_and`
@@ -88,6 +88,7 @@
   - `bigint_bin_mul`
   - `bigint_bin_mul_ex`
   - `bigint_bin_neg`
+  - `bigint_bin_poly_eval`
   - `bigint_bin_popcount`
   - `bigint_bin_pow`
   - `bigint_bin_pow_mod`
@@ -170,9 +171,9 @@
 ### `bigfrac`
 
 - 直接依赖：`bigint_common`, `bigint_bin`
-- 源文件：`nex/bigfrac/nex_bigfrac.c`
+- 源文件：`nex/bigfrac/nex_bigfrac.c`, `nex/bigfrac/nex_bigfrac_poly.c`
 - 公开头：`nex/bigfrac/nex_bigfrac.h`
-- 公开函数（14）：
+- 公开函数（15）：
   - `bigfrac_add`
   - `bigfrac_cmp`
   - `bigfrac_copy`
@@ -186,14 +187,15 @@
   - `bigfrac_mul`
   - `bigfrac_neg`
   - `bigfrac_num`
+  - `bigfrac_poly_eval`
   - `bigfrac_sub`
 
 ### `bigfloat`
 
 - 直接依赖：`bigint_common`, `bigint_bin`, `nex_alloc`
-- 源文件：`nex/bigfloat/nex_bigfloat.c`, `nex/bigfloat/nex_bigfloat_str.c`
+- 源文件：`nex/bigfloat/nex_bigfloat.c`, `nex/bigfloat/nex_bigfloat_str.c`, `nex/bigfloat/nex_bigfloat_poly.c`
 - 公开头：`nex/bigfloat/nex_bigfloat.h`
-- 公开函数（26）：
+- 公开函数（27）：
   - `bigfloat_add`
   - `bigfloat_cmp`
   - `bigfloat_compose`
@@ -216,6 +218,7 @@
   - `bigfloat_is_zero`
   - `bigfloat_mul`
   - `bigfloat_neg`
+  - `bigfloat_poly_eval`
   - `bigfloat_sqrt`
   - `bigfloat_sub`
   - `bigfloat_to_f64`
@@ -224,9 +227,9 @@
 ### `bigdecimal`
 
 - 直接依赖：`bigint_common`, `bigint_bin`, `bigint_dec`, `bigint_conv`, `nex_alloc`
-- 源文件：`nex/bigdecimal/nex_bigdecimal.c`, `nex/bigdecimal/nex_bigdecimal_str.c`
+- 源文件：`nex/bigdecimal/nex_bigdecimal.c`, `nex/bigdecimal/nex_bigdecimal_str.c`, `nex/bigdecimal/nex_bigdecimal_poly.c`
 - 公开头：`nex/bigdecimal/nex_bigdecimal.h`
-- 公开函数（24）：
+- 公开函数（25）：
   - `bigdecimal_add`
   - `bigdecimal_cmp`
   - `bigdecimal_compose`
@@ -248,6 +251,7 @@
   - `bigdecimal_is_zero`
   - `bigdecimal_mul`
   - `bigdecimal_neg`
+  - `bigdecimal_poly_eval`
   - `bigdecimal_sqrt`
   - `bigdecimal_sub`
   - `bigdecimal_to_str`

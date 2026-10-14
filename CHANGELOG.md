@@ -7,6 +7,17 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [Unreleased]
+
+### 新增
+
+- **多项式求值（秦九韶 / Horner，TODO §C1）**：`bigint_bin_poly_eval` /
+  `bigfrac_poly_eval` / `bigfloat_poly_eval` / `bigdecimal_poly_eval`，计算
+  `Σ coeffs[i]·x^i`；精确或逐次正确舍入，允许别名、强异常安全。
+- `docs/design.md` §15「多项式与级数」：Horner 舍入协定 + 截断幂级数/Laurent
+  （负幂）设计（TODO §C5）。
+- 测试 `tests/test_poly.c`（`poly_horner`）。
+
 ## [1.2.0] - 2026-10-14
 
 ### 新增

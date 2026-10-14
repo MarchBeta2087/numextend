@@ -95,6 +95,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME convert_unit COMMAND test_convert)
 
+add_executable(test_poly test_poly.c)
+target_link_libraries(test_poly PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_poly PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME poly_horner COMMAND test_poly)
+
 add_executable(convert_golden_driver golden_convert_driver.c)
 target_link_libraries(convert_golden_driver PRIVATE nex)
 

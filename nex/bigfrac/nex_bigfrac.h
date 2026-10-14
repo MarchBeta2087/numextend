@@ -177,6 +177,19 @@ const bigint_bin_ty *bigfrac_num(const bigfrac_ty *frac);
  */
 const bigint_bin_ty *bigfrac_den(const bigfrac_ty *frac);
 
+/*
+ * brief: 多项式求值（秦九韶 / Horner 法）：out = Σ_{i=0}^{degree} coeffs[i]·x^i
+ * param: out    输出对象
+ * param: coeffs 系数数组，共 degree+1 项，coeffs[i] 为 x^i 的系数
+ * param: degree 最高次幂（coeffs 长度须为 degree+1）
+ * param: x      自变量
+ * return: 成功返回 BIGFRAC_OK_E；任一指针为 NULL 返回 BIGFRAC_ERR_INVALID_E；
+ *         内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+ * note: 精确有理数运算，无舍入；out 允许与 x 或 coeffs 元素别名
+ */
+bigfrac_err_ty bigfrac_poly_eval(bigfrac_ty *out,
+        const bigfrac_ty *coeffs, size_t degree, const bigfrac_ty *x);
+
 #ifdef __cplusplus
 }
 #endif
