@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(numextend VERSION 1.2.0 LANGUAGES C)
+project(numextend VERSION 1.3.0 LANGUAGES C)
 
 # 默认构建类型：未显式指定且非多配置生成器时取 RelWithDebInfo（-O2 -g）。
 # 否则 CMake 会以空 CMAKE_BUILD_TYPE 生成 -O0 构建：既严重拖慢性能，
