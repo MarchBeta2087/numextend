@@ -17,7 +17,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - `bench_sweep` 新增 `bigint_dec` 除法扫描（为 §I 的亚二次除法决策提供数据）。
 - **超越函数 `bigfloat_atan`（TODO §D）**：正确舍入（球式实参规约 + 严谨误差界
   + Ziv 提升精度）；新模块 `nex/transcend/`；球式 `sqrt`/`atan`；测试 +
-  mpmath 黄金对拍。
+  mpmath 黄金对拍。**`bigdecimal_atan` 同步落地**（`nex/transcend/nex_transcend_dec.c`；
+  另增 `bigdecimal_ball_sqrt`/`bigdecimal_ball_atan`；倍角用球加法避 `2^k` 非精确）；
+  `golden_series_driver`/`.py` 新增 `atanpubdec`。
 - **`bigint_dec` 亚二次除法**（TODO §I）：Burnikel-Ziegler 递归除法
   （`dbz_div_rem`），dec 基 10⁹ 以 Knuth-D 归一化因子 + 肢移位代替 bin 的整位
   规约；除数 ≥ 64 肢且被除数 ≥ 2×除数自动分派。回归

@@ -23,6 +23,7 @@ FUNCS = {
     "ln1p": lambda mp, x: mp.log(1 + x),
     "atan": lambda mp, x: mp.atan(x),
     "atanpub": lambda mp, x: mp.atan(x),
+    "atanpubdec": lambda mp, x: mp.atan(x),
 }
 
 CASES = [
@@ -40,6 +41,11 @@ CASES = [
     ("atanpub", 64, "1"),
     ("atanpub", 128, "2"),
     ("atanpub", 256, "-10"),
+    # 十进制正确舍入（precision 为有效数字位数）
+    ("atanpubdec", 16, "1"),
+    ("atanpubdec", 16, "-0.5"),
+    ("atanpubdec", 20, "2"),
+    ("atanpubdec", 34, "-10"),
 ]
 
 
@@ -60,10 +66,16 @@ def main():
             print("FAIL: %s %d %s -> ERR" % (fn, bits, z))
             failures += 1
             continue
-        mpmath.mp.prec = bits + 20
-        ref = FUNCS[fn](mpmath.mp, mpmath.mpf(z))
-        got = mpmath.mpf(line)
-        tol = mpmath.mpf(2) ** (-(bits - 4))
+        if fn.endswith("dec"):
+            mpmath.mp.prec = bits * 4 + 40
+            ref = FUNCS[fn](mpmath.mp, mpmath.mpf(z))
+            got = mpmath.mpf(line)
+            tol = mpmath.mpf(10) ** (-(bits - 2))
+        else:
+            mpmath.mp.prec = bits + 20
+            ref = FUNCS[fn](mpmath.mp, mpmath.mpf(z))
+            got = mpmath.mpf(line)
+            tol = mpmath.mpf(2) ** (-(bits - 4))
         if abs(got - ref) > tol * max(mpmath.mpf(1), abs(ref)):
             print("FAIL: %s %d %s got=%s ref=%s" % (fn, bits, z, got, ref))
             failures += 1

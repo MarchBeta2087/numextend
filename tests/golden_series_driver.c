@@ -7,6 +7,7 @@
  *   cos  <prec_bits> <z>
  *   ln1p <prec_bits> <z>
  *   atan <prec_bits> <z>
+ *   atanpubdec <mant_digits> <z>   （十进制正确舍入）
  * 失败输出 "ERR"。参考实现见 golden_series.py（mpmath）。
  */
 
@@ -14,6 +15,7 @@
 #include <string.h>
 
 #include "nex/bigfloat/nex_bigfloat.h"
+#include "nex/bigdecimal/nex_bigdecimal.h"
 #include "nex/bigfrac/nex_bigfrac.h"
 #include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/series/nex_series.h"
@@ -43,6 +45,38 @@ int main(void) {
         char zstr[512];
         unsigned long prec = 0U;
         if (sscanf(line, "%31s %lu %511s", cmd, &prec, zstr) != 3) {
+            continue;
+        }
+        if (strcmp(cmd, "atanpubdec") == 0) {
+            bigdecimal_ctx_ty dctx;
+            bigdecimal_ty dz;
+            bigdecimal_ty dout;
+            bigdecimal_init(&dz);
+            bigdecimal_init(&dout);
+            bigdecimal_err_ty derr = bigdecimal_ctx_make(&dctx, (size_t)prec, 10,
+                    BIGDECIMAL_ROUND_NEAREST_EVEN_E);
+            if (derr == BIGDECIMAL_OK_E &&
+                    bigdecimal_from_str(&dz, zstr, &dctx, NULL) !=
+                        BIGDECIMAL_OK_E) {
+                derr = BIGDECIMAL_ERR_PARSE_E;
+            }
+            if (derr == BIGDECIMAL_OK_E) {
+                derr = bigdecimal_atan(&dout, &dz, &dctx);
+            }
+            if (derr == BIGDECIMAL_OK_E) {
+                char buf[8192];
+                size_t need = 0U;
+                if (bigdecimal_to_str(&dout, BIGDECIMAL_FMT_FIXED_E, buf,
+                        sizeof(buf), &need) == BIGDECIMAL_OK_E) {
+                    printf("%s\n", buf);
+                } else {
+                    printf("ERR\n");
+                }
+            } else {
+                printf("ERR\n");
+            }
+            bigdecimal_free(&dout);
+            bigdecimal_free(&dz);
             continue;
         }
         setup(prec);
