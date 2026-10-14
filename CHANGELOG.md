@@ -31,6 +31,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `t>1` 用 `π/2−atan(1/t)` 归约；π、π/2 由球式 `4·atan(1)`/`2·atan(1)` 严格
   得到）。单元测试含象限/轴/负实轴；随机 mpmath 压测 float 84 例 / decimal
   81 例全过。
+- **指数 `exp`（TODO §D2）**：`bigfloat_exp` / `bigdecimal_exp` 正确舍入（球式
+  折半 + 路线 A 级数 + k 次球平方 + Ziv）；`golden_series` 新增 `exppub` /
+  `exppubdec`（mpmath 对拍）。
 
 ## [1.4.0] - 2026-10-14
 

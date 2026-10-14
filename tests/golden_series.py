@@ -24,6 +24,8 @@ FUNCS = {
     "atan": lambda mp, x: mp.atan(x),
     "atanpub": lambda mp, x: mp.atan(x),
     "atanpubdec": lambda mp, x: mp.atan(x),
+    "exppub": lambda mp, x: mp.exp(x),
+    "exppubdec": lambda mp, x: mp.exp(x),
 }
 
 CASES = [
@@ -46,6 +48,12 @@ CASES = [
     ("atanpubdec", 16, "-0.5"),
     ("atanpubdec", 20, "2"),
     ("atanpubdec", 34, "-10"),
+    ("exppub", 64, "0.5"),
+    ("exppub", 128, "-1"),
+    ("exppub", 256, "2"),
+    ("exppubdec", 16, "1"),
+    ("exppubdec", 16, "-0.5"),
+    ("exppubdec", 20, "10"),
 ]
 
 

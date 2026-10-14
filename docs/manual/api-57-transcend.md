@@ -38,6 +38,21 @@ bigfloat_err_ty bigfloat_atan2(bigfloat_ty *out, const bigfloat_ty *y, const big
 
 **备注**：主值 ∈ (−π, π]；球式半角规约 + Ziv 正确舍入
 
+### `bigfloat_exp`
+
+```c
+bigfloat_err_ty bigfloat_exp(bigfloat_ty *out, const bigfloat_ty *x, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：指数 out = exp(x)，按 ctx 正确舍入
+
+**参数**
+- `out`：输出；x 自变量（有限值）；ctx 目标精度上下文
+
+**返回**：成功返回 BIGFLOAT_OK_E；参数非法或 x 非有限返回 INVALID； 内存不足返回 OOM（out 不变）
+
+**备注**：球式折半 + 路线 A 级数 + k 次球平方 + Ziv 正确舍入
+
 ### `bigdecimal_atan`
 
 ```c
@@ -67,5 +82,20 @@ bigdecimal_err_ty bigdecimal_atan2(bigdecimal_ty *out, const bigdecimal_ty *y, c
 **返回**：成功返回 BIGDECIMAL_OK_E；参数非法或 y/x 非有限返回 BIGDECIMAL_ERR_INVALID_E；内存不足返回 OOM（out 不变）
 
 **备注**：主值 ∈ (−π, π]；球式半角规约 + Ziv 正确舍入
+
+### `bigdecimal_exp`
+
+```c
+bigdecimal_err_ty bigdecimal_exp(bigdecimal_ty *out, const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：指数 out = exp(x)，按 ctx 正确舍入（十进制版）
+
+**参数**
+- `out`：输出；x 自变量（有限值）；ctx 目标精度上下文
+
+**返回**：成功返回 BIGDECIMAL_OK_E；参数非法或 x 非有限返回 INVALID； 内存不足返回 OOM（out 不变）
+
+**备注**：球式折半 + 路线 A 级数 + k 次球平方 + Ziv 正确舍入
 
 NEX_TRANSCEND_H
