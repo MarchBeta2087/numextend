@@ -1428,6 +1428,18 @@ p_k = Σ_{j=0}^{min(k,n)} q_j c_{k−j}
 在 `bigfrac`/`bigfloat`/`bigdecimal` 点计算 `P(z)/Q(z)`（精确部分和 + 终值
 一次舍入）。后续：带误差的 Padé。
 
+## 15.8 球系数数值级数（§I，v1.5.0）
+
+`bigfloat_ball_series_ty` 以 `bigfloat_ball_ty`（中心 + 半径）为系数：
+
+```
+S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}
+```
+
+提供 `from_array` / `copy` / `add` / `sub` / `mul`（截断 `order`）/ `eval`
+（`val ≥ 0`）/ `compose`（`f.val = 0`、`g.val ≥ 0`）；所有运算复用球式四则，
+半径严格传播，因此可对**复合函数/函数级求导**等做严谨数值级数运算。
+
 ---
 
 ## 附录 A：缩写与后缀登记增补建议

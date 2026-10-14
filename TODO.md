@@ -231,14 +231,14 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 
 ## I. v1.5.0 规划（候选）
 
-- **通用（球系数）数值级数**：`bigfloat_ball_series` / `bigdecimal_ball_series`
-  （含四则 / 复合 / 求导 / 积分），复用路线 B 的半径传播，提供**严谨的数值
-  级数**。前置：§D 出现“级数复合 / 函数级求导”的真实需求；**普通**
-  `bigfloat_series`（无误差跟踪）不做。
-- **`bigint_dec` 亚二次除法**：镜像 bin 侧 Burnikel–Ziegler（基 10⁹）。前置：
-  先给 `bench_sweep` 加 `dec` 除法扫描，确认在目标规模确为瓶颈。
-- **退役一次性会话备忘 `MEMO.md`**（本 chore 完成）：耐久内容并入
-  `docs/maintenance.md` §8（本地环境与基准纪律）与 `design §3.4/§G`。
+- **通用（球系数）数值级数**：✅ `bigfloat_ball_series`（init/free/from_array/
+  copy/add/sub/mul/eval/compose）已落地；测试 `tests/test_ball.c`；design §15.8。
+  待续：`bigdecimal_ball_series`。
+- **`bigint_dec` 亚二次除法**：已量化——`bench_sweep` 新增 `dec` 除法扫描，
+  n=1024 肢（≈1 万位）~10 ms，O(n²) 确认（每翻倍 ×4.1）；**常规规模非瓶颈**，
+  继续延后；若需 10⁵ 位再评估。
+- **退役一次性会话备忘 `MEMO.md`**（已在 chore #59 完成）：耐久内容并入
+  `docs/maintenance.md` §8 与 `design §3.4/§G`。
 
 ---
 
