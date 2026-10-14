@@ -17,6 +17,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - `docs/design.md` §15「多项式与级数」：Horner 舍入协定 + 截断幂级数/Laurent
   （负幂）设计（TODO §C5）。
 - 测试 `tests/test_poly.c`（`poly_horner`）。
+- **截断幂级数 / Laurent（`bigfrac` 精确，TODO §C2）**：`bigfrac_series_ty`
+  （`val` / `coeffs` / `len` / `cap`）+ `from_array` / `copy` / `add` / `sub` /
+  `mul`（截断 `order`）/ `inv`（支持 Laurent）/ `eval`（含负幂）。精确、允许
+  别名、OOM 时输出不变；测试 `tests/test_series.c`。
 
 ## [1.2.0] - 2026-10-14
 

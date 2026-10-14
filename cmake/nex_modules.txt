@@ -18,7 +18,7 @@ bigint_bin|bigint_common,bigint_conv,fft,ntt,nex_alloc|nex/bigint/bin/nex_bigint
 bigint_dec|bigint_common,nex_alloc|nex/bigint/dec/nex_bigint_dec.c,nex/bigint/dec/nex_bigint_dec_mul.c,nex/bigint/dec/nex_bigint_dec_div.c|nex/bigint/dec/nex_bigint_dec.h
 bigint_conv|bigint_common,bigint_bin,bigint_dec,nex_alloc|nex/bigint/nex_bigint_conv.c|nex/bigint/nex_bigint_conv.h
 bigint_bin64|bigint_common,bigint_bin,nex_alloc|nex/bigint/bin64/nex_bigint_bin64.c|nex/bigint/bin64/nex_bigint_bin64.h
-bigfrac|bigint_common,bigint_bin|nex/bigfrac/nex_bigfrac.c,nex/bigfrac/nex_bigfrac_poly.c|nex/bigfrac/nex_bigfrac.h
+bigfrac|bigint_common,bigint_bin|nex/bigfrac/nex_bigfrac.c,nex/bigfrac/nex_bigfrac_poly.c,nex/bigfrac/nex_bigfrac_series.c|nex/bigfrac/nex_bigfrac.h
 bigfloat|bigint_common,bigint_bin,nex_alloc|nex/bigfloat/nex_bigfloat.c,nex/bigfloat/nex_bigfloat_str.c,nex/bigfloat/nex_bigfloat_poly.c|nex/bigfloat/nex_bigfloat.h
 bigdecimal|bigint_common,bigint_bin,bigint_dec,bigint_conv,nex_alloc|nex/bigdecimal/nex_bigdecimal.c,nex/bigdecimal/nex_bigdecimal_str.c,nex/bigdecimal/nex_bigdecimal_poly.c|nex/bigdecimal/nex_bigdecimal.h
 bigcomplex_float|bigint_common,bigint_bin,bigfloat,nex_alloc|nex/bigcomplex/float/nex_bigcomplex_float.c|nex/bigcomplex/float/nex_bigcomplex_float.h

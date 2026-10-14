@@ -102,6 +102,13 @@ if(NOT MSVC)
 endif()
 add_test(NAME poly_horner COMMAND test_poly)
 
+add_executable(test_series test_series.c)
+target_link_libraries(test_series PRIVATE nex)
+if(NOT MSVC)
+    target_compile_options(test_series PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME bigfrac_series COMMAND test_series)
+
 add_executable(convert_golden_driver golden_convert_driver.c)
 target_link_libraries(convert_golden_driver PRIVATE nex)
 
