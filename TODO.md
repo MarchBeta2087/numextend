@@ -191,14 +191,22 @@
 
 ## F. X 跨平台多线程封装（隔离评估，默认不进核心）
 
-- [ ] **F1 决策**：作为**独立可选模块或独立仓库**，不进入核心 `libnex` ABI。
-  理由：§14 将「内部多线程」列为非目标，§3.3 承诺「库内部不加锁、线程安全由
-  调用方保证」；纳入核心会破坏契约并引入锁序登记（§13.2 目前为空）。
-- [ ] **F2 若推进**：`pthread` + Win32 双后端（不依赖 C11 `<threads.h>`：
-  MSVC 支持不全、MinGW 视 winpthreads），CMake `find_package(Threads)`。
-- [ ] **F3 CI**：新增 TSan job（**与 ASan job 分开**；MSVC 无 TSan）。
-- [ ] **F4 确定性**：并行归约的求和/舍入顺序需可复现；收益须实测
-  （NTT 仅 ≥ 16384 肢启用，并行前先量化收益）。
+- [x] **F1 决策**：作为**独立可选目标**（**不属 v1.5.0**）推进，**不进入核心
+  `libnex`**、也不进入 `nex_modules.txt`（即不进 `all`、子集闭包与 amalgam），
+  故核心「零依赖 / C99 / 全平台 / 单文件组合」契约不受影响；定位为**调用方
+  驱动**的并行工具，不改变 §3.3「库内不加锁」（§14 将内部多线程列为非目标）。
+  实现前须有具体消费方。
+  - 形态：源码置于 `nex/` **之外**（如 `contrib/nex_thread/`）或独立仓库，配
+    独立 CMake target（`find_package(Threads)`，`-DNEX_ENABLE_THREAD=ON` 显式
+    启用）；这样不触动 `scripts/modules.py` 的「`nex/**` 全部登记」校验。
+  - 若坚持置于 `nex/`：需扩展 modules.py/cmake 支持「optional 模块类」并从
+    默认构建、子集与 amalgam 排除（否则 `modules.py check` 会失败）。
+- [ ] **F2 若实现**：`pthread` + Win32 双后端（不依赖 C11 `<threads.h>`：
+  MSVC 支持不全、MinGW 视 winpthreads）；调用方驱动（parallel-for / 任务队列）
+  + 确定性归约原语（固定分块、固定合并顺序）。
+- [ ] **F3 CI**：独立 job + TSan（与 ASan job 分开；MSVC 无 TSan），不并入
+  现有平台矩阵的默认构建。
+- [ ] **F4 确定性**：并行归约须可复现；收益先量化（NTT 仅 ≥ 16384 肢启用）。
 
 ---
 
