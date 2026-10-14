@@ -33,6 +33,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `nex_series_binom_eval_float` / `_decimal`（在 bigfloat/bigdecimal 点对
   `(1+z)^α` 自适应截断求值：精确部分和 + 终值一次正确舍入）。测试
   `tests/test_series_eval.c`。
+- **路线 A 续：比值尾界 + exp/cos/sin（TODO §C2）**：`bigfrac_series_tail_ratio`
+  （阶乘型系数，`t_n/(1−q_n)`）；`nex_series_exp/cos/sin_order` 与
+  `_eval_float`/`_decimal`；求值新增可选 `err_out`（截断尾严格上界），二项式版
+  同步支持。测试新增十进制 `exp(1)/cos(1)/sin(1)` 已知值对照。
 
 ## [1.2.0] - 2026-10-14
 

@@ -420,4 +420,21 @@ bigfrac_err_ty bigfrac_series_order_geometric(size_t *out, const bigfrac_ty *A, 
 
 **备注**：精确比较 A·(B·r)^n ≤ eps·(1−B·r) 逐步确定 n；上限 1 000 000 阶
 
+### `bigfrac_series_tail_ratio`
+
+```c
+bigfrac_err_ty bigfrac_series_tail_ratio(bigfrac_ty *out, const bigfrac_ty *first_omitted, const bigfrac_ty *q);
+```
+
+**说明**：比值型尾界：若自首个略去项起相邻项幅度比 ≤ q（q < 1），则 尾部之和 ≤ first_omitted / (1 − q)
+
+**参数**
+- `out`：输出上界（≥ 0）
+- `first_omitted`：首个略去项的幅度（≥ 0）
+- `q`：相邻项幅度比上界（0 ≤ q < 1）
+
+**返回**：成功返回 BIGFRAC_OK_E；指针为 NULL / 参数为负 / q ≥ 1 返回 BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E（out 不变）
+
+**备注**：适合阶乘型系数（exp/sin/cos），比几何型界更紧；用于 design §15.6 路线 A
+
 NEX_BIGFRAC_H

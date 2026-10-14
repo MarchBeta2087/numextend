@@ -173,7 +173,7 @@
 - 直接依赖：`bigint_common`, `bigint_bin`
 - 源文件：`nex/bigfrac/nex_bigfrac.c`, `nex/bigfrac/nex_bigfrac_poly.c`, `nex/bigfrac/nex_bigfrac_series.c`, `nex/bigfrac/nex_bigfrac_binom.c`, `nex/bigfrac/nex_bigfrac_series_bound.c`
 - 公开头：`nex/bigfrac/nex_bigfrac.h`
-- 公开函数（28）：
+- 公开函数（29）：
   - `bigfrac_add`
   - `bigfrac_binom`
   - `bigfrac_cmp`
@@ -201,6 +201,7 @@
   - `bigfrac_series_order_geometric`
   - `bigfrac_series_sub`
   - `bigfrac_series_tail_geometric`
+  - `bigfrac_series_tail_ratio`
   - `bigfrac_sub`
 
 ### `bigfloat`
@@ -338,8 +339,17 @@
 - 直接依赖：`bigfrac`, `bigfloat`, `bigdecimal`, `convert`
 - 源文件：`nex/series/nex_series.c`
 - 公开头：`nex/series/nex_series.h`
-- 公开函数（4）：
+- 公开函数（13）：
   - `nex_series_binom_eval_decimal`
   - `nex_series_binom_eval_float`
   - `nex_series_binom_model`
   - `nex_series_binom_order`
+  - `nex_series_cos_eval_decimal`
+  - `nex_series_cos_eval_float`
+  - `nex_series_cos_order`
+  - `nex_series_exp_eval_decimal`
+  - `nex_series_exp_eval_float`
+  - `nex_series_exp_order`
+  - `nex_series_sin_eval_decimal`
+  - `nex_series_sin_eval_float`
+  - `nex_series_sin_order`
