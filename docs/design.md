@@ -600,8 +600,9 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
   - **16-bit 节安全性澄清**：舍入误差界 |error| ≈ 2·ε·(1+6·log2N)·C
     （C = L·(2^b−1)²）在 16-bit 下于 min_len ≈ 2048 附近逼近 0.5，
     实测 3072 肢即出错，故 16-bit 仅保留给强制方法（`NEX_MUL_FFT_B16_MAX_SUM
-    = 1024` 的长度和上限）。8-bit 的误差界在现实规模（≤ 65536 肢，已
-    随机多轮验证）下 << 0.5，安全。
+    = 1024` 的长度和上限；强制 `chunk_bits = 16` 且长度和超出时返回
+    `BIGINT_ERR_UNSUPPORTED_E`，不静默出错）。8-bit 的误差界在现实规模
+    （≤ 65536 肢，已随机多轮验证）下 << 0.5，安全。
   - `test_fft_mul` 新增强制 FFT-8 在 8192/16384/32768/65536 肢的正确性
     用例（与 Toom-3 参考对拍）。
   十进制 FFT 未实现（还原需分治基数转换，见 §13），本节十进制约定
