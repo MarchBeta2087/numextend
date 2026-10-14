@@ -339,7 +339,10 @@
 - 直接依赖：`bigfrac`, `bigfloat`, `bigdecimal`, `convert`
 - 源文件：`nex/series/nex_series.c`
 - 公开头：`nex/series/nex_series.h`
-- 公开函数（13）：
+- 公开函数（19）：
+  - `nex_series_atan_eval_decimal`
+  - `nex_series_atan_eval_float`
+  - `nex_series_atan_order`
   - `nex_series_binom_eval_decimal`
   - `nex_series_binom_eval_float`
   - `nex_series_binom_model`
@@ -350,6 +353,9 @@
   - `nex_series_exp_eval_decimal`
   - `nex_series_exp_eval_float`
   - `nex_series_exp_order`
+  - `nex_series_ln1p_eval_decimal`
+  - `nex_series_ln1p_eval_float`
+  - `nex_series_ln1p_order`
   - `nex_series_sin_eval_decimal`
   - `nex_series_sin_eval_float`
   - `nex_series_sin_order`

@@ -130,6 +130,9 @@
         `nex_series_exp/cos/sin_order` 与 `_eval_float`/`_decimal`；求值新增可选
         `err_out` 输出截断尾上界（二项式版同步支持）；测试含十进制
         `exp(1)/cos(1)/sin(1)` 已知值对照。
+  - [x] 逆幂核：`nex_series_ln1p_order`/`atan_order` 与
+        `nex_series_{ln1p,atan}_eval_float`/`_decimal`；测试含 `ln(1.5)`、
+        `atan(0.5)` 十进制已知值对照。
   - [ ] 路线 B：球式（中心 + 误差半径）表示与半径传播。
   - [ ] `bigfloat`/`bigdecimal` 级数 + **严谨误差界** + 自适应截断。
   - [ ] 级数复合与求导 / 积分。
