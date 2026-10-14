@@ -36,6 +36,8 @@ MODULES = [
      "bigcomplex_decimal —— 十进制浮点复数"),
     ("nex/convert/nex_convert.h", "api-50-convert",
      "convert —— 跨类型转换矩阵"),
+    ("nex/series/nex_series.h", "api-55-series",
+     "series —— 幂级数求值（精确系数 + 全局尾界）"),
     ("nex/fft/nex_fft.h", "api-60-fft",
      "fft —— 浮点复数 FFT 核心（低层）"),
     ("nex/ntt/nex_ntt.h", "api-61-ntt",

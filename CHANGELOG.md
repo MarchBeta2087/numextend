@@ -28,6 +28,11 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `bigfrac_series_tail_geometric`（`|a_k|≤A·B^k`、`|z|≤r`、`q=Br<1` 时
   `≤A·qⁿ/(1−q)`）与自适应阶 `bigfrac_series_order_geometric`；`design §15.6`
   规划路线 A（精确系数 + 全局尾界）与路线 B（球式）。测试 `tests/test_series_bound.c`。
+- **路线 A 数值求值（TODO §C2）**：新模块 `nex/series/`——`nex_series_binom_model`
+  （(A,B) 模型）、`nex_series_binom_order`（自适应阶）、
+  `nex_series_binom_eval_float` / `_decimal`（在 bigfloat/bigdecimal 点对
+  `(1+z)^α` 自适应截断求值：精确部分和 + 终值一次正确舍入）。测试
+  `tests/test_series_eval.c`。
 
 ## [1.2.0] - 2026-10-14
 
