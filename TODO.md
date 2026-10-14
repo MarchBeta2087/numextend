@@ -63,7 +63,8 @@
       `bigint_bin` 时）；CI 新增 `linux-subset` 矩阵。
 - [x] 验收：`bigint_bin,bigfrac` / `bigfloat` / `fft,ntt` / `convert` 均通过；
       `convert` 闭包正确排除无依赖的 `bigint_bin64`。
-- 未做：`NEX_MINIMAL` 预设（价值有限，暂缓）。
+- 决策：`NEX_MINIMAL` 预设**移入 §H（非目标）**——依赖环使“最小”名不副实
+  （`NEX_MODULES=bigint_bin` 闭包已含 dec/conv/fft/ntt）；`NEX_MODULES` 已足够。
 
 ### B3 函数级子集 — ⏸ 暂缓（不承诺），改为低成本替代
 
@@ -95,7 +96,9 @@
 - [x] CMake 选项 `-DNEX_AMALGAM=ON`（配置期生成，单 TU 构建）。
 - [x] 验收：`linux-amalgam` CI 用**全量 CTest（34/34）**验证与分文件构建等价；
       子集 amalgam（`bigfloat`）亦通过 `subset_smoke`。
-- 未做：可选单头（STB `NEX_IMPLEMENTATION` 风格）——消费模型改动大，暂缓。
+- 决策：可选单头（STB `NEX_IMPLEMENTATION` 风格）**移入 §H（非目标）**——二文件
+  `nex_amalgam.c/.h` 已覆盖“拖入即用”；若出现明确需求，为约 30 行的生成器扩展
+  （`scripts/amalgamate.py --single-header`），届时再做。
 
 ### B5 子集/合并文档生成 — ✅ 已完成
 
@@ -107,13 +110,13 @@
 
 ---
 
-## C. P2 秦九韶 / 幂级数 / Padé 基础设施（目标 v1.3）— 进行中
+## C. P2 秦九韶 / 幂级数 / Padé 基础设施（目标 v1.3）— ✅ 已完成
 
 - [x] **C1 秦九韶（Horner）多项式求值**
   - 已落地：`*_poly_eval` 覆盖 `bigint_bin`/`bigfrac`/`bigfloat`/`bigdecimal`；
     精确（整数/有理数）或逐次正确舍入（浮点，按 `ctx`）；out 允许别名，强异常安全。
   - 测试：`tests/test_poly.c`（`poly_horner`）。
-- [ ] **C2 幂级数**（进行中：`bigfrac` 精确版已落地）
+- [x] **C2 幂级数**
   - [x] `bigfrac_series_ty` + `from_array`/`copy`/`add`/`sub`/`mul`（截断
         `order`）/`inv`（Laurent）/`eval`（含负幂）；测试 `tests/test_series.c`。
   - [x] 广义二项式系数 `bigfrac_binom` + 二项式级数 `bigfrac_series_binom`；
@@ -138,8 +141,8 @@
         （折半 + 球平方 / half-angle）；测试 `tests/test_ball.c`。待续：更大 |x|。
   - [x] 数值类型（bigfloat/bigdecimal）严谨误差界 + 自适应截断（路线 A
         `*_order` + `err_out`；路线 B 球式传播）。
-  - [ ] **可选**：通用数值系数级数类型（`bigfloat_series`/`bigdecimal_series`，
-        含四则/复合）——§D 逐点求值不需要，非 v1.3 阻塞项。
+  - [x] 通用（球系数）数值级数 `bigfloat_ball_series` / `bigdecimal_ball_series`
+        ——已在 §I（v1.5.0）落地（`nex/ball/nex_ball_series*.c`）。
   - [x] 复合与求导 / 积分：`bigfrac_series_deriv` / `integral`（前导零归一；
         `z^{−1}` 项积分报错）/ `compose`（秦九韶式）；测试入 `tests/test_series.c`。
 - [x] **C3 Padé 逼近**：`nex_series_pade_frac`（bigfrac 高斯消元，[m/n] 系数
@@ -159,12 +162,29 @@
 > 前置：C1–C5。每阶段须有**误差分析 + 外部黄金 + 定向边界用例**；
 > `bigfloat` 与 `bigdecimal` 的规约各自实现。
 
-- [ ] **D1 `atan`**：落地后重新引入复数辐角 `bigcomplex_*_arg`（v1 已移出公开面）。
-- [ ] **D2 `exp` / `log` / `ln`**（二进制 + 十进制各一套）。
-- [ ] **D3 `sin` / `cos` / `tan`**：含**大参数 Payne–Hanek 规约**（需高精度 π）。
-- [ ] **D4 `asin` / `acos` / `atan`**。
-- [ ] **D5 复数超越函数**（`bigcomplex_float` / `bigcomplex_decimal`）。
-- [ ] **D6 正确舍入**：保护位 + 粘位、无双重舍入；补 §7/§9 语义规范。
+- [x] **D1 `atan` / `atan2` / `arg`**：✅ `bigfloat_atan` + `bigdecimal_atan`
+      （正确舍入：球式规约 + Ziv；含 `bigdecimal_ball_sqrt`/`bigdecimal_ball_atan`）；
+      ✅ `bigfloat_atan2` / `bigdecimal_atan2`（直角分象限 + π 球，避大参数与
+      灾难抵消）与复数辐角 `bigcomplex_float_arg` / `bigcomplex_decimal_arg`
+      （重新引入，§9.2）；单元测试（含象限/轴/负实轴）+ 随机 mpmath 压测。
+- [x] **D2 `exp` / `log` / `ln`**：✅ `bigfloat_exp` / `bigdecimal_exp`、
+      `bigfloat_log` / `bigdecimal_log`（正确舍入；log 用球式迭代平方根规约
+      `y=x^(1/2^k)` → `ln1p` 级数 → 2^k 球加法回放；球式 `ball_log` 公开）；
+      测试 + mpmath 黄金 `exppub`/`exppubdec`/`logpub`/`logpubdec`。
+- [x] **D3 `sin` / `cos` / `tan`**：✅ `bigfloat_*` / `bigdecimal_*` 正确舍入
+      （球式折半 + half-angle 倍角 + Ziv；球式 `ball_tan` = sin/cos）；折半上限
+      提到 64（覆盖 |x| ≲ 2⁶³）；修复 `sincos_reduced` 的 `one_ball` 半径错误
+      （原为 [0,2]）。待续：超大 |x|（> 2⁶³）的 Payne–Hanek 规约（需高精度 π）。
+- [x] **D4 `asin` / `acos` / `atan`**：✅ `bigfloat_asin`/`acos` 与
+      `bigdecimal_asin`/`acos` 正确舍入（球式 `asin = atan(x/√(1−x²))`、`acos =
+      π/2 − asin`；`atan` 见 D1）；特判 `acos(1)=0` 避免对称球跨 0 时 Ziv 不收敛。
+- [x] **D5 复数超越函数**：✅ `bigcomplex_float_*` / `bigcomplex_decimal_*` 的
+      `exp`/`log`/`sqrt`/`sin`/`cos`/`tan`（分量运算，各步按 `ctx` 舍入；
+      `sinh`/`cosh` 由 `exp` 组合；NaN 分量传播、含 ±∞ 返回 INVALID）；
+      单元测试 + 本机 mpmath 压测（float/decimal）。
+- [x] **D6 正确舍入规范收口**：✅ design **§16.1** 汇总正确舍入语义与边界
+      （算术：保护位 + 粘位、一次舍入、无双重舍入；超越：球式严谨界 + Ziv；
+      复合：各步正确舍入；Ziv 终止/特判/范围/无次正规）；§7.3、§9.2 交叉引用。
 
 ---
 
@@ -181,22 +201,31 @@
 
 ## F. X 跨平台多线程封装（隔离评估，默认不进核心）
 
-- [ ] **F1 决策**：作为**独立可选模块或独立仓库**，不进入核心 `libnex` ABI。
-  理由：§14 将「内部多线程」列为非目标，§3.3 承诺「库内部不加锁、线程安全由
-  调用方保证」；纳入核心会破坏契约并引入锁序登记（§13.2 目前为空）。
-- [ ] **F2 若推进**：`pthread` + Win32 双后端（不依赖 C11 `<threads.h>`：
-  MSVC 支持不全、MinGW 视 winpthreads），CMake `find_package(Threads)`。
-- [ ] **F3 CI**：新增 TSan job（**与 ASan job 分开**；MSVC 无 TSan）。
-- [ ] **F4 确定性**：并行归约的求和/舍入顺序需可复现；收益须实测
-  （NTT 仅 ≥ 16384 肢启用，并行前先量化收益）。
+- [x] **F1 决策**：作为**独立可选目标**（**不属 v1.5.0**）推进，**不进入核心
+  `libnex`**、也不进入 `nex_modules.txt`（即不进 `all`、子集闭包与 amalgam），
+  故核心「零依赖 / C99 / 全平台 / 单文件组合」契约不受影响；定位为**调用方
+  驱动**的并行工具，不改变 §3.3「库内不加锁」（§14 将内部多线程列为非目标）。
+  实现前须有具体消费方。
+  - 形态：源码置于 `nex/` **之外**（如 `contrib/nex_thread/`）或独立仓库，配
+    独立 CMake target（`find_package(Threads)`，`-DNEX_ENABLE_THREAD=ON` 显式
+    启用）；这样不触动 `scripts/modules.py` 的「`nex/**` 全部登记」校验。
+  - 若坚持置于 `nex/`：需扩展 modules.py/cmake 支持「optional 模块类」并从
+    默认构建、子集与 amalgam 排除（否则 `modules.py check` 会失败）。
+- [ ] **F2 若实现**：`pthread` + Win32 双后端（不依赖 C11 `<threads.h>`：
+  MSVC 支持不全、MinGW 视 winpthreads）；调用方驱动（parallel-for / 任务队列）
+  + 确定性归约原语（固定分块、固定合并顺序）。
+- [ ] **F3 CI**：独立 job + TSan（与 ASan job 分开；MSVC 无 TSan），不并入
+  现有平台矩阵的默认构建。
+- [ ] **F4 确定性**：并行归约须可复现；收益先量化（NTT 仅 ≥ 16384 肢启用）。
 
 ---
 
 ## G. 已知技术债 / 风险（v1.4.0 后）
 
-- **`bigint_dec` 无亚二次除法**：⏳ **延后**——仅性能（`bigint_dec` 仍 Knuth D
-  O(n²)），不影响语义正确性；bin 侧已有 BZ。列为后续性能方向（§13），
-  非 v1.4.0 阻塞。
+- **`bigint_dec` 无亚二次除法**：✅ v1.5.0 已解决——移植 Burnikel-Ziegler 递归
+  除法（`dbz_div_rem`；基 10⁹ 以 Knuth-D 归一化因子 d + 肢移位 pad 代替 bin 的
+  位规约），除数 ≥ 64 肢且被除数 ≥ 2×除数自动分派；10⁵ 位 ≈ 45 ms（原 Knuth D
+  ≈ 360 ms，约 8×）。见 §I。
 
 ### v1.4.0 已关闭
 
@@ -225,7 +254,24 @@ Montgomery 模幂（v0.16）· Newton 整数除法（v0.16）· NTT 三模数（
 **非目标（除非 §F 明确独立化）：**
 
 SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发布 ·
-次正规浮点（§7.3）· 公开惰性无穷列表抽象（§E）。
+次正规浮点（§7.3）· 公开惰性无穷列表抽象（§E）· `NEX_MINIMAL` 预设
+（依赖环使“最小”不成立）· 单头 STB `NEX_IMPLEMENTATION` 风格
+（二文件 amalgam 已覆盖；如有需求再做）。
+
+---
+
+## I. v1.5.0 规划（候选）
+
+- **通用（球系数）数值级数**：✅ `bigfloat_ball_series` 与
+  `bigdecimal_ball_series`（init/free/from_array/copy/add/sub/mul/eval/compose）
+  均已落地；测试 `tests/test_ball.c`；design §15.8。
+- **`bigint_dec` 亚二次除法**：✅ 已实现 Burnikel-Ziegler（`dbz_div_rem`；dec 基
+  10⁹ 的 Knuth-D 归一化 + 肢移位规约，阈值 64 肢自动分派）；回归
+  `tests/test_bigint_dec::test_bz`（分派边界/随机/稀疏/全 9/精确整除）；
+  `bench_sweep` dec 除法扫描更新。实测 n=1024 肢 14→2.9 ms、2048 肢 8.2 ms、
+  10⁵ 位 ≈ 45 ms（约 8×）。
+- **退役一次性会话备忘 `MEMO.md`**（已在 chore #59 完成）：耐久内容并入
+  `docs/maintenance.md` §8 与 `design §3.4/§G`。
 
 ---
 

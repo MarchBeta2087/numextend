@@ -275,42 +275,56 @@
 
 ### `bigcomplex_float`
 
-- 直接依赖：`bigint_common`, `bigint_bin`, `bigfloat`, `nex_alloc`
+- 直接依赖：`bigint_common`, `bigint_bin`, `bigfloat`, `transcend`, `nex_alloc`
 - 源文件：`nex/bigcomplex/float/nex_bigcomplex_float.c`
 - 公开头：`nex/bigcomplex/float/nex_bigcomplex_float.h`
-- 公开函数（13）：
+- 公开函数（20）：
   - `bigcomplex_float_abs`
   - `bigcomplex_float_add`
+  - `bigcomplex_float_arg`
   - `bigcomplex_float_conj`
   - `bigcomplex_float_copy`
+  - `bigcomplex_float_cos`
   - `bigcomplex_float_div`
   - `bigcomplex_float_eq`
+  - `bigcomplex_float_exp`
   - `bigcomplex_float_free`
   - `bigcomplex_float_from_parts`
   - `bigcomplex_float_from_str`
   - `bigcomplex_float_init`
+  - `bigcomplex_float_log`
   - `bigcomplex_float_mul`
+  - `bigcomplex_float_sin`
+  - `bigcomplex_float_sqrt`
   - `bigcomplex_float_sub`
+  - `bigcomplex_float_tan`
   - `bigcomplex_float_to_str`
 
 ### `bigcomplex_decimal`
 
-- 直接依赖：`bigdecimal`, `nex_alloc`
+- 直接依赖：`bigdecimal`, `transcend`, `nex_alloc`
 - 源文件：`nex/bigcomplex/decimal/nex_bigcomplex_decimal.c`
 - 公开头：`nex/bigcomplex/decimal/nex_bigcomplex_decimal.h`
-- 公开函数（13）：
+- 公开函数（20）：
   - `bigcomplex_decimal_abs`
   - `bigcomplex_decimal_add`
+  - `bigcomplex_decimal_arg`
   - `bigcomplex_decimal_conj`
   - `bigcomplex_decimal_copy`
+  - `bigcomplex_decimal_cos`
   - `bigcomplex_decimal_div`
   - `bigcomplex_decimal_eq`
+  - `bigcomplex_decimal_exp`
   - `bigcomplex_decimal_free`
   - `bigcomplex_decimal_from_parts`
   - `bigcomplex_decimal_from_str`
   - `bigcomplex_decimal_init`
+  - `bigcomplex_decimal_log`
   - `bigcomplex_decimal_mul`
+  - `bigcomplex_decimal_sin`
+  - `bigcomplex_decimal_sqrt`
   - `bigcomplex_decimal_sub`
+  - `bigcomplex_decimal_tan`
   - `bigcomplex_decimal_to_str`
 
 ### `convert`
@@ -370,10 +384,13 @@
 ### `ball`
 
 - 直接依赖：`bigfloat`, `bigdecimal`, `series`
-- 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`
+- 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`, `nex/ball/nex_ball_series.c`, `nex/ball/nex_ball_series_dec.c`
 - 公开头：`nex/ball/nex_ball.h`
-- 公开函数（24）：
+- 公开函数（54）：
+  - `bigdecimal_ball_acos`
   - `bigdecimal_ball_add`
+  - `bigdecimal_ball_asin`
+  - `bigdecimal_ball_atan`
   - `bigdecimal_ball_contains`
   - `bigdecimal_ball_copy`
   - `bigdecimal_ball_cos`
@@ -381,11 +398,26 @@
   - `bigdecimal_ball_exp`
   - `bigdecimal_ball_free`
   - `bigdecimal_ball_init`
+  - `bigdecimal_ball_log`
   - `bigdecimal_ball_mul`
+  - `bigdecimal_ball_series_add`
+  - `bigdecimal_ball_series_compose`
+  - `bigdecimal_ball_series_copy`
+  - `bigdecimal_ball_series_eval`
+  - `bigdecimal_ball_series_free`
+  - `bigdecimal_ball_series_from_array`
+  - `bigdecimal_ball_series_init`
+  - `bigdecimal_ball_series_mul`
+  - `bigdecimal_ball_series_sub`
   - `bigdecimal_ball_set`
   - `bigdecimal_ball_sin`
+  - `bigdecimal_ball_sqrt`
   - `bigdecimal_ball_sub`
+  - `bigdecimal_ball_tan`
+  - `bigfloat_ball_acos`
   - `bigfloat_ball_add`
+  - `bigfloat_ball_asin`
+  - `bigfloat_ball_atan`
   - `bigfloat_ball_contains`
   - `bigfloat_ball_copy`
   - `bigfloat_ball_cos`
@@ -393,7 +425,44 @@
   - `bigfloat_ball_exp`
   - `bigfloat_ball_free`
   - `bigfloat_ball_init`
+  - `bigfloat_ball_log`
   - `bigfloat_ball_mul`
+  - `bigfloat_ball_series_add`
+  - `bigfloat_ball_series_compose`
+  - `bigfloat_ball_series_copy`
+  - `bigfloat_ball_series_eval`
+  - `bigfloat_ball_series_free`
+  - `bigfloat_ball_series_from_array`
+  - `bigfloat_ball_series_init`
+  - `bigfloat_ball_series_mul`
+  - `bigfloat_ball_series_sub`
   - `bigfloat_ball_set`
   - `bigfloat_ball_sin`
+  - `bigfloat_ball_sqrt`
   - `bigfloat_ball_sub`
+  - `bigfloat_ball_tan`
+
+### `transcend`
+
+- 直接依赖：`bigfloat`, `bigdecimal`, `ball`
+- 源文件：`nex/transcend/nex_transcend.c`, `nex/transcend/nex_transcend_dec.c`
+- 公开头：`nex/transcend/nex_transcend.h`
+- 公开函数（18）：
+  - `bigdecimal_acos`
+  - `bigdecimal_asin`
+  - `bigdecimal_atan`
+  - `bigdecimal_atan2`
+  - `bigdecimal_cos`
+  - `bigdecimal_exp`
+  - `bigdecimal_log`
+  - `bigdecimal_sin`
+  - `bigdecimal_tan`
+  - `bigfloat_acos`
+  - `bigfloat_asin`
+  - `bigfloat_atan`
+  - `bigfloat_atan2`
+  - `bigfloat_cos`
+  - `bigfloat_exp`
+  - `bigfloat_log`
+  - `bigfloat_sin`
+  - `bigfloat_tan`

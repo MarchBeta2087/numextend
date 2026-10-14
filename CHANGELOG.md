@@ -7,6 +7,65 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [1.5.0] - 2026-10-15
+
+### 新增
+
+- **球系数截断级数**（TODO §I）：`bigfloat_ball_series_ty` /
+  `bigdecimal_ball_series_ty` + `init`/`free`/`from_array`/`copy`/`add`/`sub`/
+  `mul`/`eval`/`compose`——系数为球，四则/复合/求值全程由球传播半径。
+- `bench_sweep` 新增 `bigint_dec` 除法扫描（为 §I 的亚二次除法决策提供数据）。
+- **超越函数 `bigfloat_atan`（TODO §D）**：正确舍入（球式实参规约 + 严谨误差界
+  + Ziv 提升精度）；新模块 `nex/transcend/`；球式 `sqrt`/`atan`；测试 +
+  mpmath 黄金对拍。**`bigdecimal_atan` 同步落地**（`nex/transcend/nex_transcend_dec.c`；
+  另增 `bigdecimal_ball_sqrt`/`bigdecimal_ball_atan`；倍角用球加法避 `2^k` 非精确）；
+  `golden_series_driver`/`.py` 新增 `atanpubdec`。
+- **`bigint_dec` 亚二次除法**（TODO §I）：Burnikel-Ziegler 递归除法
+  （`dbz_div_rem`），dec 基 10⁹ 以 Knuth-D 归一化因子 + 肢移位代替 bin 的整位
+  规约；除数 ≥ 64 肢且被除数 ≥ 2×除数自动分派。回归
+  `tests/test_bigint_dec::test_bz`（分派边界/随机/稀疏/全 9/精确整除）；10⁵ 位
+  ≈ 45 ms（原 Knuth D ≈ 360 ms，约 8×）。
+- **复数辐角 `arg` 重新引入**（TODO §D1）：`bigcomplex_float_arg` /
+  `bigcomplex_decimal_arg` 经新公开的 `bigfloat_atan2` / `bigdecimal_atan2`
+  正确舍入实现（直角分象限 `atan(y/x)`，`x<0` 用 `sign(y)·(π−atan(|y|/|x|))`，
+  `t>1` 用 `π/2−atan(1/t)` 归约；π、π/2 由球式 `4·atan(1)`/`2·atan(1)` 严格
+  得到）。单元测试含象限/轴/负实轴；随机 mpmath 压测 float 84 例 / decimal
+  81 例全过。
+- **指数 `exp`（TODO §D2）**：`bigfloat_exp` / `bigdecimal_exp` 正确舍入（球式
+  折半 + 路线 A 级数 + k 次球平方 + Ziv）；`golden_series` 新增 `exppub` /
+  `exppubdec`（mpmath 对拍）。
+- **自然对数 `log`（TODO §D2）**：`bigfloat_log` / `bigdecimal_log` 正确舍入；
+  球式 `ball_log` 用**迭代平方根规约**（`y = x^(1/2^k)` 使 `|y−1| ≤ 1/8`）+
+  `ln1p` 级数 + 2^k 球加法回放，float/decimal 统一；`golden_series` 新增
+  `logpub` / `logpubdec`。
+- **三角 `sin` / `cos` / `tan`（TODO §D3）**：`bigfloat_*` / `bigdecimal_*` 正确
+  舍入（球式折半 + half-angle 倍角 + Ziv）；球式 `ball_tan` = sin/cos；折半上限
+  20→64（覆盖 |x| ≲ 2⁶³）；`golden_series` 新增 `sinpub`/`cospub`/`tanpub` 与
+  十进制版。
+- **反三角 `asin` / `acos`（TODO §D4）**：`bigfloat_asin/acos` 与
+  `bigdecimal_asin/acos` 正确舍入（球式 `asin = atan(x/√(1−x²))`、`acos = π/2 −
+  asin`）；特判 `acos(1)=0`（对称球跨 0 时 Ziv 不收敛）；`golden_series` 新增
+  `asinpub`/`acospub` 与十进制版。
+- **复数超越函数（TODO §D5）**：`bigcomplex_float_*` / `bigcomplex_decimal_*` 的
+  `exp`/`log`/`sqrt`/`sin`/`cos`/`tan`（分量运算，各步按 `ctx` 舍入；
+  `sinh`/`cosh` 由 `exp` 组合；`sqrt` 用稳定式避负实轴抵消；NaN 传播、含 ±∞
+  返回 INVALID）；单元测试 + mpmath 压测。
+
+### 文档
+
+- **正确舍入语义规范收口（TODO §D6）**：design **§16.1** 汇总算术（保护位 + 粘位、
+  一次舍入、无双重舍入）、超越（球式严谨界 + Ziv）、复合（各步正确舍入）与
+  Ziv 终止边界/范围限制/无次正规；§7.3、§9.2 交叉引用。
+- **设计文档过时项清理**：修正 `bigint_mul_algo_ty` 枚举注释（Toom-3 / 浮点 FFT /
+  多模数 NTT 已实现，非“v1 未实现”；含公开头与生成手册）；§1.3 非目标、§13 #2/#8、
+  §14 表（超越已实现、大端/32 位已验证）、§15.3/§15.6 实现状态同步。
+
+### 修复
+
+- **球式 `sincos_reduced` 的 `one_ball` 半径错误**：原 `ball_set(&one_ball, &one,
+  &one, ...)` 使 `one_ball = [0,2]`（半径 1），导致 k≥2 折半时 sin/cos 球半径
+  暴涨（x=1 时 rad≈1），正确舍入包装无法收敛。改为半径 0。
+
 ## [1.4.0] - 2026-10-14
 
 ### 修复
@@ -156,6 +215,7 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
+[1.5.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.5.0
 [1.4.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.4.0
 [1.3.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.3.0
 [1.2.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.2.0

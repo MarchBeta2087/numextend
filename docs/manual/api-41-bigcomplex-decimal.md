@@ -119,6 +119,80 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_abs(bigdecimal_ty *dst, const bigco
 
 **说明**：模 |src| = sqrt(re² + im²)（分量运算，中间量可能过早溢出， 缩放算法列为后续方向，§9.2）
 
+### `bigcomplex_decimal_arg`
+
+```c
+bigcomplex_decimal_err_ty bigcomplex_decimal_arg(bigdecimal_ty *dst, const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：辐角 arg(src) = atan2(im, re)，主值 ∈ (−π, π]（正确舍入，§9.2/§16）
+
+**返回**：成功返回 OK（任一分量为 NaN 时 dst 置 NaN）；参数非法或含 ±∞ 返回 INVALID；内存不足返回 OOM（dst 不变）
+
+**备注**：经 bigdecimal_atan2（球式半角规约 + Ziv）；负实轴（im=0, re<0）取 +π
+
+## 超越函数（§D5）：分量运算，各步按 ctx 舍入
+
+### `bigcomplex_decimal_exp`
+
+```c
+bigcomplex_decimal_err_ty bigcomplex_decimal_exp(bigcomplex_decimal_ty *dst, const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：复指数 exp(z) = e^re·(cos im + i sin im)（十进制版）
+
+**返回**：成功返回 OK（NaN 分量传播为 (NaN,NaN)）；参数非法/含 ±∞ 返回 INVALID；内存不足返回 OOM（dst 不变）
+
+### `bigcomplex_decimal_log`
+
+```c
+bigcomplex_decimal_err_ty bigcomplex_decimal_log(bigcomplex_decimal_ty *dst, const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：复对数 log(z) = log|z| + i·arg(z)（主值；z ≠ 0，十进制版）
+
+**返回**：同 exp；z = 0 返回 INVALID
+
+### `bigcomplex_decimal_sqrt`
+
+```c
+bigcomplex_decimal_err_ty bigcomplex_decimal_sqrt(bigcomplex_decimal_ty *dst, const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：复平方根 sqrt(z)（主值，右半平面，十进制版）
+
+**返回**：同 exp
+
+### `bigcomplex_decimal_sin`
+
+```c
+bigcomplex_decimal_err_ty bigcomplex_decimal_sin(bigcomplex_decimal_ty *dst, const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：复正弦 sin(z) = sin re·cosh im + i·cos re·sinh im（十进制版）
+
+**返回**：同 exp（|im| 过大时 e^{|im|} 可能溢出）
+
+### `bigcomplex_decimal_cos`
+
+```c
+bigcomplex_decimal_err_ty bigcomplex_decimal_cos(bigcomplex_decimal_ty *dst, const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：复余弦 cos(z) = cos re·cosh im − i·sin re·sinh im（十进制版）
+
+**返回**：同 sin
+
+### `bigcomplex_decimal_tan`
+
+```c
+bigcomplex_decimal_err_ty bigcomplex_decimal_tan(bigcomplex_decimal_ty *dst, const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：复正切 tan(z) = sin(z)/cos(z)（十进制版）
+
+**返回**：同 exp；cos(z) = 0（极点）返回 INVALID
+
 ## 四则（§9.2）
 
 ### `bigcomplex_decimal_add`

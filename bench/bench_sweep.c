@@ -42,9 +42,9 @@ static double g_sec_start_ms = 0.0;
 static double g_sec_budget_s = 0.0;
 static uint64_t g_seed = 0x20260814ULL;
 
-/* 各扫描占总预算的权重：mul div gcd conv str isqrt bigfloat bigdecimal */
-static const int g_sec_weights[8] = {3, 2, 2, 1, 1, 2, 1, 1};
-#define SEC_WEIGHT_TOTAL 13
+/* 各扫描占总预算的权重：mul div gcd conv str isqrt bigfloat bigdecimal dec_div */
+static const int g_sec_weights[9] = {3, 2, 2, 1, 1, 2, 1, 1, 2};
+#define SEC_WEIGHT_TOTAL 15
 
 /* 开始一个扫描段：按权重分配该段的时间预算（保证各段都有测量） */
 static void begin_section(int idx) {
@@ -239,6 +239,48 @@ static void sweep_div(void) {
         bigint_bin_free(&q);
         bigint_bin_free(&b);
         bigint_bin_free(&a);
+    }
+    printf("\n");
+}
+
+/* ---------------- dec 除法扫描（Burnikel-Ziegler 亚二次；为 §I 量化） ---------------- */
+
+typedef struct {
+    bigint_dec_ty *q, *r, *a, *b;
+} ddiv_ctx;
+static void run_ddiv(void *p) {
+    ddiv_ctx *c = (ddiv_ctx *)p;
+    (void)bigint_dec_div_rem(c->q, c->r, c->a, c->b);
+}
+
+static void sweep_dec_div(void) {
+    static const size_t sizes[] = {64, 128, 256, 512, 1024, 2048, 4096, 8192,
+                                   16384U, 32768U};
+    const size_t nsizes = sizeof(sizes) / sizeof(sizes[0]);
+    printf("== bigint_dec 除法扫描（被除数 2n 肢 / 除数 n 肢；Burnikel-Ziegler 亚二次）==\n");
+    printf("%8s %12s\n", "n", "div_rem");
+    const size_t nmax = mode_max(1024U, 8192U, 32768U);
+    begin_section(8);
+    for (size_t si = 0U; si < nsizes; si++) {
+        const size_t n = sizes[si];
+        if (n > nmax) {
+            continue;
+        }
+        if (budget_hit()) {
+            break;
+        }
+        bigint_dec_ty a, b, q, r;
+        rnd_dec(&a, 2U * n);
+        rnd_dec(&b, n);
+        bigint_dec_init(&q);
+        bigint_dec_init(&r);
+        ddiv_ctx ctx = {&q, &r, &a, &b};
+        const double t = time_op(run_ddiv, &ctx);
+        printf("%8zu %12.4f\n", n, t);
+        bigint_dec_free(&r);
+        bigint_dec_free(&q);
+        bigint_dec_free(&b);
+        bigint_dec_free(&a);
     }
     printf("\n");
 }
@@ -566,6 +608,7 @@ int main(int argc, char **argv) {
 #endif
     sweep_mul();
     sweep_div();
+    sweep_dec_div();
     sweep_gcd();
     sweep_conv();
     sweep_str();

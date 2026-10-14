@@ -22,6 +22,22 @@ FUNCS = {
     "cos": lambda mp, x: mp.cos(x),
     "ln1p": lambda mp, x: mp.log(1 + x),
     "atan": lambda mp, x: mp.atan(x),
+    "atanpub": lambda mp, x: mp.atan(x),
+    "atanpubdec": lambda mp, x: mp.atan(x),
+    "exppub": lambda mp, x: mp.exp(x),
+    "exppubdec": lambda mp, x: mp.exp(x),
+    "logpub": lambda mp, x: mp.log(x),
+    "logpubdec": lambda mp, x: mp.log(x),
+    "sinpub": lambda mp, x: mp.sin(x),
+    "cospub": lambda mp, x: mp.cos(x),
+    "tanpub": lambda mp, x: mp.tan(x),
+    "sinpubdec": lambda mp, x: mp.sin(x),
+    "cospubdec": lambda mp, x: mp.cos(x),
+    "tanpubdec": lambda mp, x: mp.tan(x),
+    "asinpub": lambda mp, x: mp.asin(x),
+    "acospub": lambda mp, x: mp.acos(x),
+    "asinpubdec": lambda mp, x: mp.asin(x),
+    "acospubdec": lambda mp, x: mp.acos(x),
 }
 
 CASES = [
@@ -36,6 +52,42 @@ CASES = [
     ("ln1p", 128, "0.25"),
     ("atan", 64, "0.5"),
     ("atan", 128, "0.25"),
+    ("atanpub", 64, "1"),
+    ("atanpub", 128, "2"),
+    ("atanpub", 256, "-10"),
+    # 十进制正确舍入（precision 为有效数字位数）
+    ("atanpubdec", 16, "1"),
+    ("atanpubdec", 16, "-0.5"),
+    ("atanpubdec", 20, "2"),
+    ("atanpubdec", 34, "-10"),
+    ("exppub", 64, "0.5"),
+    ("exppub", 128, "-1"),
+    ("exppub", 256, "2"),
+    ("exppubdec", 16, "1"),
+    ("exppubdec", 16, "-0.5"),
+    ("exppubdec", 20, "10"),
+    ("logpub", 64, "2"),
+    ("logpub", 128, "10"),
+    ("logpub", 256, "0.5"),
+    ("logpubdec", 16, "2"),
+    ("logpubdec", 16, "1.5"),
+    ("logpubdec", 20, "10"),
+    ("sinpub", 64, "1"),
+    ("cospub", 64, "1"),
+    ("tanpub", 64, "0.5"),
+    ("sinpub", 128, "-2"),
+    ("cospub", 256, "3"),
+    ("sinpubdec", 16, "1"),
+    ("cospubdec", 16, "1"),
+    ("tanpubdec", 16, "0.5"),
+    ("sinpubdec", 20, "2"),
+    ("asinpub", 64, "0.5"),
+    ("acospub", 64, "0.5"),
+    ("asinpub", 128, "-1"),
+    ("acospub", 256, "-0.25"),
+    ("asinpubdec", 16, "0.5"),
+    ("acospubdec", 16, "0.5"),
+    ("asinpubdec", 20, "-1"),
 ]
 
 
@@ -56,10 +108,16 @@ def main():
             print("FAIL: %s %d %s -> ERR" % (fn, bits, z))
             failures += 1
             continue
-        mpmath.mp.prec = bits + 20
-        ref = FUNCS[fn](mpmath.mp, mpmath.mpf(z))
-        got = mpmath.mpf(line)
-        tol = mpmath.mpf(2) ** (-(bits - 4))
+        if fn.endswith("dec"):
+            mpmath.mp.prec = bits * 4 + 40
+            ref = FUNCS[fn](mpmath.mp, mpmath.mpf(z))
+            got = mpmath.mpf(line)
+            tol = mpmath.mpf(10) ** (-(bits - 2))
+        else:
+            mpmath.mp.prec = bits + 20
+            ref = FUNCS[fn](mpmath.mp, mpmath.mpf(z))
+            got = mpmath.mpf(line)
+            tol = mpmath.mpf(2) ** (-(bits - 4))
         if abs(got - ref) > tol * max(mpmath.mpf(1), abs(ref)):
             print("FAIL: %s %d %s got=%s ref=%s" % (fn, bits, z, got, ref))
             failures += 1

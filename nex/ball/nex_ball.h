@@ -106,6 +106,16 @@ bigfloat_err_ty bigfloat_ball_exp(bigfloat_ball_ty *dst,
         const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
 
 /*
+ * brief: 球式 log(x)（自然对数；x>0）
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法/含 NaN/±∞/区间含 ≤0 返回 INVALID；
+ *         内存不足返回 OOM（dst 不变）
+ * note: 迭代平方根规约 y = x^(1/2^k) 使 |y−1| ≤ 1/8 → `ln1p` 级数初始球
+ *       → k 次球加法回放 ×2^k；半径严格传播
+ */
+bigfloat_err_ty bigfloat_ball_log(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
  * brief: 球式 sin(x)（half-angle 倍角：sin2θ = 2 sinθ cosθ）
  * return: 同 exp（|x| 过大时 k > 20 返回 INVALID）
  */
@@ -118,6 +128,133 @@ bigfloat_err_ty bigfloat_ball_sin(bigfloat_ball_ty *dst,
  */
 bigfloat_err_ty bigfloat_ball_cos(bigfloat_ball_ty *dst,
         const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 球式 tan(x) = sin(x)/cos(x)
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法/含 NaN/±∞/|x| 过大返回 INVALID；
+ *         cos 区间含 0（极点附近）返回 INVALID；内存不足返回 OOM（dst 不变）
+ */
+bigfloat_err_ty bigfloat_ball_tan(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 球式 asin(x) = atan(x/√(1−x²))，|x| ≤ 1（±1 取 ±π/2）
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法/含 NaN/±∞/|x|>1 返回 INVALID；
+ *         内存不足返回 OOM（dst 不变）
+ */
+bigfloat_err_ty bigfloat_ball_asin(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 球式 acos(x) = π/2 − asin(x)，|x| ≤ 1
+ * return: 同 bigfloat_ball_asin
+ */
+bigfloat_err_ty bigfloat_ball_acos(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 球式平方根（要求 x 的下界 ≥ 0）
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法、含 NaN/±∞ 或下界 < 0 返回
+ *         BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E（dst 不变）
+ */
+bigfloat_err_ty bigfloat_ball_sqrt(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 球式 atan（实参规约：折半 t←t/(1+√(1+t²)) 至 |t| ≤ 1/2 → 级数 → ×2^k）
+ * return: 同 sqrt（|x| 过大时返回 INVALID）
+ */
+bigfloat_err_ty bigfloat_ball_atan(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx);
+
+/*
+ * bigfloat_ball_series_ty：系数为 bigfloat_ball_ty 的截断级数（§I，v1.5.0）
+ *
+ *   S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}
+ *
+ * 每个系数携带误差半径，运算全程由球传播，得到严谨的数值级数。规范化：
+ * len == 0 为零级数（val 归 0）；否则末项为非零球。
+ */
+typedef struct {
+    int64_t val;                  // 最低次幂指数
+    bigfloat_ball_ty *coeffs;     // 球系数，coeffs[i] 对应 z^{val+i}
+    size_t len;                   // 有效系数个数
+    size_t cap;                   // 已分配容量
+} bigfloat_ball_series_ty;
+
+/*
+ * brief: 初始化为零级数
+ * return: 成功返回 BIGFLOAT_OK_E；s 为 NULL 返回 BIGFLOAT_ERR_INVALID_E
+ */
+bigfloat_err_ty bigfloat_ball_series_init(bigfloat_ball_series_ty *s);
+
+/*
+ * brief: 释放（s 可为 NULL）
+ */
+void bigfloat_ball_series_free(bigfloat_ball_series_ty *s);
+
+/*
+ * brief: 由球系数数组构造（深拷贝，去尾零）
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法返回 BIGFLOAT_ERR_INVALID_E；
+ *         内存不足返回 BIGFLOAT_ERR_OOM_E（dst 不变）
+ */
+bigfloat_err_ty bigfloat_ball_series_from_array(bigfloat_ball_series_ty *dst,
+        int64_t val, const bigfloat_ball_ty *coeffs, size_t len);
+
+/*
+ * brief: 深拷贝
+ * return: 成功返回 BIGFLOAT_OK_E；内存不足返回 BIGFLOAT_ERR_OOM_E（dst 不变）
+ */
+bigfloat_err_ty bigfloat_ball_series_copy(bigfloat_ball_series_ty *dst,
+        const bigfloat_ball_series_ty *src);
+
+/*
+ * brief: 加法 dst = lhs + rhs（截断到 order，半径由球运算严格传播）
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法返回 BIGFLOAT_ERR_INVALID_E；
+ *         内存不足返回 BIGFLOAT_ERR_OOM_E（dst 不变）
+ */
+bigfloat_err_ty bigfloat_ball_series_add(bigfloat_ball_series_ty *dst,
+        const bigfloat_ball_series_ty *lhs,
+        const bigfloat_ball_series_ty *rhs, size_t order,
+        const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 减法 dst = lhs - rhs（截断到 order）
+ * return: 同 add
+ */
+bigfloat_err_ty bigfloat_ball_series_sub(bigfloat_ball_series_ty *dst,
+        const bigfloat_ball_series_ty *lhs,
+        const bigfloat_ball_series_ty *rhs, size_t order,
+        const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 乘法 dst = lhs × rhs（截断到 order）
+ * return: 同 add
+ */
+bigfloat_err_ty bigfloat_ball_series_mul(bigfloat_ball_series_ty *dst,
+        const bigfloat_ball_series_ty *lhs,
+        const bigfloat_ball_series_ty *rhs, size_t order,
+        const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 求值 out = Σ coeffs[i]·x^{val+i}（x 为球；要求 val ≥ 0）
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法或 val < 0 返回 BIGFLOAT_ERR_INVALID_E；
+ *         内存不足返回 BIGFLOAT_ERR_OOM_E（out 不变）
+ */
+bigfloat_err_ty bigfloat_ball_series_eval(bigfloat_ball_ty *out,
+        const bigfloat_ball_series_ty *s, const bigfloat_ball_ty *x,
+        const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 复合 dst = f∘g = f(g(z))，截断到 order（秦九韶式）
+ * param: f 要求 val == 0；g 要求 val ≥ 0
+ * return: 成功返回 BIGFLOAT_OK_E；参数非法返回 BIGFLOAT_ERR_INVALID_E；
+ *         内存不足返回 BIGFLOAT_ERR_OOM_E（dst 不变）
+ */
+bigfloat_err_ty bigfloat_ball_series_compose(bigfloat_ball_series_ty *dst,
+        const bigfloat_ball_series_ty *f,
+        const bigfloat_ball_series_ty *g, size_t order,
+        const bigfloat_ctx_ty *ctx);
 
 /*
  * bigdecimal_ball_ty：bigdecimal 版球（中心 + 半径，rad ≥ 0）
@@ -203,6 +340,13 @@ bigdecimal_err_ty bigdecimal_ball_exp(bigdecimal_ball_ty *dst,
         const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
 
 /*
+ * brief: 球式 log(x)（自然对数；x>0，十进制版）
+ * return: 同 bigfloat_ball_log（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+
+/*
  * brief: 球式 sin(x)（half-angle 倍角；语义同 bigfloat 版）
  * return: 同 exp
  */
@@ -215,6 +359,130 @@ bigdecimal_err_ty bigdecimal_ball_sin(bigdecimal_ball_ty *dst,
  */
 bigdecimal_err_ty bigdecimal_ball_cos(bigdecimal_ball_ty *dst,
         const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 球式 tan(x) = sin(x)/cos(x)（十进制版；语义同 bigfloat_ball_tan）
+ * return: 同 bigfloat_ball_tan（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_ball_tan(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 球式 asin(x)，|x| ≤ 1（十进制版；语义同 bigfloat_ball_asin）
+ * return: 同 bigfloat_ball_asin（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_ball_asin(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 球式 acos(x) = π/2 − asin(x)，|x| ≤ 1（十进制版）
+ * return: 同 bigfloat_ball_asin（错误码对应更换）
+ */
+bigdecimal_err_ty bigdecimal_ball_acos(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 球式 sqrt（区间端点定向开方；语义同 bigfloat 版）
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法/含 NaN/±∞/区间含负值返回
+ *         BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E
+ */
+bigdecimal_err_ty bigdecimal_ball_sqrt(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 球式 atan（实参规约：折半 t←t/(1+√(1+t²)) 至 |t| ≤ 1/2 → 级数 →
+ *        2^k 倍角；语义同 bigfloat 版）
+ * return: 同 sqrt（|x| 过大时返回 INVALID）
+ */
+bigdecimal_err_ty bigdecimal_ball_atan(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * bigdecimal_ball_series_ty：系数为 bigdecimal_ball_ty 的截断级数（§I）
+ * 语义同 bigfloat_ball_series_ty。
+ */
+typedef struct {
+    int64_t val;                   // 最低次幂指数
+    bigdecimal_ball_ty *coeffs;    // 球系数，coeffs[i] 对应 z^{val+i}
+    size_t len;                    // 有效系数个数
+    size_t cap;                    // 已分配容量
+} bigdecimal_ball_series_ty;
+
+/*
+ * brief: 初始化为零级数
+ * return: 成功返回 BIGDECIMAL_OK_E；s 为 NULL 返回 BIGDECIMAL_ERR_INVALID_E
+ */
+bigdecimal_err_ty bigdecimal_ball_series_init(bigdecimal_ball_series_ty *s);
+
+/*
+ * brief: 释放（s 可为 NULL）
+ */
+void bigdecimal_ball_series_free(bigdecimal_ball_series_ty *s);
+
+/*
+ * brief: 由球系数数组构造（深拷贝，去尾零）
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法返回 BIGDECIMAL_ERR_INVALID_E；
+ *         内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_from_array(
+        bigdecimal_ball_series_ty *dst, int64_t val,
+        const bigdecimal_ball_ty *coeffs, size_t len);
+
+/*
+ * brief: 深拷贝
+ * return: 成功返回 BIGDECIMAL_OK_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_copy(bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *src);
+
+/*
+ * brief: 加法 dst = lhs + rhs（截断到 order）
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法返回 BIGDECIMAL_ERR_INVALID_E；
+ *         内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_add(bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *lhs,
+        const bigdecimal_ball_series_ty *rhs, size_t order,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 减法 dst = lhs - rhs（截断到 order）
+ * return: 同 add
+ */
+bigdecimal_err_ty bigdecimal_ball_series_sub(bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *lhs,
+        const bigdecimal_ball_series_ty *rhs, size_t order,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 乘法 dst = lhs × rhs（截断到 order）
+ * return: 同 add
+ */
+bigdecimal_err_ty bigdecimal_ball_series_mul(bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *lhs,
+        const bigdecimal_ball_series_ty *rhs, size_t order,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 求值 out = Σ coeffs[i]·x^{val+i}（要求 val ≥ 0）
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法或 val < 0 返回
+ *         BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（out 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_eval(bigdecimal_ball_ty *out,
+        const bigdecimal_ball_series_ty *s, const bigdecimal_ball_ty *x,
+        const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 复合 dst = f∘g = f(g(z))，截断到 order（秦九韶式）
+ * param: f 要求 val == 0；g 要求 val ≥ 0
+ * return: 成功返回 BIGDECIMAL_OK_E；参数非法返回 BIGDECIMAL_ERR_INVALID_E；
+ *         内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+ */
+bigdecimal_err_ty bigdecimal_ball_series_compose(
+        bigdecimal_ball_series_ty *dst,
+        const bigdecimal_ball_series_ty *f,
+        const bigdecimal_ball_series_ty *g, size_t order,
+        const bigdecimal_ctx_ty *ctx);
 
 #ifdef __cplusplus
 }

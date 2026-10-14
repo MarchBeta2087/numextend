@@ -20,6 +20,7 @@
 | `bigcomplex/float` | `bigcomplex_float_ty` | 复数（实虚部为 bigfloat） | bigfloat |
 | `bigcomplex/decimal` | `bigcomplex_decimal_ty` | 复数（实虚部为 bigdecimal） | bigdecimal |
 | `convert` | `nex_convert_*` | 跨类型转换矩阵（§10） | 全部 |
+| `nex/transcend` | `bigfloat_*` / `bigdecimal_*` / `bigcomplex_*` | 正确舍入超越函数：`atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos` 与复数超越（球式 + Ziv，§16） | bigfloat, bigdecimal, ball |
 
 ## 构建与测试
 
@@ -123,6 +124,7 @@ Release（-O2）实测节选（Intel i5-13500H / GCC 15.2.0；完整报告与规
 |------|------|------|
 | `bigint_bin` 乘法 | 10⁴ 位十进制 | 0.32 ms |
 | `bigint_bin` 除法 | 10⁴ / 0.5×10⁴ 位 | 0.64 ms |
+| `bigint_dec` 除法（Burnikel-Ziegler） | 10⁵ / 0.5×10⁵ 位 | ≈ 45 ms |
 | `bin→dec` / `dec→bin` | 10⁵ 位十进制 | 49 / 18 ms |
 | `bigint_bin` 乘法 | 2¹⁶ 肢（≈ 63 万位） | 97 ms |
 | `bigint_bin` 乘法 | 2²⁰ 肢（≈ 1000 万位） | 5.7 s |
@@ -140,8 +142,9 @@ CI 另提供每日基准 artifact（`.github/workflows/benchmark.yml`）。
 
 ## 设计要点
 
-- 运算结果**正确舍入**（保护位 + 粘位，无双重舍入）；`to_str` 最短往返
-  （bigfloat）或精确展开（bigdecimal）；
+- 运算结果**正确舍入**（保护位 + 粘位，无双重舍入）；超越函数（`atan`/`atan2`/`exp`/
+  `log`/`sin`/`cos`/`tan`/`asin`/`acos` 及复数超越）同样正确舍入（球式严谨
+  误差界 + Ziv，§16）；`to_str` 最短往返（bigfloat）或精确展开（bigdecimal）；
 - 所有有损转换必须显式传入目标精度上下文（无隐式默认精度）；
 - 规范 §3.1 / §11：OOM 时输出参数保持调用前状态（强异常安全）；
 - 内部统一分配器 `nex/nex_alloc`（OOM 注入测试入口，未来自定义分配器钩子）。
@@ -165,3 +168,6 @@ CI 覆盖 C11/C17/C23 与 C++11/C17/C23 矩阵（见 `.github/workflows/ci.yml`�
 欢迎贡献！请先阅读 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)——它规定了
 分支流程（feature → dev → main）与"完成"的定义（单元测试、黄金对拍、边界/
 鲁棒测试、文档同步），PR/Issue 请使用仓库内模板。
+
+参与本项目即表示同意遵守[行为准则](CODE_OF_CONDUCT.md)；安全漏洞请勿公开
+提交 issue，按[安全政策](SECURITY.md)私密报告。

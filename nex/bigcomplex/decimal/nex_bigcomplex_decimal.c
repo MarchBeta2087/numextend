@@ -8,6 +8,7 @@
  */
 
 #include "nex/bigcomplex/decimal/nex_bigcomplex_decimal.h"
+#include "nex/transcend/nex_transcend.h"
 #include "nex/nex_alloc.h"
 
 #include <stdlib.h>
@@ -340,6 +341,24 @@ cleanup:
     return map_bd_err(berr);
 }
 
+bigcomplex_decimal_err_ty bigcomplex_decimal_arg(bigdecimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        bigdecimal_free(dst);
+        bigdecimal_init(dst);
+        dst->flag = BIGDECIMAL_NAN_E;
+        return BIGCOMPLEX_DECIMAL_OK_E;
+    }
+    if (bigdecimal_is_inf(&src->re) || bigdecimal_is_inf(&src->im)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    return map_bd_err(bigdecimal_atan2(dst, &src->im, &src->re, ctx));
+}
+
 /* ------------------------------------------------------------------ */
 /* 四则（§9.2）                                                        */
 /* ------------------------------------------------------------------ */
@@ -594,4 +613,431 @@ bool bigcomplex_decimal_eq(const bigcomplex_decimal_ty *lhs,
     }
     return bigdecimal_eq(&lhs->re, &rhs->re)
             && bigdecimal_eq(&lhs->im, &rhs->im);
+}
+
+/* ------------------------------------------------------------------ */
+/* 超越函数（§D5）：分量运算，各步按 ctx 舍入（十进制）                  */
+/* ------------------------------------------------------------------ */
+
+static bigdecimal_err_ty bd_sinh_cosh(bigdecimal_ty *sh, bigdecimal_ty *ch,
+        const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx)
+{
+    bigdecimal_ty e;
+    bigdecimal_ty en;
+    bigdecimal_ty nx;
+    bigdecimal_ty two;
+    bigdecimal_init(&e);
+    bigdecimal_init(&en);
+    bigdecimal_init(&nx);
+    bigdecimal_init(&two);
+    bigdecimal_err_ty err = bigdecimal_copy(&nx, x);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_neg(&nx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_exp(&e, x, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_exp(&en, &nx, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_from_str(&two, "2", ctx, NULL);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(sh, &e, &en, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_div(sh, sh, &two, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(ch, &e, &en, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_div(ch, ch, &two, ctx);
+    }
+    bigdecimal_free(&two);
+    bigdecimal_free(&nx);
+    bigdecimal_free(&en);
+    bigdecimal_free(&e);
+    return err;
+}
+
+static bool cxd_has_inf(const bigcomplex_decimal_ty *z)
+{
+    return bigdecimal_is_inf(&z->re) || bigdecimal_is_inf(&z->im);
+}
+
+bigcomplex_decimal_err_ty bigcomplex_decimal_exp(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_DECIMAL_OK_E;
+    }
+    if (cxd_has_inf(src)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ty e;
+    bigdecimal_ty c;
+    bigdecimal_ty s;
+    bigdecimal_ty re;
+    bigdecimal_ty im;
+    bigdecimal_init(&e);
+    bigdecimal_init(&c);
+    bigdecimal_init(&s);
+    bigdecimal_init(&re);
+    bigdecimal_init(&im);
+    bigdecimal_err_ty berr = bigdecimal_exp(&e, &src->re, ctx);
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_cos(&c, &src->im, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_sin(&s, &src->im, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_mul(&re, &e, &c, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_mul(&im, &e, &s, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        bigdecimal_free(&dst->re);
+        bigdecimal_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+    } else {
+        bigdecimal_free(&re);
+        bigdecimal_free(&im);
+    }
+    bigdecimal_free(&s);
+    bigdecimal_free(&c);
+    bigdecimal_free(&e);
+    return map_bd_err(berr);
+}
+
+bigcomplex_decimal_err_ty bigcomplex_decimal_log(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_DECIMAL_OK_E;
+    }
+    if (cxd_has_inf(src)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ty zero;
+    bigdecimal_ty re2;
+    bigdecimal_ty im2;
+    bigdecimal_ty sum;
+    bigdecimal_ty r;
+    bigdecimal_ty lr;
+    bigdecimal_ty ar;
+    bigdecimal_init(&zero);
+    bigdecimal_init(&re2);
+    bigdecimal_init(&im2);
+    bigdecimal_init(&sum);
+    bigdecimal_init(&r);
+    bigdecimal_init(&lr);
+    bigdecimal_init(&ar);
+    bigdecimal_err_ty berr = BIGDECIMAL_OK_E;
+    if (bigdecimal_cmp(&src->re, &zero) == 0 &&
+            bigdecimal_cmp(&src->im, &zero) == 0) {
+        berr = BIGDECIMAL_ERR_INVALID_E;
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_mul(&re2, &src->re, &src->re, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_mul(&im2, &src->im, &src->im, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_add(&sum, &re2, &im2, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_sqrt(&r, &sum, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_log(&lr, &r, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_atan2(&ar, &src->im, &src->re, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        bigdecimal_free(&dst->re);
+        bigdecimal_free(&dst->im);
+        dst->re = lr;
+        dst->im = ar;
+    } else {
+        bigdecimal_free(&lr);
+        bigdecimal_free(&ar);
+    }
+    bigdecimal_free(&r);
+    bigdecimal_free(&sum);
+    bigdecimal_free(&im2);
+    bigdecimal_free(&re2);
+    bigdecimal_free(&zero);
+    return map_bd_err(berr);
+}
+
+bigcomplex_decimal_err_ty bigcomplex_decimal_sqrt(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_DECIMAL_OK_E;
+    }
+    if (cxd_has_inf(src)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ty zero;
+    bigdecimal_ty h;
+    bigdecimal_ty s;
+    bigdecimal_ty u;
+    bigdecimal_ty re;
+    bigdecimal_ty im;
+    bigdecimal_init(&zero);
+    bigdecimal_init(&h);
+    bigdecimal_init(&s);
+    bigdecimal_init(&u);
+    bigdecimal_init(&re);
+    bigdecimal_init(&im);
+    bigdecimal_err_ty berr = BIGDECIMAL_OK_E;
+    if (bigdecimal_cmp(&src->im, &zero) == 0) {
+        berr = bigdecimal_copy(&re, &src->re);
+        if (berr == BIGDECIMAL_OK_E && bigdecimal_cmp(&src->re, &zero) < 0) {
+            berr = bigdecimal_neg(&re);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_sqrt(&re, &re, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_copy(&im, &zero);
+        }
+        if (berr == BIGDECIMAL_OK_E && bigdecimal_cmp(&src->re, &zero) < 0) {
+            bigdecimal_ty t;
+            bigdecimal_init(&t);
+            berr = bigdecimal_copy(&t, &re);
+            if (berr == BIGDECIMAL_OK_E) {
+                berr = bigdecimal_copy(&re, &zero);
+            }
+            if (berr == BIGDECIMAL_OK_E) {
+                berr = bigdecimal_copy(&im, &t);
+            }
+            bigdecimal_free(&t);
+        }
+    } else {
+        bigdecimal_ty re2;
+        bigdecimal_ty im2;
+        bigdecimal_ty two;
+        bigdecimal_init(&re2);
+        bigdecimal_init(&im2);
+        bigdecimal_init(&two);
+        berr = bigdecimal_mul(&re2, &src->re, &src->re, ctx);
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_mul(&im2, &src->im, &src->im, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_add(&s, &re2, &im2, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_sqrt(&s, &s, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_from_str(&two, "2", ctx, NULL);
+        }
+        if (berr == BIGDECIMAL_OK_E && bigdecimal_cmp(&src->re, &zero) >= 0) {
+            berr = bigdecimal_add(&u, &s, &src->re, ctx);
+            if (berr == BIGDECIMAL_OK_E) {
+                berr = bigdecimal_div(&u, &u, &two, ctx);
+            }
+            if (berr == BIGDECIMAL_OK_E) {
+                berr = bigdecimal_sqrt(&u, &u, ctx);
+            }
+        } else if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_sub(&h, &s, &src->re, ctx);
+            if (berr == BIGDECIMAL_OK_E) {
+                berr = bigdecimal_mul(&h, &h, &two, ctx);
+            }
+            if (berr == BIGDECIMAL_OK_E) {
+                berr = bigdecimal_sqrt(&h, &h, ctx);
+            }
+            if (berr == BIGDECIMAL_OK_E) {
+                berr = bigdecimal_copy(&u, &src->im);
+            }
+            if (berr == BIGDECIMAL_OK_E && bigdecimal_cmp(&u, &zero) < 0) {
+                berr = bigdecimal_neg(&u);
+            }
+            if (berr == BIGDECIMAL_OK_E) {
+                berr = bigdecimal_div(&u, &u, &h, ctx);
+            }
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_mul(&h, &u, &two, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_div(&im, &src->im, &h, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_copy(&re, &u);
+        }
+        bigdecimal_free(&two);
+        bigdecimal_free(&im2);
+        bigdecimal_free(&re2);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        bigdecimal_free(&dst->re);
+        bigdecimal_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+    } else {
+        bigdecimal_free(&re);
+        bigdecimal_free(&im);
+    }
+    bigdecimal_free(&u);
+    bigdecimal_free(&s);
+    bigdecimal_free(&h);
+    bigdecimal_free(&zero);
+    return map_bd_err(berr);
+}
+
+bigcomplex_decimal_err_ty bigcomplex_decimal_sin(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_DECIMAL_OK_E;
+    }
+    if (cxd_has_inf(src)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ty sr;
+    bigdecimal_ty cr;
+    bigdecimal_ty sh;
+    bigdecimal_ty ch;
+    bigdecimal_ty re;
+    bigdecimal_ty im;
+    bigdecimal_init(&sr);
+    bigdecimal_init(&cr);
+    bigdecimal_init(&sh);
+    bigdecimal_init(&ch);
+    bigdecimal_init(&re);
+    bigdecimal_init(&im);
+    bigdecimal_err_ty berr = bd_sinh_cosh(&sh, &ch, &src->im, ctx);
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_sin(&sr, &src->re, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_cos(&cr, &src->re, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_mul(&re, &sr, &ch, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_mul(&im, &cr, &sh, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        bigdecimal_free(&dst->re);
+        bigdecimal_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+    } else {
+        bigdecimal_free(&re);
+        bigdecimal_free(&im);
+    }
+    bigdecimal_free(&ch);
+    bigdecimal_free(&sh);
+    bigdecimal_free(&cr);
+    bigdecimal_free(&sr);
+    return map_bd_err(berr);
+}
+
+bigcomplex_decimal_err_ty bigcomplex_decimal_cos(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_DECIMAL_OK_E;
+    }
+    if (cxd_has_inf(src)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ty sr;
+    bigdecimal_ty cr;
+    bigdecimal_ty sh;
+    bigdecimal_ty ch;
+    bigdecimal_ty re;
+    bigdecimal_ty im;
+    bigdecimal_init(&sr);
+    bigdecimal_init(&cr);
+    bigdecimal_init(&sh);
+    bigdecimal_init(&ch);
+    bigdecimal_init(&re);
+    bigdecimal_init(&im);
+    bigdecimal_err_ty berr = bd_sinh_cosh(&sh, &ch, &src->im, ctx);
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_sin(&sr, &src->re, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_cos(&cr, &src->re, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_mul(&re, &cr, &ch, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_mul(&im, &sr, &sh, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_neg(&im);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        bigdecimal_free(&dst->re);
+        bigdecimal_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+    } else {
+        bigdecimal_free(&re);
+        bigdecimal_free(&im);
+    }
+    bigdecimal_free(&ch);
+    bigdecimal_free(&sh);
+    bigdecimal_free(&cr);
+    bigdecimal_free(&sr);
+    return map_bd_err(berr);
+}
+
+bigcomplex_decimal_err_ty bigcomplex_decimal_tan(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_DECIMAL_ERR_INVALID_E;
+    }
+    bigcomplex_decimal_ty s;
+    bigcomplex_decimal_ty c;
+    bigcomplex_decimal_init(&s);
+    bigcomplex_decimal_init(&c);
+    bigcomplex_decimal_err_ty err = bigcomplex_decimal_sin(&s, src, ctx);
+    if (err == BIGCOMPLEX_DECIMAL_OK_E) {
+        err = bigcomplex_decimal_cos(&c, src, ctx);
+    }
+    if (err == BIGCOMPLEX_DECIMAL_OK_E) {
+        err = bigcomplex_decimal_div(dst, &s, &c, ctx);
+    }
+    bigcomplex_decimal_free(&c);
+    bigcomplex_decimal_free(&s);
+    return err;
 }

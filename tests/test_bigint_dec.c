@@ -611,6 +611,118 @@ static void test_toom3(void)
     }
 }
 
+/* BZ 递归除法专项（dec 版）：除数 ≥ 64 肢触发亚二次分派，验证
+ * q·b + r == a 且 |r| < |b|（唯一确定商余）；覆盖分派边界尺寸、随机、
+ * 顶肢=1、稀疏（B^(k-1)+c）、全 9、10 的幂与精确整除。 */
+static void test_bz(void)
+{
+    static const size_t dlens[] = { 64U, 65U, 80U, 81U, 128U, 257U, 512U,
+            1000U };
+    for (size_t i = 0U; i < sizeof(dlens) / sizeof(dlens[0]); i++) {
+        const size_t lb = dlens[i];
+        const size_t la = 2U * lb + (lb / 3U);
+        bigint_dec_ty a;
+        bigint_dec_ty b;
+        bigint_dec_ty q;
+        bigint_dec_ty r;
+        bigint_dec_ty p;
+        bigint_dec_init_cap(&a, la);
+        for (size_t k = 0U; k < la; k++) {
+            a.limbs[k] = (uint32_t)(next_u32() % 999999999U);
+        }
+        a.limbs[la - 1U] = 1U + (uint32_t)(next_u32() % 999999998U);
+        a.len = la;
+        a.sign = BIGINT_SIGN_POS_E;
+        bigint_dec_init_cap(&b, lb);
+        for (size_t k = 0U; k < lb; k++) {
+            b.limbs[k] = (uint32_t)(next_u32() % 999999999U);
+        }
+        b.limbs[lb - 1U] = 1U + (uint32_t)(next_u32() % 999999998U);
+        b.len = lb;
+        b.sign = BIGINT_SIGN_POS_E;
+        bigint_dec_init(&q);
+        bigint_dec_init(&r);
+        bigint_dec_init(&p);
+        CHECK(bigint_dec_div_rem(&q, &r, &a, &b) == BIGINT_OK_E);
+        bigint_dec_mul(&p, &q, &b);
+        bigint_dec_add(&p, &p, &r);
+        CHECK(bigint_dec_cmp_abs(&p, &a) == 0);
+        CHECK(bigint_dec_cmp_abs(&r, &b) < 0);
+        bigint_dec_free(&p);
+        bigint_dec_free(&r);
+        bigint_dec_free(&q);
+        bigint_dec_free(&b);
+        bigint_dec_free(&a);
+    }
+    /* 稀疏除数（B^(k-1)+c）+ 精确整除：商 = c，余数 = 0 */
+    {
+        bigint_dec_ty a;
+        bigint_dec_ty b;
+        bigint_dec_ty c;
+        bigint_dec_ty q;
+        bigint_dec_ty r;
+        bigint_dec_init_cap(&b, 200U);
+        memset(b.limbs, 0, 200U * sizeof(uint32_t));
+        b.limbs[0] = 123456789U;
+        b.limbs[199] = 1U;
+        b.len = 200U;
+        b.sign = BIGINT_SIGN_POS_E;
+        bigint_dec_init_cap(&c, 150U);
+        for (size_t k = 0U; k < 150U; k++) {
+            c.limbs[k] = (uint32_t)(next_u32() % 999999999U);
+        }
+        c.limbs[149] = 7U;
+        c.len = 150U;
+        c.sign = BIGINT_SIGN_POS_E;
+        bigint_dec_init(&a);
+        bigint_dec_mul(&a, &b, &c);
+        bigint_dec_init(&q);
+        bigint_dec_init(&r);
+        CHECK(bigint_dec_div_rem(&q, &r, &a, &b) == BIGINT_OK_E);
+        CHECK(bigint_dec_cmp_abs(&q, &c) == 0);
+        CHECK(r.len == 0U);
+        bigint_dec_free(&r);
+        bigint_dec_free(&q);
+        bigint_dec_free(&a);
+        bigint_dec_free(&c);
+        bigint_dec_free(&b);
+    }
+    /* 全 9 除数（Knuth-D 归一化因子 d = 1） */
+    {
+        bigint_dec_ty a;
+        bigint_dec_ty b;
+        bigint_dec_ty q;
+        bigint_dec_ty r;
+        bigint_dec_ty p;
+        bigint_dec_init_cap(&b, 300U);
+        for (size_t k = 0U; k < 300U; k++) {
+            b.limbs[k] = 999999999U;
+        }
+        b.len = 300U;
+        b.sign = BIGINT_SIGN_POS_E;
+        bigint_dec_init_cap(&a, 900U);
+        for (size_t k = 0U; k < 900U; k++) {
+            a.limbs[k] = (uint32_t)(next_u32() % 999999999U);
+        }
+        a.limbs[899] = 999999999U;
+        a.len = 900U;
+        a.sign = BIGINT_SIGN_POS_E;
+        bigint_dec_init(&q);
+        bigint_dec_init(&r);
+        bigint_dec_init(&p);
+        CHECK(bigint_dec_div_rem(&q, &r, &a, &b) == BIGINT_OK_E);
+        bigint_dec_mul(&p, &q, &b);
+        bigint_dec_add(&p, &p, &r);
+        CHECK(bigint_dec_cmp_abs(&p, &a) == 0);
+        CHECK(bigint_dec_cmp_abs(&r, &b) < 0);
+        bigint_dec_free(&p);
+        bigint_dec_free(&r);
+        bigint_dec_free(&q);
+        bigint_dec_free(&b);
+        bigint_dec_free(&a);
+    }
+}
+
 int main(void) {
 #ifdef _MSC_VER
     /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
@@ -626,6 +738,7 @@ int main(void) {
     test_digit_len();
     test_limb_boundary();
     test_toom3();
+    test_bz();
     if (g_fail == 0) {
         printf("ALL TESTS PASSED\n");
         return 0;

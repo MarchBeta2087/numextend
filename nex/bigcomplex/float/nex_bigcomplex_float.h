@@ -102,6 +102,63 @@ bigcomplex_float_err_ty bigcomplex_float_conj(bigcomplex_float_ty *cpx);
 bigcomplex_float_err_ty bigcomplex_float_abs(bigfloat_ty *dst,
         const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
 
+/*
+ * brief: 辐角 arg(src) = atan2(im, re)，主值 ∈ (−π, π]（正确舍入，§9.2/§16）
+ * param: dst 输出（bigfloat）；src 输入复数；ctx 精度上下文
+ * return: 成功返回 OK（任一分量为 NaN 时 dst 置 NaN）；参数非法或含 ±∞
+ *         返回 INVALID；内存不足返回 OOM（dst 不变）
+ * note: 经 bigfloat_atan2（球式半角规约 + Ziv）；负实轴（im=0, re<0）取 +π
+ */
+bigcomplex_float_err_ty bigcomplex_float_arg(bigfloat_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+
+/* ------------------------------------------------------------------ */
+/* 超越函数（§D5）：分量运算，各步按 ctx 舍入                            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * brief: 复指数 exp(z) = e^re·(cos im + i sin im)
+ * return: 成功返回 OK（NaN 分量传播为 (NaN,NaN)）；参数非法/含 ±∞ 返回
+ *         INVALID；内存不足返回 OOM（dst 不变）
+ */
+bigcomplex_float_err_ty bigcomplex_float_exp(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 复对数 log(z) = log|z| + i·arg(z)（主值；z ≠ 0）
+ * return: 同 exp；z = 0 返回 INVALID
+ */
+bigcomplex_float_err_ty bigcomplex_float_log(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 复平方根 sqrt(z)（主值，右半平面）
+ * return: 同 exp
+ */
+bigcomplex_float_err_ty bigcomplex_float_sqrt(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 复正弦 sin(z) = sin re·cosh im + i·cos re·sinh im
+ * return: 同 exp（|im| 过大时 e^{|im|} 可能溢出）
+ */
+bigcomplex_float_err_ty bigcomplex_float_sin(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 复余弦 cos(z) = cos re·cosh im − i·sin re·sinh im
+ * return: 同 sin
+ */
+bigcomplex_float_err_ty bigcomplex_float_cos(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+
+/*
+ * brief: 复正切 tan(z) = sin(z)/cos(z)
+ * return: 同 exp；cos(z) = 0（极点）返回 INVALID
+ */
+bigcomplex_float_err_ty bigcomplex_float_tan(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+
 /* ------------------------------------------------------------------ */
 /* 四则（§9.2）                                                        */
 /* ------------------------------------------------------------------ */

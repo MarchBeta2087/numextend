@@ -7,6 +7,15 @@
  *   cos  <prec_bits> <z>
  *   ln1p <prec_bits> <z>
  *   atan <prec_bits> <z>
+ *   exppub <prec_bits> <z>        （bigfloat_exp，正确舍入）
+ *   logpub <prec_bits> <z>        （bigfloat_log，正确舍入）
+ *   sinpub/cospub/tanpub <prec_bits> <z>
+ *   asinpub/acospub <prec_bits> <z>
+ *   atanpubdec <mant_digits> <z>   （十进制正确舍入）
+ *   exppubdec <mant_digits> <z>
+ *   logpubdec <mant_digits> <z>
+ *   sinpubdec/cospubdec/tanpubdec <mant_digits> <z>
+ *   asinpubdec/acospubdec <mant_digits> <z>
  * 失败输出 "ERR"。参考实现见 golden_series.py（mpmath）。
  */
 
@@ -14,9 +23,11 @@
 #include <string.h>
 
 #include "nex/bigfloat/nex_bigfloat.h"
+#include "nex/bigdecimal/nex_bigdecimal.h"
 #include "nex/bigfrac/nex_bigfrac.h"
 #include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/series/nex_series.h"
+#include "nex/transcend/nex_transcend.h"
 
 static bigfloat_ctx_ty g_ctx;
 static bigfrac_ty g_eps;
@@ -44,6 +55,60 @@ int main(void) {
         if (sscanf(line, "%31s %lu %511s", cmd, &prec, zstr) != 3) {
             continue;
         }
+        if (strcmp(cmd, "atanpubdec") == 0 || strcmp(cmd, "exppubdec") == 0 ||
+                strcmp(cmd, "logpubdec") == 0 ||
+                strcmp(cmd, "sinpubdec") == 0 ||
+                strcmp(cmd, "cospubdec") == 0 ||
+                strcmp(cmd, "tanpubdec") == 0 ||
+                strcmp(cmd, "asinpubdec") == 0 ||
+                strcmp(cmd, "acospubdec") == 0) {
+            bigdecimal_ctx_ty dctx;
+            bigdecimal_ty dz;
+            bigdecimal_ty dout;
+            bigdecimal_init(&dz);
+            bigdecimal_init(&dout);
+            bigdecimal_err_ty derr = bigdecimal_ctx_make(&dctx, (size_t)prec, 10,
+                    BIGDECIMAL_ROUND_NEAREST_EVEN_E);
+            if (derr == BIGDECIMAL_OK_E &&
+                    bigdecimal_from_str(&dz, zstr, &dctx, NULL) !=
+                        BIGDECIMAL_OK_E) {
+                derr = BIGDECIMAL_ERR_PARSE_E;
+            }
+            if (derr == BIGDECIMAL_OK_E) {
+                if (strcmp(cmd, "exppubdec") == 0) {
+                    derr = bigdecimal_exp(&dout, &dz, &dctx);
+                } else if (strcmp(cmd, "logpubdec") == 0) {
+                    derr = bigdecimal_log(&dout, &dz, &dctx);
+                } else if (strcmp(cmd, "sinpubdec") == 0) {
+                    derr = bigdecimal_sin(&dout, &dz, &dctx);
+                } else if (strcmp(cmd, "cospubdec") == 0) {
+                    derr = bigdecimal_cos(&dout, &dz, &dctx);
+                } else if (strcmp(cmd, "tanpubdec") == 0) {
+                    derr = bigdecimal_tan(&dout, &dz, &dctx);
+                } else if (strcmp(cmd, "asinpubdec") == 0) {
+                    derr = bigdecimal_asin(&dout, &dz, &dctx);
+                } else if (strcmp(cmd, "acospubdec") == 0) {
+                    derr = bigdecimal_acos(&dout, &dz, &dctx);
+                } else {
+                    derr = bigdecimal_atan(&dout, &dz, &dctx);
+                }
+            }
+            if (derr == BIGDECIMAL_OK_E) {
+                char buf[8192];
+                size_t need = 0U;
+                if (bigdecimal_to_str(&dout, BIGDECIMAL_FMT_FIXED_E, buf,
+                        sizeof(buf), &need) == BIGDECIMAL_OK_E) {
+                    printf("%s\n", buf);
+                } else {
+                    printf("ERR\n");
+                }
+            } else {
+                printf("ERR\n");
+            }
+            bigdecimal_free(&dout);
+            bigdecimal_free(&dz);
+            continue;
+        }
         setup(prec);
 
         bigfloat_ty z;
@@ -62,6 +127,22 @@ int main(void) {
                 err = nex_series_ln1p_eval_float(&out, NULL, &z, &g_eps, &g_ctx);
             } else if (strcmp(cmd, "atan") == 0) {
                 err = nex_series_atan_eval_float(&out, NULL, &z, &g_eps, &g_ctx);
+            } else if (strcmp(cmd, "atanpub") == 0) {
+                err = bigfloat_atan(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "exppub") == 0) {
+                err = bigfloat_exp(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "logpub") == 0) {
+                err = bigfloat_log(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "sinpub") == 0) {
+                err = bigfloat_sin(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "cospub") == 0) {
+                err = bigfloat_cos(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "tanpub") == 0) {
+                err = bigfloat_tan(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "asinpub") == 0) {
+                err = bigfloat_asin(&out, &z, &g_ctx);
+            } else if (strcmp(cmd, "acospub") == 0) {
+                err = bigfloat_acos(&out, &z, &g_ctx);
             }
         }
 
