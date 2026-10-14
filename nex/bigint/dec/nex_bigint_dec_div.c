@@ -828,7 +828,9 @@ static bigint_err_ty dbz_mag_shl_limbs(bigint_dec_ty *dst,
     if (src->len > 0U) {
         memmove(dst->limbs + k, src->limbs, src->len * sizeof(uint32_t));
     }
-    memset(dst->limbs, 0, k * sizeof(uint32_t));
+    if (k > 0U) {
+        memset(dst->limbs, 0, k * sizeof(uint32_t));
+    }
     dst->len = src->len + k;
     dst->sign = BIGINT_SIGN_POS_E;
     return BIGINT_OK_E;
@@ -1056,7 +1058,9 @@ static bigint_err_ty dbz_d2n1n2(bigint_dec_ty *q, bigint_dec_ty *r,
         if (err == BIGINT_OK_E) {
             memset(combo.limbs, 0, 3U * m * sizeof(uint32_t));
             memcpy(combo.limbs, a4.limbs, m * sizeof(uint32_t));
-            memcpy(combo.limbs + m, r1.limbs, r1.len * sizeof(uint32_t));
+            if (r1.len > 0U) {
+                memcpy(combo.limbs + m, r1.limbs, r1.len * sizeof(uint32_t));
+            }
             combo.len = 3U * m;
             combo.sign = BIGINT_SIGN_POS_E;
             cur.limbs = combo.limbs;
@@ -1169,7 +1173,7 @@ static bigint_err_ty dbz_div_rem(bigint_dec_ty *quot, bigint_dec_ty *rem,
             err = dbz_mag_shl_limbs(&qshift, &qi, i * n);
             if (err == BIGINT_OK_E) err = dbz_mag_add(&q, &q, &qshift);
             bigint_dec_free(&qshift);
-        } else {
+        } else if (qi.len > 0U) {
             memcpy(q.limbs + i * n, qi.limbs, qi.len * sizeof(uint32_t));
             if (q.len < i * n + qi.len) {
                 q.len = i * n + qi.len;
@@ -1182,7 +1186,9 @@ static bigint_err_ty dbz_div_rem(bigint_dec_ty *quot, bigint_dec_ty *rem,
         if (err == BIGINT_OK_E) {
             memset(z.limbs, 0, 2U * n * sizeof(uint32_t));
             memcpy(z.limbs, as.limbs + (i - 1U) * n, n * sizeof(uint32_t));
-            memcpy(z.limbs + n, ri.limbs, ri.len * sizeof(uint32_t));
+            if (ri.len > 0U) {
+                memcpy(z.limbs + n, ri.limbs, ri.len * sizeof(uint32_t));
+            }
             z.len = 2U * n;
             z.sign = BIGINT_SIGN_POS_E;
         }
@@ -1196,7 +1202,7 @@ static bigint_err_ty dbz_div_rem(bigint_dec_ty *quot, bigint_dec_ty *rem,
     if (err == BIGINT_OK_E) {
         if (qi.len > n) {
             err = dbz_mag_add(&q, &q, &qi);
-        } else {
+        } else if (qi.len > 0U) {
             memcpy(q.limbs, qi.limbs, qi.len * sizeof(uint32_t));
             if (q.len < qi.len) {
                 q.len = qi.len;
