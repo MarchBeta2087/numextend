@@ -84,9 +84,9 @@
 - [x] 文档化工具链 DCE 与“子集只减归档不减可执行”的事实（README / design §2.4）。
 - [x] 场景示例：`examples/amalgam/`（单文件 + 十进制财务）；CI
       `linux-amalgam-example` / `linux-subset-install`。
-- [ ] 粗粒度特性宏（如 `NEX_ENABLE_FFT`/`NEX_ENABLE_POW_MOD`/`NEX_ENABLE_BIT_OPS`）
-      **亦暂缓**：全库 text+data ≈ 155 KB，其中 `fft`=1.5 KB、`ntt`=4.6 KB，
-      单个可选函数占比更小；收益低于维护与测试成本。仅当出现明确需求再评估。
+
+（粗粒度特性宏经评估不现实——全库 text+data ≈ 155 KB，`fft`=1.5 KB、
+`ntt`=4.6 KB，可选函数占比过小；决定不做，理由见 design §2.4/§13 #11/§14。）
 
 ### B4 单文件组合（amalgamation）— ✅ 已完成
 
