@@ -396,3 +396,227 @@ bigfrac_err_ty bigfrac_series_eval(bigfrac_ty *out,
     bigfrac_free(&p);
     return err;
 }
+
+/* ------------------------------------------------------------------ */
+/* 求导 / 积分 / 复合（TODO §C2）                                      */
+/* ------------------------------------------------------------------ */
+
+static bigfrac_err_ty frac_mul_i64(bigfrac_ty *out, const bigfrac_ty *a,
+        int64_t v) {
+    bigint_bin_ty n;
+    bigint_bin_ty d;
+    bigfrac_ty f;
+    bigint_bin_init(&n);
+    bigint_bin_init(&d);
+    bigfrac_init(&f);
+    bigint_bin_from_i64(&n, v);
+    bigint_bin_from_u64(&d, 1U);
+    bigfrac_err_ty err = bigfrac_from_ints(&f, &n, &d);
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_mul(out, a, &f);
+    }
+    bigfrac_free(&f);
+    bigint_bin_free(&d);
+    bigint_bin_free(&n);
+    return err;
+}
+
+static bigfrac_err_ty frac_div_i64(bigfrac_ty *out, const bigfrac_ty *a,
+        int64_t v) {
+    bigint_bin_ty n;
+    bigint_bin_ty d;
+    bigfrac_ty f;
+    bigint_bin_init(&n);
+    bigint_bin_init(&d);
+    bigfrac_init(&f);
+    bigint_bin_from_i64(&n, v);
+    bigint_bin_from_u64(&d, 1U);
+    bigfrac_err_ty err = bigfrac_from_ints(&f, &n, &d);
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_div(out, a, &f);
+    }
+    bigfrac_free(&f);
+    bigint_bin_free(&d);
+    bigint_bin_free(&n);
+    return err;
+}
+
+static void series_truncate_len(bigfrac_series_ty *s, size_t n) {
+    while (s->len > n) {
+        bigfrac_free(&s->coeffs[s->len - 1U]);
+        s->len--;
+    }
+    if (s->len == 0U) {
+        s->val = 0;
+    }
+}
+
+bigfrac_err_ty bigfrac_series_deriv(bigfrac_series_ty *dst,
+        const bigfrac_series_ty *src) {
+    if (dst == NULL || src == NULL) {
+        return BIGFRAC_ERR_INVALID_E;
+    }
+    if (src->len == 0U) {
+        return bigfrac_series_from_array(dst, 0, NULL, 0U);
+    }
+    bigfrac_ty *arr = (bigfrac_ty *)nex_malloc(src->len * sizeof(bigfrac_ty));
+    if (arr == NULL) {
+        return BIGFRAC_ERR_OOM_E;
+    }
+    for (size_t i = 0U; i < src->len; i++) {
+        bigfrac_init(&arr[i]);
+    }
+    bigfrac_err_ty err = BIGFRAC_OK_E;
+    for (size_t i = 0U; i < src->len && err == BIGFRAC_OK_E; i++) {
+        int64_t k = src->val + (int64_t)i;
+        err = frac_mul_i64(&arr[i], &src->coeffs[i], k);
+    }
+    if (err == BIGFRAC_OK_E) {
+        size_t i0 = 0U;
+        bigfrac_ty z;
+        bigfrac_init(&z);
+        while (i0 < src->len && bigfrac_cmp(&arr[i0], &z) == 0) {
+            i0++;
+        }
+        bigfrac_free(&z);
+        if (i0 == src->len) {
+            err = bigfrac_series_from_array(dst, 0, NULL, 0U);
+        } else {
+            err = bigfrac_series_from_array(dst,
+                    src->val - 1 + (int64_t)i0, arr + i0, src->len - i0);
+        }
+    }
+    for (size_t i = 0U; i < src->len; i++) {
+        bigfrac_free(&arr[i]);
+    }
+    free(arr);
+    return err;
+}
+
+bigfrac_err_ty bigfrac_series_integral(bigfrac_series_ty *dst,
+        const bigfrac_series_ty *src) {
+    if (dst == NULL || src == NULL) {
+        return BIGFRAC_ERR_INVALID_E;
+    }
+    if (src->len == 0U) {
+        return bigfrac_series_from_array(dst, 0, NULL, 0U);
+    }
+    bigfrac_ty *arr = (bigfrac_ty *)nex_malloc(src->len * sizeof(bigfrac_ty));
+    if (arr == NULL) {
+        return BIGFRAC_ERR_OOM_E;
+    }
+    for (size_t i = 0U; i < src->len; i++) {
+        bigfrac_init(&arr[i]);
+    }
+    bigfrac_err_ty err = BIGFRAC_OK_E;
+    for (size_t i = 0U; i < src->len && err == BIGFRAC_OK_E; i++) {
+        int64_t k = src->val + (int64_t)i;
+        if (k == -1) {
+            err = BIGFRAC_ERR_INVALID_E;   /* z^{-1} -> 对数项 */
+        } else {
+            err = frac_div_i64(&arr[i], &src->coeffs[i], k + 1);
+        }
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_series_from_array(dst, src->val + 1, arr, src->len);
+    }
+    for (size_t i = 0U; i < src->len; i++) {
+        bigfrac_free(&arr[i]);
+    }
+    free(arr);
+    return err;
+}
+
+/* s += scalar（加在 z^0 项），并截断到 order */
+static bigfrac_err_ty series_add_scalar(bigfrac_series_ty *s,
+        const bigfrac_ty *scalar, size_t order) {
+    bigfrac_ty zero;
+    bigfrac_init(&zero);
+    bool szero = (bigfrac_cmp(scalar, &zero) == 0);
+    bigfrac_free(&zero);
+    if (szero) {
+        return BIGFRAC_OK_E;   /* 加 0 不变 */
+    }
+
+    if (s->len == 0U) {
+        if (szero || order == 0U) {
+            return bigfrac_series_from_array(s, 0, NULL, 0U);
+        }
+        return bigfrac_series_from_array(s, 0, scalar, 1U);
+    }
+    if (s->val == 0) {
+        bigfrac_err_ty err = BIGFRAC_OK_E;
+        if (!szero) {
+            err = bigfrac_add(&s->coeffs[0], &s->coeffs[0], scalar);
+        }
+        if (err == BIGFRAC_OK_E) {
+            series_trim(s);
+            series_truncate_len(s, order);
+        }
+        return err;
+    }
+
+    /* val > 0：前插常数项 */
+    size_t lead = (size_t)s->val;
+    size_t total = lead + s->len;
+    size_t new_len = (total < order) ? total : order;
+    if (new_len == 0U) {
+        return bigfrac_series_from_array(s, 0, NULL, 0U);
+    }
+    bigfrac_ty *arr = (bigfrac_ty *)nex_malloc(new_len * sizeof(bigfrac_ty));
+    if (arr == NULL) {
+        return BIGFRAC_ERR_OOM_E;
+    }
+    for (size_t i = 0U; i < new_len; i++) {
+        bigfrac_init(&arr[i]);
+    }
+    bigfrac_err_ty err = bigfrac_copy(&arr[0], scalar);
+    for (size_t i = lead; i < new_len && err == BIGFRAC_OK_E; i++) {
+        err = bigfrac_copy(&arr[i], &s->coeffs[i - lead]);
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_series_from_array(s, 0, arr, new_len);
+    }
+    for (size_t i = 0U; i < new_len; i++) {
+        bigfrac_free(&arr[i]);
+    }
+    free(arr);
+    return err;
+}
+
+bigfrac_err_ty bigfrac_series_compose(bigfrac_series_ty *dst,
+        const bigfrac_series_ty *f, const bigfrac_series_ty *g,
+        size_t order) {
+    if (dst == NULL || f == NULL || g == NULL) {
+        return BIGFRAC_ERR_INVALID_E;
+    }
+    if (f->val != 0 || g->val < 0) {
+        return BIGFRAC_ERR_INVALID_E;
+    }
+    if (order == 0U || f->len == 0U) {
+        return bigfrac_series_from_array(dst, 0, NULL, 0U);
+    }
+
+    bigfrac_series_ty acc;
+    bigfrac_series_init(&acc);
+    bigfrac_err_ty err = BIGFRAC_OK_E;
+    for (size_t k = f->len; k-- > 0U && err == BIGFRAC_OK_E; ) {
+        bigfrac_series_ty prod;
+        bigfrac_series_init(&prod);
+        err = bigfrac_series_mul(&prod, &acc, g, order);
+        if (err == BIGFRAC_OK_E) {
+            err = series_add_scalar(&prod, &f->coeffs[k], order);
+        }
+        if (err == BIGFRAC_OK_E) {
+            bigfrac_series_free(&acc);
+            acc = prod;   /* 转移所有权 */
+            bigfrac_series_init(&prod);   /* prod 现为空，便于统一释放 */
+        }
+        bigfrac_series_free(&prod);
+    }
+    if (err == BIGFRAC_OK_E) {
+        err = bigfrac_series_copy(dst, &acc);
+    }
+    bigfrac_series_free(&acc);
+    return err;
+}

@@ -350,6 +350,44 @@ bigfrac_err_ty bigfrac_series_eval(bigfrac_ty *out, const bigfrac_series_ty *s, 
 
 **备注**：精确；val < 0（Laurent）按除以 x^{|val|} 实现
 
+### `bigfrac_series_deriv`
+
+```c
+bigfrac_err_ty bigfrac_series_deriv(bigfrac_series_ty *dst, const bigfrac_series_ty *src);
+```
+
+**说明**：求导 dst = d/dz src（Laurent 亦适用；逐项 (val+i)·a_i z^{val+i−1}）
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 OOM（dst 不变）
+
+**备注**：去尾零；常数的导数为零级数
+
+### `bigfrac_series_integral`
+
+```c
+bigfrac_err_ty bigfrac_series_integral(bigfrac_series_ty *dst, const bigfrac_series_ty *src);
+```
+
+**说明**：不定积分（零常数项）dst = ∫ src dz
+
+**返回**：成功返回 BIGFRAC_OK_E；若含 z^{−1} 项（积分出对数）返回 BIGFRAC_ERR_INVALID_E；内存不足返回 OOM（dst 不变）
+
+**备注**：逐项 a_i/(val+i+1) z^{val+i+1}；结果 val = src->val + 1
+
+### `bigfrac_series_compose`
+
+```c
+bigfrac_err_ty bigfrac_series_compose(bigfrac_series_ty *dst, const bigfrac_series_ty *f, const bigfrac_series_ty *g, size_t order);
+```
+
+**说明**：复合 dst = f∘g = f(g(z))，保留最低 order 项（秦九韶式）
+
+**参数**
+- `f`：要求 val == 0（幂级数）
+- `g`：要求 val >= 0
+
+**返回**：成功返回 BIGFRAC_OK_E；参数非法返回 BIGFRAC_ERR_INVALID_E； 内存不足返回 OOM（dst 不变）
+
 ### `bigfrac_binom`
 
 ```c
