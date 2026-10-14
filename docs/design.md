@@ -1092,6 +1092,14 @@ bigcomplex_float_err_ty bigcomplex_float_conj(bigcomplex_float_ty *cpx);  // 共
 bigcomplex_float_err_ty bigcomplex_float_abs(bigfloat_ty *dst,
         const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);      // |z|
 
+/* 超越函数（§D5，分量运算，各步按 ctx 舍入） */
+bigcomplex_float_err_ty bigcomplex_float_exp(...);   // e^re(cos im + i sin im)
+bigcomplex_float_err_ty bigcomplex_float_log(...);   // log|z| + i·arg(z)
+bigcomplex_float_err_ty bigcomplex_float_sqrt(...);  // 主值
+bigcomplex_float_err_ty bigcomplex_float_sin(...);   // sin re·cosh im + i cos re·sinh im
+bigcomplex_float_err_ty bigcomplex_float_cos(...);   // cos re·cosh im − i sin re·sinh im
+bigcomplex_float_err_ty bigcomplex_float_tan(...);   // sin/cos
+
 /* 四则 */
 bigcomplex_float_err_ty bigcomplex_float_add(bigcomplex_float_ty *dst,
         const bigcomplex_float_ty *lhs, const bigcomplex_float_ty *rhs,
@@ -1110,6 +1118,10 @@ bool bigcomplex_float_eq(const bigcomplex_float_ty *lhs, const bigcomplex_float_
 - 除法 v1 用共轭法 `(a+bi)/(c+di) = (a+bi)(c−di)/(c²+d²)`；该方法在中间量
   上可能过早溢出/下溢，Smith 缩放算法列为后续方向并在文档与注释中注明取舍；
 - `abs` 经 `sqrt(re² + im²)` 实现，同样的溢出注意事项适用；
+- 超越函数（§D5）为**分量运算**：`exp`/`log`/`sqrt`/`sin`/`cos`/`tan`，各步
+  调用正确舍入的实函数 + 复四则；`sinh`/`cosh` 由 `exp` 组合；`sqrt` 用
+  `u=√((r+re)/2)`（`re<0` 时 `|im|/√(2(r−re))`）避抵消。整体为「各步正确
+  舍入」（同 `abs`），非单次正确舍入；NaN 分量传播、含 ±∞ 返回 INVALID。
 - `arg`（辐角）经 `bigfloat_atan2` / `bigdecimal_atan2` 正确舍入实现：直角
   分象限 `arg = atan(y/x)`（`x<0` 时 `sign(y)·(π − atan(|y|/|x|))`，虚/实轴与
   原点单列；`t>1` 时用 `π/2 − atan(1/t)` 归约避大参数）；无灾难抵消。含 ±∞
@@ -1477,6 +1489,8 @@ S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}
 - **`asin`/`acos`**：`asin(x) = atan(x/√(1−x²))`（±1 → ±π/2）；
   `acos(x) = π/2 − asin(x)`；`acos(1)=0` 特判（结果恰 0、对称球跨 0 时 Ziv
   无法收敛）。Ziv 正确舍入。
+- **复数超越（§D5）**：`bigcomplex_*_exp/log/sqrt/sin/cos/tan` 由上述实函数 +
+  复四则按分量组合（`sinh`/`cosh` 由 `exp` 得到）；整体为各步正确舍入。
 - **规模提示**：路线 A 精确有理求值 `invpow_eval_frac` 的公共分母随阶数阶乘级
   膨胀，高精度（≳ 80 位 / 256 bit）显著变慢，float / decimal 同量级；后续可
   改逐项浮点或分块求值。

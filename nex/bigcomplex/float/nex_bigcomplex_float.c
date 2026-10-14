@@ -616,3 +616,442 @@ bool bigcomplex_float_eq(const bigcomplex_float_ty *lhs,
     }
     return bigfloat_eq(&lhs->re, &rhs->re) && bigfloat_eq(&lhs->im, &rhs->im);
 }
+
+/* ------------------------------------------------------------------ */
+/* 超越函数（§D5）：分量运算，各步按 ctx 舍入                            */
+/* ------------------------------------------------------------------ */
+
+/* sinh(x) = (e^x − e^{−x})/2；cosh(x) = (e^x + e^{−x})/2 */
+static bigfloat_err_ty bf_sinh_cosh(bigfloat_ty *sh, bigfloat_ty *ch,
+        const bigfloat_ty *x, const bigfloat_ctx_ty *ctx)
+{
+    bigfloat_ty e;
+    bigfloat_ty en;
+    bigfloat_ty nx;
+    bigfloat_ty two;
+    bigfloat_init(&e);
+    bigfloat_init(&en);
+    bigfloat_init(&nx);
+    bigfloat_init(&two);
+    bigfloat_err_ty err = bigfloat_copy(&nx, x);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_neg(&nx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_exp(&e, x, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_exp(&en, &nx, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_from_f64(&two, 2.0);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sub(sh, &e, &en, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_div(sh, sh, &two, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_add(ch, &e, &en, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_div(ch, ch, &two, ctx);
+    }
+    bigfloat_free(&two);
+    bigfloat_free(&nx);
+    bigfloat_free(&en);
+    bigfloat_free(&e);
+    return err;
+}
+
+static bool cx_has_inf(const bigcomplex_float_ty *z)
+{
+    return bigfloat_is_inf(&z->re) || bigfloat_is_inf(&z->im);
+}
+
+/* exp(x+iy) = e^x·(cos y + i sin y) */
+bigcomplex_float_err_ty bigcomplex_float_exp(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_FLOAT_OK_E;
+    }
+    if (cx_has_inf(src)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ty e;
+    bigfloat_ty c;
+    bigfloat_ty s;
+    bigfloat_ty re;
+    bigfloat_ty im;
+    bigfloat_init(&e);
+    bigfloat_init(&c);
+    bigfloat_init(&s);
+    bigfloat_init(&re);
+    bigfloat_init(&im);
+    bigfloat_err_ty berr = bigfloat_exp(&e, &src->re, ctx);
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_cos(&c, &src->im, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_sin(&s, &src->im, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_mul(&re, &e, &c, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_mul(&im, &e, &s, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        bigfloat_free(&dst->re);
+        bigfloat_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+    } else {
+        bigfloat_free(&re);
+        bigfloat_free(&im);
+    }
+    bigfloat_free(&s);
+    bigfloat_free(&c);
+    bigfloat_free(&e);
+    return map_bf_err(berr);
+}
+
+/* log(z) = log|z| + i·arg(z)（主值；z ≠ 0） */
+bigcomplex_float_err_ty bigcomplex_float_log(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_FLOAT_OK_E;
+    }
+    if (cx_has_inf(src)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ty zero;
+    bigfloat_ty re2;
+    bigfloat_ty im2;
+    bigfloat_ty sum;
+    bigfloat_ty r;
+    bigfloat_ty lr;
+    bigfloat_ty ar;
+    bigfloat_init(&zero);
+    bigfloat_init(&re2);
+    bigfloat_init(&im2);
+    bigfloat_init(&sum);
+    bigfloat_init(&r);
+    bigfloat_init(&lr);
+    bigfloat_init(&ar);
+    bigfloat_err_ty berr = BIGFLOAT_OK_E;
+    if (bigfloat_cmp(&src->re, &zero) == 0 &&
+            bigfloat_cmp(&src->im, &zero) == 0) {
+        berr = BIGFLOAT_ERR_INVALID_E;   /* log(0) 无定义 */
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_mul(&re2, &src->re, &src->re, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_mul(&im2, &src->im, &src->im, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_add(&sum, &re2, &im2, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_sqrt(&r, &sum, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_log(&lr, &r, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_atan2(&ar, &src->im, &src->re, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        bigfloat_free(&dst->re);
+        bigfloat_free(&dst->im);
+        dst->re = lr;
+        dst->im = ar;
+    } else {
+        bigfloat_free(&lr);
+        bigfloat_free(&ar);
+    }
+    bigfloat_free(&r);
+    bigfloat_free(&sum);
+    bigfloat_free(&im2);
+    bigfloat_free(&re2);
+    bigfloat_free(&zero);
+    return map_bf_err(berr);
+}
+
+/* sqrt(z)：主值；re < 0 用 |im|/√(2(r−re)) 避开抵消 */
+bigcomplex_float_err_ty bigcomplex_float_sqrt(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_FLOAT_OK_E;
+    }
+    if (cx_has_inf(src)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ty zero;
+    bigfloat_ty h;
+    bigfloat_ty s;
+    bigfloat_ty u;
+    bigfloat_ty re;
+    bigfloat_ty im;
+    bigfloat_init(&zero);
+    bigfloat_init(&h);
+    bigfloat_init(&s);
+    bigfloat_init(&u);
+    bigfloat_init(&re);
+    bigfloat_init(&im);
+    bigfloat_err_ty berr = BIGFLOAT_OK_E;
+    if (bigfloat_cmp(&src->im, &zero) == 0) {
+        /* 实轴：±sqrt(|re|) */
+        berr = bigfloat_copy(&re, &src->re);
+        if (berr == BIGFLOAT_OK_E && bigfloat_cmp(&src->re, &zero) < 0) {
+            berr = bigfloat_neg(&re);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_sqrt(&re, &re, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_copy(&im, &zero);
+        }
+        if (berr == BIGFLOAT_OK_E && bigfloat_cmp(&src->re, &zero) < 0) {
+            bigfloat_ty t;
+            bigfloat_init(&t);
+            berr = bigfloat_copy(&t, &re);
+            if (berr == BIGFLOAT_OK_E) {
+                berr = bigfloat_copy(&re, &zero);
+            }
+            if (berr == BIGFLOAT_OK_E) {
+                berr = bigfloat_copy(&im, &t);
+            }
+            bigfloat_free(&t);
+        }
+    } else {
+        /* r = √(re²+im²) */
+        bigfloat_ty re2;
+        bigfloat_ty im2;
+        bigfloat_ty two;
+        bigfloat_init(&re2);
+        bigfloat_init(&im2);
+        bigfloat_init(&two);
+        berr = bigfloat_mul(&re2, &src->re, &src->re, ctx);
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_mul(&im2, &src->im, &src->im, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_add(&s, &re2, &im2, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_sqrt(&s, &s, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_from_f64(&two, 2.0);
+        }
+        if (berr == BIGFLOAT_OK_E && bigfloat_cmp(&src->re, &zero) >= 0) {
+            /* u = √((r+re)/2) */
+            berr = bigfloat_add(&u, &s, &src->re, ctx);
+            if (berr == BIGFLOAT_OK_E) {
+                berr = bigfloat_div(&u, &u, &two, ctx);
+            }
+            if (berr == BIGFLOAT_OK_E) {
+                berr = bigfloat_sqrt(&u, &u, ctx);
+            }
+        } else if (berr == BIGFLOAT_OK_E) {
+            /* u = |im|/√(2(r−re)) */
+            berr = bigfloat_sub(&h, &s, &src->re, ctx);
+            if (berr == BIGFLOAT_OK_E) {
+                berr = bigfloat_mul(&h, &h, &two, ctx);
+            }
+            if (berr == BIGFLOAT_OK_E) {
+                berr = bigfloat_sqrt(&h, &h, ctx);
+            }
+            if (berr == BIGFLOAT_OK_E) {
+                berr = bigfloat_copy(&u, &src->im);
+            }
+            if (berr == BIGFLOAT_OK_E && bigfloat_cmp(&u, &zero) < 0) {
+                berr = bigfloat_neg(&u);
+            }
+            if (berr == BIGFLOAT_OK_E) {
+                berr = bigfloat_div(&u, &u, &h, ctx);
+            }
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            /* v = im/(2u) */
+            berr = bigfloat_mul(&h, &u, &two, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_div(&im, &src->im, &h, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_copy(&re, &u);
+        }
+        bigfloat_free(&two);
+        bigfloat_free(&im2);
+        bigfloat_free(&re2);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        bigfloat_free(&dst->re);
+        bigfloat_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+    } else {
+        bigfloat_free(&re);
+        bigfloat_free(&im);
+    }
+    bigfloat_free(&u);
+    bigfloat_free(&s);
+    bigfloat_free(&h);
+    bigfloat_free(&zero);
+    return map_bf_err(berr);
+}
+
+/* sin(x+iy) = sin x·cosh y + i·cos x·sinh y */
+bigcomplex_float_err_ty bigcomplex_float_sin(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_FLOAT_OK_E;
+    }
+    if (cx_has_inf(src)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ty sr;
+    bigfloat_ty cr;
+    bigfloat_ty sh;
+    bigfloat_ty ch;
+    bigfloat_ty re;
+    bigfloat_ty im;
+    bigfloat_init(&sr);
+    bigfloat_init(&cr);
+    bigfloat_init(&sh);
+    bigfloat_init(&ch);
+    bigfloat_init(&re);
+    bigfloat_init(&im);
+    bigfloat_err_ty berr = bf_sinh_cosh(&sh, &ch, &src->im, ctx);
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_sin(&sr, &src->re, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_cos(&cr, &src->re, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_mul(&re, &sr, &ch, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_mul(&im, &cr, &sh, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        bigfloat_free(&dst->re);
+        bigfloat_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+    } else {
+        bigfloat_free(&re);
+        bigfloat_free(&im);
+    }
+    bigfloat_free(&ch);
+    bigfloat_free(&sh);
+    bigfloat_free(&cr);
+    bigfloat_free(&sr);
+    return map_bf_err(berr);
+}
+
+/* cos(x+iy) = cos x·cosh y − i·sin x·sinh y */
+bigcomplex_float_err_ty bigcomplex_float_cos(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    if (any_nan(src)) {
+        set_nan_components(dst);
+        return BIGCOMPLEX_FLOAT_OK_E;
+    }
+    if (cx_has_inf(src)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ty sr;
+    bigfloat_ty cr;
+    bigfloat_ty sh;
+    bigfloat_ty ch;
+    bigfloat_ty re;
+    bigfloat_ty im;
+    bigfloat_init(&sr);
+    bigfloat_init(&cr);
+    bigfloat_init(&sh);
+    bigfloat_init(&ch);
+    bigfloat_init(&re);
+    bigfloat_init(&im);
+    bigfloat_err_ty berr = bf_sinh_cosh(&sh, &ch, &src->im, ctx);
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_sin(&sr, &src->re, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_cos(&cr, &src->re, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_mul(&re, &cr, &ch, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_mul(&im, &sr, &sh, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_neg(&im);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        bigfloat_free(&dst->re);
+        bigfloat_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+    } else {
+        bigfloat_free(&re);
+        bigfloat_free(&im);
+    }
+    bigfloat_free(&ch);
+    bigfloat_free(&sh);
+    bigfloat_free(&cr);
+    bigfloat_free(&sr);
+    return map_bf_err(berr);
+}
+
+/* tan(z) = sin(z)/cos(z) */
+bigcomplex_float_err_ty bigcomplex_float_tan(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx)
+{
+    if ((dst == NULL) || (src == NULL) || (ctx == NULL)) {
+        return BIGCOMPLEX_FLOAT_ERR_INVALID_E;
+    }
+    bigcomplex_float_ty s;
+    bigcomplex_float_ty c;
+    bigcomplex_float_init(&s);
+    bigcomplex_float_init(&c);
+    bigcomplex_float_err_ty err = bigcomplex_float_sin(&s, src, ctx);
+    if (err == BIGCOMPLEX_FLOAT_OK_E) {
+        err = bigcomplex_float_cos(&c, src, ctx);
+    }
+    if (err == BIGCOMPLEX_FLOAT_OK_E) {
+        err = bigcomplex_float_div(dst, &s, &c, ctx);
+    }
+    bigcomplex_float_free(&c);
+    bigcomplex_float_free(&s);
+    return err;
+}

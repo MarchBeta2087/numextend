@@ -46,6 +46,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `bigdecimal_asin/acos` 正确舍入（球式 `asin = atan(x/√(1−x²))`、`acos = π/2 −
   asin`）；特判 `acos(1)=0`（对称球跨 0 时 Ziv 不收敛）；`golden_series` 新增
   `asinpub`/`acospub` 与十进制版。
+- **复数超越函数（TODO §D5）**：`bigcomplex_float_*` / `bigcomplex_decimal_*` 的
+  `exp`/`log`/`sqrt`/`sin`/`cos`/`tan`（分量运算，各步按 `ctx` 舍入；
+  `sinh`/`cosh` 由 `exp` 组合；`sqrt` 用稳定式避负实轴抵消；NaN 传播、含 ±∞
+  返回 INVALID）；单元测试 + mpmath 压测。
 
 ### 修复
 

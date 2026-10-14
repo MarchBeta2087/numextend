@@ -278,20 +278,26 @@
 - 直接依赖：`bigint_common`, `bigint_bin`, `bigfloat`, `transcend`, `nex_alloc`
 - 源文件：`nex/bigcomplex/float/nex_bigcomplex_float.c`
 - 公开头：`nex/bigcomplex/float/nex_bigcomplex_float.h`
-- 公开函数（14）：
+- 公开函数（20）：
   - `bigcomplex_float_abs`
   - `bigcomplex_float_add`
   - `bigcomplex_float_arg`
   - `bigcomplex_float_conj`
   - `bigcomplex_float_copy`
+  - `bigcomplex_float_cos`
   - `bigcomplex_float_div`
   - `bigcomplex_float_eq`
+  - `bigcomplex_float_exp`
   - `bigcomplex_float_free`
   - `bigcomplex_float_from_parts`
   - `bigcomplex_float_from_str`
   - `bigcomplex_float_init`
+  - `bigcomplex_float_log`
   - `bigcomplex_float_mul`
+  - `bigcomplex_float_sin`
+  - `bigcomplex_float_sqrt`
   - `bigcomplex_float_sub`
+  - `bigcomplex_float_tan`
   - `bigcomplex_float_to_str`
 
 ### `bigcomplex_decimal`
@@ -299,20 +305,26 @@
 - 直接依赖：`bigdecimal`, `transcend`, `nex_alloc`
 - 源文件：`nex/bigcomplex/decimal/nex_bigcomplex_decimal.c`
 - 公开头：`nex/bigcomplex/decimal/nex_bigcomplex_decimal.h`
-- 公开函数（14）：
+- 公开函数（20）：
   - `bigcomplex_decimal_abs`
   - `bigcomplex_decimal_add`
   - `bigcomplex_decimal_arg`
   - `bigcomplex_decimal_conj`
   - `bigcomplex_decimal_copy`
+  - `bigcomplex_decimal_cos`
   - `bigcomplex_decimal_div`
   - `bigcomplex_decimal_eq`
+  - `bigcomplex_decimal_exp`
   - `bigcomplex_decimal_free`
   - `bigcomplex_decimal_from_parts`
   - `bigcomplex_decimal_from_str`
   - `bigcomplex_decimal_init`
+  - `bigcomplex_decimal_log`
   - `bigcomplex_decimal_mul`
+  - `bigcomplex_decimal_sin`
+  - `bigcomplex_decimal_sqrt`
   - `bigcomplex_decimal_sub`
+  - `bigcomplex_decimal_tan`
   - `bigcomplex_decimal_to_str`
 
 ### `convert`
