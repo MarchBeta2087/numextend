@@ -1387,12 +1387,12 @@ C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
     `nex_series_{ln1p,atan}_eval_float`/`_decimal`（`ln(1+z)`、`atan(z)`，
     常数比值尾界 `r^step/(1−r^step)`；|z| ≲ 1/2）。
 - **路线 B：球式（中心 + 误差半径）**（第一阶段已落地）
-  - `nex/ball/`：`bigfloat_ball_ty` = `{mid, rad}`（区间 `[mid−rad, mid+rad]`）；
-    `add/sub/mul/div` 在端点间用**定向舍入**（`TOWARD_POS/NEG`）求严格包含区间，
-    再由中心化 `from_interval` 归一（半径余量覆盖中心舍入）；`contains` 向内
-    舍入以避免假阳性。
-  - 后续：`bigdecimal` 版；`exp/sin/cos` 的**实参规约**（halving+squaring /
-    half-angle）用球传播半径，并以路线 A 的尾界作初始半径。
+  - `nex/ball/`：`bigfloat_ball_ty` / `bigdecimal_ball_ty` = `{mid, rad}`（区间
+    `[mid−rad, mid+rad]`）；`add/sub/mul/div` 在端点间用**定向舍入**
+    （`TOWARD_POS/NEG`）求严格包含区间，再由中心化 `from_interval` 归一（半径
+    余量覆盖中心/减法舍入）；`contains` 向内舍入以避免假阳性。
+  - 后续：`exp/sin/cos` 的**实参规约**（halving+squaring / half-angle）用球
+    传播半径，并以路线 A 的尾界作初始半径。
 - **关系**：路线 A 是路线 B 的轻量特例；B 在 A 之上加半径传播。分阶段交付，
   B 作为可选层，避免一次性扩大公开面。
 

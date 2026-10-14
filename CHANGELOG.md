@@ -45,6 +45,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `bigfloat_ball_ty`（`mid`/`rad`，区间 `[mid−rad, mid+rad]`）+ `add/sub/mul/div`
   （端点间定向舍入求严格包含区间 + 中心化半径余量）、`contains`（向内舍入，
   无假阳性）。测试 `tests/test_ball.c`。
+- **路线 B：`bigdecimal` 球式（TODO §C2）**：`bigdecimal_ball_ty` +
+  `init/free/copy/set/contains/add/sub/mul/div`（十进制定向舍入严格区间）；测试
+  覆盖 `[1,1]+[2,2]`、区间乘/除/减法与除零区间。
 
 ## [1.2.0] - 2026-10-14
 

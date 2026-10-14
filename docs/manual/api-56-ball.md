@@ -108,4 +108,99 @@ bigfloat_err_ty bigfloat_ball_div(bigfloat_ball_ty *dst, const bigfloat_ball_ty 
 
 **返回**：成功返回 BIGFLOAT_OK_E；b 的区间含 0 返回 BIGFLOAT_ERR_INVALID_E； 其余同 add
 
+bigdecimal_ball_ty：bigdecimal 版球（中心 + 半径，rad ≥ 0）
+
+```c
+typedef struct {
+bigdecimal_ty mid;  // 中心
+bigdecimal_ty rad;  // 半径（≥ 0）
+} bigdecimal_ball_ty;
+```
+
+### `bigdecimal_ball_init`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_init(bigdecimal_ball_ty *b);
+```
+
+**说明**：初始化为 [0, 0]
+
+**返回**：成功返回 BIGDECIMAL_OK_E；b 为 NULL 返回 BIGDECIMAL_ERR_INVALID_E
+
+### `bigdecimal_ball_free`
+
+```c
+void bigdecimal_ball_free(bigdecimal_ball_ty *b);
+```
+
+**说明**：释放（b 可为 NULL）
+
+### `bigdecimal_ball_copy`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_copy(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *src);
+```
+
+**说明**：深拷贝
+
+**返回**：成功返回 BIGDECIMAL_OK_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+
+### `bigdecimal_ball_set`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_set(bigdecimal_ball_ty *dst, const bigdecimal_ty *mid, const bigdecimal_ty *rad, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：设为 [mid − rad, mid + rad]（rad ≤ 0 非法）
+
+**返回**：成功返回 BIGDECIMAL_OK_E；参数非法或 rad < 0 返回 BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+
+### `bigdecimal_ball_contains`
+
+```c
+bool bigdecimal_ball_contains(const bigdecimal_ball_ty *b, const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：判断 x 是否在球内（向内舍入，无假阳性）
+
+### `bigdecimal_ball_add`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_add(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *a, const bigdecimal_ball_ty *b, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：加法 dst = a + b（区间和）
+
+**返回**：成功返回 BIGDECIMAL_OK_E；参数非法或含 NaN/±∞ 返回 BIGDECIMAL_ERR_INVALID_E；内存不足返回 BIGDECIMAL_ERR_OOM_E（dst 不变）
+
+### `bigdecimal_ball_sub`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_sub(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *a, const bigdecimal_ball_ty *b, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：减法 dst = a - b（区间差）
+
+**返回**：同 add
+
+### `bigdecimal_ball_mul`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_mul(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *a, const bigdecimal_ball_ty *b, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：乘法 dst = a × b（区间积）
+
+**返回**：同 add
+
+### `bigdecimal_ball_div`
+
+```c
+bigdecimal_err_ty bigdecimal_ball_div(bigdecimal_ball_ty *dst, const bigdecimal_ball_ty *a, const bigdecimal_ball_ty *b, const bigdecimal_ctx_ty *ctx);
+```
+
+**说明**：除法 dst = a / b（区间商）
+
+**返回**：成功返回 BIGDECIMAL_OK_E；b 的区间含 0 返回 BIGDECIMAL_ERR_INVALID_E；其余同 add
+
 NEX_BALL_H

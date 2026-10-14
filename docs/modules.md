@@ -362,10 +362,19 @@
 
 ### `ball`
 
-- 直接依赖：`bigfloat`
+- 直接依赖：`bigfloat`, `bigdecimal`
 - 源文件：`nex/ball/nex_ball.c`
 - 公开头：`nex/ball/nex_ball.h`
-- 公开函数（9）：
+- 公开函数（18）：
+  - `bigdecimal_ball_add`
+  - `bigdecimal_ball_contains`
+  - `bigdecimal_ball_copy`
+  - `bigdecimal_ball_div`
+  - `bigdecimal_ball_free`
+  - `bigdecimal_ball_init`
+  - `bigdecimal_ball_mul`
+  - `bigdecimal_ball_set`
+  - `bigdecimal_ball_sub`
   - `bigfloat_ball_add`
   - `bigfloat_ball_contains`
   - `bigfloat_ball_copy`

@@ -523,3 +523,519 @@ bigfloat_err_ty bigfloat_ball_div(bigfloat_ball_ty *dst,
     bigfloat_free(&a_lo);
     return err;
 }
+
+/* ================================================================== */
+/* bigdecimal 球式（镜像 bigfloat 版；十进制定向舍入）                  */
+/* ================================================================== */
+
+static bigdecimal_err_ty dec_dir_ctx(bigdecimal_ctx_ty *out,
+        const bigdecimal_ctx_ty *base, bigdecimal_round_ty round) {
+    return bigdecimal_ctx_make(out, base->mant_digits, base->exp_digits,
+                               round);
+}
+
+static bigdecimal_err_ty dec_abs(bigdecimal_ty *out, const bigdecimal_ty *x) {
+    bigdecimal_ty zero;
+    bigdecimal_init(&zero);
+    bigdecimal_err_ty err = bigdecimal_copy(out, x);
+    if (err == BIGDECIMAL_OK_E && bigdecimal_cmp(x, &zero) < 0) {
+        err = bigdecimal_neg(out);
+    }
+    bigdecimal_free(&zero);
+    return err;
+}
+
+/* out = ulp(x) = 10^{e − p}（x 为正常值）；x 为 0/特殊值时为 0 */
+static bigdecimal_err_ty dec_ulp(bigdecimal_ty *out, const bigdecimal_ty *x,
+        const bigdecimal_ctx_ty *ctx) {
+    bigint_dec_ty mant;
+    bigint_dec_init(&mant);
+    int64_t e = 0;
+    bigdecimal_flag_ty fl = BIGDECIMAL_POS_ZERO_E;
+    bigdecimal_err_ty err = bigdecimal_decompose(x, &mant, &e, &fl);
+    if (err == BIGDECIMAL_OK_E) {
+        if (fl == BIGDECIMAL_POS_E || fl == BIGDECIMAL_NEG_E) {
+            bigint_dec_ty one;
+            bigint_dec_init(&one);
+            bigint_dec_from_u64(&one, 1U);
+            err = bigdecimal_compose(out, &one, e - (int64_t)ctx->mant_digits,
+                                     BIGDECIMAL_POS_E, ctx);
+            bigint_dec_free(&one);
+        } else {
+            bigdecimal_ty zero;
+            bigdecimal_init(&zero);
+            err = bigdecimal_copy(out, &zero);
+            bigdecimal_free(&zero);
+        }
+    }
+    bigint_dec_free(&mant);
+    return err;
+}
+
+static bool dec_finite(const bigdecimal_ty *x) {
+    return !bigdecimal_is_nan(x) && !bigdecimal_is_inf(x);
+}
+
+static bool dec_ball_valid(const bigdecimal_ball_ty *b) {
+    bigdecimal_ty zero;
+    bigdecimal_init(&zero);
+    bool ok = b != NULL && dec_finite(&b->mid) && dec_finite(&b->rad) &&
+              bigdecimal_cmp(&b->rad, &zero) >= 0;
+    bigdecimal_free(&zero);
+    return ok;
+}
+
+static bigdecimal_err_ty dec_from_interval(bigdecimal_ball_ty *dst,
+        const bigdecimal_ty *lo, const bigdecimal_ty *hi,
+        const bigdecimal_ctx_ty *near) {
+    bigdecimal_ctx_ty dn;
+    bigdecimal_ctx_ty up;
+    bigdecimal_err_ty err = dec_dir_ctx(&dn, near, BIGDECIMAL_ROUND_TOWARD_NEG_E);
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_dir_ctx(&up, near, BIGDECIMAL_ROUND_TOWARD_POS_E);
+    }
+    bigdecimal_ty two;
+    bigdecimal_ty s_lo;
+    bigdecimal_ty s_hi;
+    bigdecimal_ty sum;
+    bigdecimal_ty mid;
+    bigdecimal_ty m_lo;
+    bigdecimal_ty m_hi;
+    bigdecimal_ty unc;
+    bigdecimal_ty d1;
+    bigdecimal_ty d2;
+    bigdecimal_ty m1;
+    bigdecimal_ty m2;
+    bigdecimal_ty rad;
+    bigdecimal_ty u;
+    bigdecimal_init(&two);
+    bigdecimal_init(&s_lo);
+    bigdecimal_init(&s_hi);
+    bigdecimal_init(&sum);
+    bigdecimal_init(&mid);
+    bigdecimal_init(&m_lo);
+    bigdecimal_init(&m_hi);
+    bigdecimal_init(&unc);
+    bigdecimal_init(&d1);
+    bigdecimal_init(&d2);
+    bigdecimal_init(&m1);
+    bigdecimal_init(&m2);
+    bigdecimal_init(&rad);
+    bigdecimal_init(&u);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_from_str(&two, "2", near, NULL);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&s_lo, lo, hi, &dn);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&s_hi, lo, hi, &up);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&sum, lo, hi, near);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_div(&mid, &sum, &two, near);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_div(&m_lo, &s_lo, &two, near);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_div(&m_hi, &s_hi, &two, near);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(&unc, &m_hi, &m_lo, &up);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(&d1, &mid, lo, near);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(&d2, hi, &mid, near);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_abs(&m1, &d1);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_abs(&m2, &d2);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = (bigdecimal_cmp(&m1, &m2) >= 0) ? bigdecimal_copy(&rad, &m1)
+                                              : bigdecimal_copy(&rad, &m2);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_ulp(&u, &rad, near);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&rad, &rad, &u, &up);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&rad, &rad, &unc, &up);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_copy(&dst->mid, &mid);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_copy(&dst->rad, &rad);
+    }
+    bigdecimal_free(&u);
+    bigdecimal_free(&rad);
+    bigdecimal_free(&m2);
+    bigdecimal_free(&m1);
+    bigdecimal_free(&d2);
+    bigdecimal_free(&d1);
+    bigdecimal_free(&unc);
+    bigdecimal_free(&m_hi);
+    bigdecimal_free(&m_lo);
+    bigdecimal_free(&mid);
+    bigdecimal_free(&sum);
+    bigdecimal_free(&s_hi);
+    bigdecimal_free(&s_lo);
+    bigdecimal_free(&two);
+    return err;
+}
+
+static bigdecimal_err_ty dec_ball_bounds(bigdecimal_ty *lo,
+        bigdecimal_ty *hi, const bigdecimal_ball_ty *b,
+        const bigdecimal_ctx_ty *near) {
+    bigdecimal_ctx_ty dn;
+    bigdecimal_ctx_ty up;
+    bigdecimal_err_ty err = dec_dir_ctx(&dn, near, BIGDECIMAL_ROUND_TOWARD_NEG_E);
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_dir_ctx(&up, near, BIGDECIMAL_ROUND_TOWARD_POS_E);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(lo, &b->mid, &b->rad, &dn);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(hi, &b->mid, &b->rad, &up);
+    }
+    return err;
+}
+
+bigdecimal_err_ty bigdecimal_ball_init(bigdecimal_ball_ty *b) {
+    if (b == NULL) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_err_ty err = bigdecimal_init(&b->mid);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_init(&b->rad);
+    }
+    return err;
+}
+
+void bigdecimal_ball_free(bigdecimal_ball_ty *b) {
+    if (b == NULL) {
+        return;
+    }
+    bigdecimal_free(&b->mid);
+    bigdecimal_free(&b->rad);
+}
+
+bigdecimal_err_ty bigdecimal_ball_copy(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *src) {
+    if (dst == NULL || src == NULL) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ball_ty r;
+    bigdecimal_ball_init(&r);
+    bigdecimal_err_ty err = bigdecimal_copy(&r.mid, &src->mid);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_copy(&r.rad, &src->rad);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        bigdecimal_ball_free(dst);
+        *dst = r;
+        return BIGDECIMAL_OK_E;
+    }
+    bigdecimal_ball_free(&r);
+    return err;
+}
+
+bigdecimal_err_ty bigdecimal_ball_set(bigdecimal_ball_ty *dst,
+        const bigdecimal_ty *mid, const bigdecimal_ty *rad,
+        const bigdecimal_ctx_ty *ctx) {
+    (void)ctx;
+    if (dst == NULL || mid == NULL || rad == NULL) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ty zero;
+    bigdecimal_init(&zero);
+    bool ok = dec_finite(mid) && dec_finite(rad) &&
+              bigdecimal_cmp(rad, &zero) >= 0;
+    bigdecimal_free(&zero);
+    if (!ok) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ball_ty r;
+    bigdecimal_ball_init(&r);
+    bigdecimal_err_ty err = bigdecimal_copy(&r.mid, mid);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_copy(&r.rad, rad);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        bigdecimal_ball_free(dst);
+        *dst = r;
+        return BIGDECIMAL_OK_E;
+    }
+    bigdecimal_ball_free(&r);
+    return err;
+}
+
+bool bigdecimal_ball_contains(const bigdecimal_ball_ty *b,
+        const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx) {
+    if (!dec_ball_valid(b) || x == NULL || !dec_finite(x)) {
+        return false;
+    }
+    bigdecimal_ctx_ty dn;
+    bigdecimal_ctx_ty up;
+    if (dec_dir_ctx(&dn, ctx, BIGDECIMAL_ROUND_TOWARD_NEG_E) !=
+            BIGDECIMAL_OK_E ||
+            dec_dir_ctx(&up, ctx, BIGDECIMAL_ROUND_TOWARD_POS_E) !=
+            BIGDECIMAL_OK_E) {
+        return false;
+    }
+    bigdecimal_ty lo_in;
+    bigdecimal_ty hi_in;
+    bigdecimal_init(&lo_in);
+    bigdecimal_init(&hi_in);
+    bool result = false;
+    if (bigdecimal_sub(&lo_in, &b->mid, &b->rad, &up) == BIGDECIMAL_OK_E &&
+            bigdecimal_add(&hi_in, &b->mid, &b->rad, &dn) ==
+            BIGDECIMAL_OK_E) {
+        result = bigdecimal_cmp(x, &lo_in) >= 0 &&
+                 bigdecimal_cmp(x, &hi_in) <= 0;
+    }
+    bigdecimal_free(&hi_in);
+    bigdecimal_free(&lo_in);
+    return result;
+}
+
+bigdecimal_err_ty bigdecimal_ball_add(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *a, const bigdecimal_ball_ty *b,
+        const bigdecimal_ctx_ty *ctx) {
+    if (dst == NULL || a == NULL || b == NULL || ctx == NULL ||
+            !dec_ball_valid(a) || !dec_ball_valid(b)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ctx_ty dn;
+    bigdecimal_ctx_ty up;
+    bigdecimal_err_ty err = dec_dir_ctx(&dn, ctx, BIGDECIMAL_ROUND_TOWARD_NEG_E);
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_dir_ctx(&up, ctx, BIGDECIMAL_ROUND_TOWARD_POS_E);
+    }
+    bigdecimal_ty a_lo;
+    bigdecimal_ty a_hi;
+    bigdecimal_ty b_lo;
+    bigdecimal_ty b_hi;
+    bigdecimal_ty lo;
+    bigdecimal_ty hi;
+    bigdecimal_init(&a_lo);
+    bigdecimal_init(&a_hi);
+    bigdecimal_init(&b_lo);
+    bigdecimal_init(&b_hi);
+    bigdecimal_init(&lo);
+    bigdecimal_init(&hi);
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_ball_bounds(&a_lo, &a_hi, a, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_ball_bounds(&b_lo, &b_hi, b, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&lo, &a_lo, &b_lo, &dn);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&hi, &a_hi, &b_hi, &up);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_from_interval(dst, &lo, &hi, ctx);
+    }
+    bigdecimal_free(&hi);
+    bigdecimal_free(&lo);
+    bigdecimal_free(&b_hi);
+    bigdecimal_free(&b_lo);
+    bigdecimal_free(&a_hi);
+    bigdecimal_free(&a_lo);
+    return err;
+}
+
+bigdecimal_err_ty bigdecimal_ball_sub(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *a, const bigdecimal_ball_ty *b,
+        const bigdecimal_ctx_ty *ctx) {
+    if (dst == NULL || a == NULL || b == NULL || ctx == NULL ||
+            !dec_ball_valid(a) || !dec_ball_valid(b)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ctx_ty dn;
+    bigdecimal_ctx_ty up;
+    bigdecimal_err_ty err = dec_dir_ctx(&dn, ctx, BIGDECIMAL_ROUND_TOWARD_NEG_E);
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_dir_ctx(&up, ctx, BIGDECIMAL_ROUND_TOWARD_POS_E);
+    }
+    bigdecimal_ty a_lo;
+    bigdecimal_ty a_hi;
+    bigdecimal_ty b_lo;
+    bigdecimal_ty b_hi;
+    bigdecimal_ty lo;
+    bigdecimal_ty hi;
+    bigdecimal_init(&a_lo);
+    bigdecimal_init(&a_hi);
+    bigdecimal_init(&b_lo);
+    bigdecimal_init(&b_hi);
+    bigdecimal_init(&lo);
+    bigdecimal_init(&hi);
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_ball_bounds(&a_lo, &a_hi, a, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_ball_bounds(&b_lo, &b_hi, b, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(&lo, &a_lo, &b_hi, &dn);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(&hi, &a_hi, &b_lo, &up);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_from_interval(dst, &lo, &hi, ctx);
+    }
+    bigdecimal_free(&hi);
+    bigdecimal_free(&lo);
+    bigdecimal_free(&b_hi);
+    bigdecimal_free(&b_lo);
+    bigdecimal_free(&a_hi);
+    bigdecimal_free(&a_lo);
+    return err;
+}
+
+static bigdecimal_err_ty dec_ball_mul_extreme(bigdecimal_ty *lo,
+        bigdecimal_ty *hi, const bigdecimal_ty *a_lo, const bigdecimal_ty *a_hi,
+        const bigdecimal_ty *b_lo, const bigdecimal_ty *b_hi,
+        const bigdecimal_ctx_ty *near, bool quotient) {
+    bigdecimal_ctx_ty dn;
+    bigdecimal_ctx_ty up;
+    bigdecimal_err_ty err = dec_dir_ctx(&dn, near, BIGDECIMAL_ROUND_TOWARD_NEG_E);
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_dir_ctx(&up, near, BIGDECIMAL_ROUND_TOWARD_POS_E);
+    }
+    const bigdecimal_ty *av[2] = {a_lo, a_hi};
+    const bigdecimal_ty *bv[2] = {b_lo, b_hi};
+    bool first = true;
+    for (int i = 0; i < 2 && err == BIGDECIMAL_OK_E; i++) {
+        for (int j = 0; j < 2 && err == BIGDECIMAL_OK_E; j++) {
+            bigdecimal_ty p_dn;
+            bigdecimal_ty p_up;
+            bigdecimal_init(&p_dn);
+            bigdecimal_init(&p_up);
+            if (quotient) {
+                err = bigdecimal_div(&p_dn, av[i], bv[j], &dn);
+                if (err == BIGDECIMAL_OK_E) {
+                    err = bigdecimal_div(&p_up, av[i], bv[j], &up);
+                }
+            } else {
+                err = bigdecimal_mul(&p_dn, av[i], bv[j], &dn);
+                if (err == BIGDECIMAL_OK_E) {
+                    err = bigdecimal_mul(&p_up, av[i], bv[j], &up);
+                }
+            }
+            if (err == BIGDECIMAL_OK_E &&
+                    (first || bigdecimal_cmp(&p_dn, lo) < 0)) {
+                err = bigdecimal_copy(lo, &p_dn);
+            }
+            if (err == BIGDECIMAL_OK_E &&
+                    (first || bigdecimal_cmp(&p_up, hi) > 0)) {
+                err = bigdecimal_copy(hi, &p_up);
+            }
+            first = false;
+            bigdecimal_free(&p_up);
+            bigdecimal_free(&p_dn);
+        }
+    }
+    return err;
+}
+
+bigdecimal_err_ty bigdecimal_ball_mul(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *a, const bigdecimal_ball_ty *b,
+        const bigdecimal_ctx_ty *ctx) {
+    if (dst == NULL || a == NULL || b == NULL || ctx == NULL ||
+            !dec_ball_valid(a) || !dec_ball_valid(b)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ty a_lo;
+    bigdecimal_ty a_hi;
+    bigdecimal_ty b_lo;
+    bigdecimal_ty b_hi;
+    bigdecimal_ty lo;
+    bigdecimal_ty hi;
+    bigdecimal_init(&a_lo);
+    bigdecimal_init(&a_hi);
+    bigdecimal_init(&b_lo);
+    bigdecimal_init(&b_hi);
+    bigdecimal_init(&lo);
+    bigdecimal_init(&hi);
+    bigdecimal_err_ty err = dec_ball_bounds(&a_lo, &a_hi, a, ctx);
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_ball_bounds(&b_lo, &b_hi, b, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_ball_mul_extreme(&lo, &hi, &a_lo, &a_hi, &b_lo, &b_hi, ctx,
+                                   false);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_from_interval(dst, &lo, &hi, ctx);
+    }
+    bigdecimal_free(&hi);
+    bigdecimal_free(&lo);
+    bigdecimal_free(&b_hi);
+    bigdecimal_free(&b_lo);
+    bigdecimal_free(&a_hi);
+    bigdecimal_free(&a_lo);
+    return err;
+}
+
+bigdecimal_err_ty bigdecimal_ball_div(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *a, const bigdecimal_ball_ty *b,
+        const bigdecimal_ctx_ty *ctx) {
+    if (dst == NULL || a == NULL || b == NULL || ctx == NULL ||
+            !dec_ball_valid(a) || !dec_ball_valid(b)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ty a_lo;
+    bigdecimal_ty a_hi;
+    bigdecimal_ty b_lo;
+    bigdecimal_ty b_hi;
+    bigdecimal_ty lo;
+    bigdecimal_ty hi;
+    bigdecimal_ty zero;
+    bigdecimal_init(&a_lo);
+    bigdecimal_init(&a_hi);
+    bigdecimal_init(&b_lo);
+    bigdecimal_init(&b_hi);
+    bigdecimal_init(&lo);
+    bigdecimal_init(&hi);
+    bigdecimal_init(&zero);
+    bigdecimal_err_ty err = dec_ball_bounds(&a_lo, &a_hi, a, ctx);
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_ball_bounds(&b_lo, &b_hi, b, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E &&
+            !(bigdecimal_cmp(&b_lo, &zero) > 0 ||
+              bigdecimal_cmp(&b_hi, &zero) < 0)) {
+        err = BIGDECIMAL_ERR_INVALID_E;
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_ball_mul_extreme(&lo, &hi, &a_lo, &a_hi, &b_lo, &b_hi, ctx,
+                                   true);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = dec_from_interval(dst, &lo, &hi, ctx);
+    }
+    bigdecimal_free(&zero);
+    bigdecimal_free(&hi);
+    bigdecimal_free(&lo);
+    bigdecimal_free(&b_hi);
+    bigdecimal_free(&b_lo);
+    bigdecimal_free(&a_hi);
+    bigdecimal_free(&a_lo);
+    return err;
+}
