@@ -133,13 +133,14 @@
   - [x] 逆幂核：`nex_series_ln1p_order`/`atan_order` 与
         `nex_series_{ln1p,atan}_eval_float`/`_decimal`；测试含 `ln(1.5)`、
         `atan(0.5)` 十进制已知值对照。
-  - [~] 路线 B（第一/二阶段）：`nex/ball/` 的 `bigfloat_ball_ty` /
-        `bigdecimal_ball_ty` + `add/sub/mul/div/contains`（定向舍入严格区间）；
-        实参规约 `bigfloat_ball_exp/sin/cos`（折半 + 球平方 / half-angle）；
-  - [x] 路线 B 实参规约：`bigfloat_ball_exp/sin/cos` 与
-        `bigdecimal_ball_exp/sin/cos`（折半 + 球平方 / half-angle）；
-        测试 `tests/test_ball.c`。待续：更大 |x|。
-  - [ ] `bigfloat`/`bigdecimal` 级数 + **严谨误差界** + 自适应截断。
+  - [x] 路线 B：`nex/ball/` 的 `bigfloat_ball_ty` / `bigdecimal_ball_ty` +
+        `add/sub/mul/div/contains`（定向舍入严格区间）；实参规约
+        `bigfloat_ball_exp/sin/cos` 与 `bigdecimal_ball_exp/sin/cos`
+        （折半 + 球平方 / half-angle）；测试 `tests/test_ball.c`。待续：更大 |x|。
+  - [x] 数值类型（bigfloat/bigdecimal）严谨误差界 + 自适应截断（路线 A
+        `*_order` + `err_out`；路线 B 球式传播）。
+  - [ ] **可选**：通用数值系数级数类型（`bigfloat_series`/`bigdecimal_series`，
+        含四则/复合）——§D 逐点求值不需要，非 v1.3 阻塞项。
   - [x] 复合与求导 / 积分：`bigfrac_series_deriv` / `integral`（前导零归一；
         `z^{−1}` 项积分报错）/ `compose`（秦九韶式）；测试入 `tests/test_series.c`。
 - [x] **C3 Padé 逼近**：`nex_series_pade_frac`（bigfrac 高斯消元，[m/n] 系数
