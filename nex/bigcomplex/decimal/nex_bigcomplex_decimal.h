@@ -114,6 +114,53 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_arg(bigdecimal_ty *dst,
         const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
 
 /* ------------------------------------------------------------------ */
+/* 超越函数（§D5）：分量运算，各步按 ctx 舍入                            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * brief: 复指数 exp(z) = e^re·(cos im + i sin im)（十进制版）
+ * return: 成功返回 OK（NaN 分量传播为 (NaN,NaN)）；参数非法/含 ±∞ 返回
+ *         INVALID；内存不足返回 OOM（dst 不变）
+ */
+bigcomplex_decimal_err_ty bigcomplex_decimal_exp(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 复对数 log(z) = log|z| + i·arg(z)（主值；z ≠ 0，十进制版）
+ * return: 同 exp；z = 0 返回 INVALID
+ */
+bigcomplex_decimal_err_ty bigcomplex_decimal_log(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 复平方根 sqrt(z)（主值，右半平面，十进制版）
+ * return: 同 exp
+ */
+bigcomplex_decimal_err_ty bigcomplex_decimal_sqrt(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 复正弦 sin(z) = sin re·cosh im + i·cos re·sinh im（十进制版）
+ * return: 同 exp（|im| 过大时 e^{|im|} 可能溢出）
+ */
+bigcomplex_decimal_err_ty bigcomplex_decimal_sin(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 复余弦 cos(z) = cos re·cosh im − i·sin re·sinh im（十进制版）
+ * return: 同 sin
+ */
+bigcomplex_decimal_err_ty bigcomplex_decimal_cos(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+
+/*
+ * brief: 复正切 tan(z) = sin(z)/cos(z)（十进制版）
+ * return: 同 exp；cos(z) = 0（极点）返回 INVALID
+ */
+bigcomplex_decimal_err_ty bigcomplex_decimal_tan(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *src, const bigdecimal_ctx_ty *ctx);
+
+/* ------------------------------------------------------------------ */
 /* 四则（§9.2）                                                        */
 /* ------------------------------------------------------------------ */
 

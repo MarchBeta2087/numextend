@@ -136,6 +136,68 @@ bigcomplex_float_err_ty bigcomplex_float_arg(bigfloat_ty *dst, const bigcomplex_
 
 **备注**：经 bigfloat_atan2（球式半角规约 + Ziv）；负实轴（im=0, re<0）取 +π
 
+## 超越函数（§D5）：分量运算，各步按 ctx 舍入
+
+### `bigcomplex_float_exp`
+
+```c
+bigcomplex_float_err_ty bigcomplex_float_exp(bigcomplex_float_ty *dst, const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：复指数 exp(z) = e^re·(cos im + i sin im)
+
+**返回**：成功返回 OK（NaN 分量传播为 (NaN,NaN)）；参数非法/含 ±∞ 返回 INVALID；内存不足返回 OOM（dst 不变）
+
+### `bigcomplex_float_log`
+
+```c
+bigcomplex_float_err_ty bigcomplex_float_log(bigcomplex_float_ty *dst, const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：复对数 log(z) = log|z| + i·arg(z)（主值；z ≠ 0）
+
+**返回**：同 exp；z = 0 返回 INVALID
+
+### `bigcomplex_float_sqrt`
+
+```c
+bigcomplex_float_err_ty bigcomplex_float_sqrt(bigcomplex_float_ty *dst, const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：复平方根 sqrt(z)（主值，右半平面）
+
+**返回**：同 exp
+
+### `bigcomplex_float_sin`
+
+```c
+bigcomplex_float_err_ty bigcomplex_float_sin(bigcomplex_float_ty *dst, const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：复正弦 sin(z) = sin re·cosh im + i·cos re·sinh im
+
+**返回**：同 exp（|im| 过大时 e^{|im|} 可能溢出）
+
+### `bigcomplex_float_cos`
+
+```c
+bigcomplex_float_err_ty bigcomplex_float_cos(bigcomplex_float_ty *dst, const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：复余弦 cos(z) = cos re·cosh im − i·sin re·sinh im
+
+**返回**：同 sin
+
+### `bigcomplex_float_tan`
+
+```c
+bigcomplex_float_err_ty bigcomplex_float_tan(bigcomplex_float_ty *dst, const bigcomplex_float_ty *src, const bigfloat_ctx_ty *ctx);
+```
+
+**说明**：复正切 tan(z) = sin(z)/cos(z)
+
+**返回**：同 exp；cos(z) = 0（极点）返回 INVALID
+
 ## 四则（§9.2）
 
 ### `bigcomplex_float_add`

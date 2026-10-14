@@ -178,7 +178,10 @@
 - [x] **D4 `asin` / `acos` / `atan`**：✅ `bigfloat_asin`/`acos` 与
       `bigdecimal_asin`/`acos` 正确舍入（球式 `asin = atan(x/√(1−x²))`、`acos =
       π/2 − asin`；`atan` 见 D1）；特判 `acos(1)=0` 避免对称球跨 0 时 Ziv 不收敛。
-- [ ] **D5 复数超越函数**（`bigcomplex_float` / `bigcomplex_decimal`）。
+- [x] **D5 复数超越函数**：✅ `bigcomplex_float_*` / `bigcomplex_decimal_*` 的
+      `exp`/`log`/`sqrt`/`sin`/`cos`/`tan`（分量运算，各步按 `ctx` 舍入；
+      `sinh`/`cosh` 由 `exp` 组合；NaN 分量传播、含 ±∞ 返回 INVALID）；
+      单元测试 + 本机 mpmath 压测（float/decimal）。
 - [ ] **D6 正确舍入**：保护位 + 粘位、无双重舍入；补 §7/§9 语义规范。
 
 ---
