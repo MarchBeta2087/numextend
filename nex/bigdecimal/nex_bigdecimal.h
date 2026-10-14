@@ -7,6 +7,10 @@
 
 #include "nex/bigint/dec/nex_bigint_dec.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * bigdecimal_ty：可调精度十进制浮点数（设计文档 §8）。
  *
@@ -277,5 +281,9 @@ bigdecimal_err_ty bigdecimal_decompose(const bigdecimal_ty *src,
 bigdecimal_err_ty bigdecimal_compose(bigdecimal_ty *dst,
         const bigint_dec_ty *mant, int64_t exp, bigdecimal_flag_ty flag,
         const bigdecimal_ctx_ty *ctx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGDECIMAL_H */

@@ -115,6 +115,39 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  # C++ 互操作（TODO §A1/A2）：公开头文件 extern "C" + 链接 C 编译的库；
+  # 矩阵覆盖 C++11 / 17 / 23。
+  linux-cpp:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cxx_std: [11, 17, 23]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & test (C++${{ matrix.cxx_std }})
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_CXX_STANDARD=${{ matrix.cxx_std }}
+          cmake --build build --target test_cpp_consumer --parallel
+          ctest --test-dir build -R cpp_consumer --output-on-failure
+
+  # C 标准矩阵（TODO §A3）：C99 由 linux job 覆盖，这里验证 C11/17/23。
+  linux-c-std:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        c_std: [11, 17, 23]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & test (C${{ matrix.c_std }})
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DNEX_C_STANDARD=${{ matrix.c_std }}
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+
   # GCC + ASan/UBSan
   linux-sanitizer:
     runs-on: ubuntu-latest

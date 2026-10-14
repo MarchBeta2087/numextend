@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * nex_ntt：数论变换（NTT）核心模块（设计文档 §4.3）。
  *
@@ -117,5 +121,9 @@ ntt_err_ty ntt_pointwise_mul(uint32_t *dst, const uint32_t *lhs,
  */
 uint64_t ntt_crt_reconstruct_one(const uint32_t *residues,
         const ntt_mod_ty *const *mods, size_t mod_count);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_NTT_H */

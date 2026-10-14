@@ -6,6 +6,10 @@
 
 #include "nex/bigfloat/nex_bigfloat.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * bigcomplex_float_ty：实部/虚部均为 bigfloat_ty 的复数（设计文档 §9）。
  *
@@ -144,5 +148,9 @@ bigcomplex_float_err_ty bigcomplex_float_div(bigcomplex_float_ty *dst,
  */
 bool bigcomplex_float_eq(const bigcomplex_float_ty *lhs,
         const bigcomplex_float_ty *rhs);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGCOMPLEX_FLOAT_H */

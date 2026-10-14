@@ -7,9 +7,18 @@
  * 语义：NEX_VERSION_* 标识**库版本**（独立于 docs/design.md 的文档修订号）。
  * 稳定性承诺见 docs/design.md「API/ABI 稳定性政策」。
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define NEX_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
 #define NEX_VERSION_MINOR @PROJECT_VERSION_MINOR@
 #define NEX_VERSION_PATCH @PROJECT_VERSION_PATCH@
 #define NEX_VERSION_STRING "@PROJECT_VERSION@"
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_VERSION_H */

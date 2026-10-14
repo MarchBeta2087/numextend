@@ -7,6 +7,10 @@
 
 #include "nex/bigint/nex_bigint_common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * bigint_dec_ty：十进制肢（基 10^9）任意精度整数（设计文档 §5）。
  *
@@ -279,5 +283,9 @@ bigint_err_ty bigint_dec_div_pow10(bigint_dec_ty *val, size_t digits);
  * brief: 幅值的十进制位数（零为 0，与 bigint_bin_bit_len 的零语义对齐）
  */
 size_t bigint_dec_digit_len(const bigint_dec_ty *val);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGINT_DEC_H */

@@ -13,6 +13,10 @@
 #include "nex/bigcomplex/float/nex_bigcomplex_float.h"
 #include "nex/bigcomplex/decimal/nex_bigcomplex_decimal.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * nex_convert：类型间转换单元（设计文档 §10 转换矩阵）。
  *
@@ -161,5 +165,9 @@ nex_convert_err_ty nex_convert_cpx_float_to_float(bigfloat_ty *dst,
  */
 nex_convert_err_ty nex_convert_cpx_decimal_to_decimal(bigdecimal_ty *dst,
         const bigcomplex_decimal_ty *src);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_CONVERT_H */

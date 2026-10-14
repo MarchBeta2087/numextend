@@ -7,6 +7,10 @@
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * bigfloat_ty：可调精度二进制浮点数（设计文档 §7）。
  *
@@ -277,5 +281,9 @@ bigfloat_err_ty bigfloat_decompose(const bigfloat_ty *src, bigint_bin_ty *mant,
  */
 bigfloat_err_ty bigfloat_compose(bigfloat_ty *dst, const bigint_bin_ty *mant,
         int64_t exp, bigfloat_flag_ty flag, const bigfloat_ctx_ty *ctx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* NEX_BIGFLOAT_H */
