@@ -7,6 +7,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 "${PYTHON:-python3}" scripts/gen_api_doc.py docs/manual
+"${PYTHON:-python3}" scripts/modules.py gen-docs docs/modules.md
 
 if command -v pandoc > /dev/null 2>&1; then
     pandoc $(ls docs/manual/*.md | sort) \

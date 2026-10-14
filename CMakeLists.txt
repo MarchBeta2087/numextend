@@ -57,6 +57,23 @@ list(LENGTH NEX_SOURCES _nex_nsrc)
 message(STATUS "nex modules: ${NEX_RESOLVED_MODULES}")
 message(STATUS "nex sources (incl. deps): ${_nex_nsrc}")
 
+# 单文件组合（TODO §B4）：配置期生成 amalgam，库改由单 TU 构建。
+option(NEX_AMALGAM "从单文件组合（amalgamation）构建库（TODO §B4）" OFF)
+if(NEX_AMALGAM)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(_nex_amalgam_dir "${CMAKE_CURRENT_BINARY_DIR}/amalgam")
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/scripts/amalgamate.py"
+                --out "${_nex_amalgam_dir}" --modules "${NEX_MODULES}"
+        RESULT_VARIABLE _nex_amalgam_rc)
+    if(NOT _nex_amalgam_rc EQUAL 0)
+        message(FATAL_ERROR "amalgamate.py 生成失败（rc=${_nex_amalgam_rc}）")
+    endif()
+    set(NEX_SOURCES "${_nex_amalgam_dir}/nex_amalgam.c")
+    message(STATUS "nex amalgam: ${_nex_amalgam_dir}/nex_amalgam.c")
+endif()
+
 # 库类型由 BUILD_SHARED_LIBS 决定（默认 STATIC）。
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(BUILD_SHARED_LIBS)
@@ -78,6 +95,10 @@ target_include_directories(nex PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+if(NEX_AMALGAM)
+    target_include_directories(nex PUBLIC
+        $<BUILD_INTERFACE:${_nex_amalgam_dir}>)
+endif()
 
 if(MSVC)
     target_compile_options(nex PRIVATE /W4)
