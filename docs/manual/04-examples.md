@@ -63,7 +63,28 @@ bigcomplex_float_from_str(&w, "3-4i", &ctx, NULL);
 bigcomplex_float_mul(&p, &z, &w, &ctx);   /* 25 + 0i */
 ```
 
-## 4.6 跨类型转换
+## 4.6 超越函数
+
+```c
+#include "nex/transcend/nex_transcend.h"
+
+/* 正确舍入到 ctx（球式严谨误差界 + Ziv） */
+bigfloat_atan(&c, &a, &ctx);          /* atan */
+bigfloat_log(&c, &a, &ctx);           /* ln（自然对数） */
+bigfloat_sin(&c, &a, &ctx);           /* sin / cos / tan */
+bigfloat_exp(&c, &a, &ctx);           /* exp */
+bigfloat_asin(&c, &a, &ctx);          /* asin / acos（|a| ≤ 1） */
+
+/* 复数辐角与复数超越函数 */
+bigfloat_ty arg;
+bigcomplex_float_arg(&arg, &z, &ctx);         /* arg(z) = atan2(im, re) */
+bigcomplex_float_ty e;
+bigcomplex_float_exp(&e, &z, &ctx);           /* exp(z) */
+```
+
+`bigdecimal` 与 `bigcomplex_decimal` 接口对称；三角/反三角支持 `|x| ≲ 2⁶³`。
+
+## 4.7 跨类型转换
 
 ```c
 #include "nex/convert/nex_convert.h"
