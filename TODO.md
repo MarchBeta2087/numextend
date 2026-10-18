@@ -2,7 +2,7 @@
 
 > **活文档**：v1.0.0 – v1.4.0 已发布，本文件记录 **v1.4 之后的规划**。只收录已评估、
 > 可执行的方向；未决/否定的候选集中列在文末。优先级见 §0。
-> 最后更新：2026-10-18（v1.6：Payne–Hanek 落地 + 文档收口）
+> 最后更新：2026-10-18（v1.6.0 已发布：Payne–Hanek、路线 A 加速、Smith、bench_math）
 
 ---
 
@@ -139,7 +139,8 @@
   - [x] 路线 B：`nex/ball/` 的 `bigfloat_ball_ty` / `bigdecimal_ball_ty` +
         `add/sub/mul/div/contains`（定向舍入严格区间）；实参规约
         `bigfloat_ball_exp/sin/cos` 与 `bigdecimal_ball_exp/sin/cos`
-        （折半 + 球平方 / half-angle）；测试 `tests/test_ball.c`。待续：更大 |x|。
+        （折半 + 球平方 / half-angle）；测试 `tests/test_ball.c`。v1.6 起
+        sin/cos 的大 |x| 由 Payne–Hanek（§16.2）处理，log 用指数拆分（§16）。
   - [x] 数值类型（bigfloat/bigdecimal）严谨误差界 + 自适应截断（路线 A
         `*_order` + `err_out`；路线 B 球式传播）。
   - [x] 通用（球系数）数值级数 `bigfloat_ball_series` / `bigdecimal_ball_series`
