@@ -1,11 +1,11 @@
 /*
  * nex_parallel_ntt_par.c：阶段级并行 NTT（contrib 实验）。
  *
- * 与 nex_ntt 的 forward/inverse 逐位一致：
- *   - 同样的 DIF/DIT 蝶形、Montgomery 模乘、wlen 推导与归一化顺序；
- *   - 每个 stage 把 n/2 个蝶形单元按扁平索引 u = k·(n/len) + t 均分给
- *     工作线程；不同 (k,t) 的 (j, j+half) 互不相交，无数据竞争；
- *   - 每个 task 从 wlen^k0 开始（Montgomery 幂），后续按 w *= wlen 递推。
+ * 多缓冲区版本：每个 stage 只做一次 barrier，把 count 个缓冲区的蝶形单元
+ * 一起分给线程池；不同 (buffer,k,t) 的 (j,j+half) 互不相交，无数据竞争。
+ * 与 nex_ntt 的 DIF/DIT + Montgomery 实现逐位一致。
+ *
+ * 结果与线程数/分块无关：每个蝶形单元的计算是独立的，不涉及归约。
  */
 
 #include "nex_parallel_ntt_par.h"
@@ -13,6 +13,8 @@
 #include <stdint.h>
 
 #define PAR_MAX_TASKS 64U
+#define PAR_MAX_BUFS 8U
+#define PAR_MAX_JOBS 128U
 
 static uint32_t par_inv_pow2(uint32_t p)
 {
@@ -78,6 +80,12 @@ static unsigned pool_tasks(nex_thread_pool_ty *pool)
     return n;
 }
 
+static unsigned tasks_per_buf(unsigned tasks, size_t count)
+{
+    const unsigned t = tasks / (unsigned)count;
+    return (t == 0U) ? 1U : t;
+}
+
 typedef struct {
     uint32_t *coeffs;
     size_t begin;
@@ -95,26 +103,24 @@ static void lin_job_fn(void *ctx, size_t index)
     }
 }
 
-static void lin_apply(uint32_t *coeffs, size_t len, uint32_t fac, uint32_t p,
-        uint32_t p_inv, nex_thread_pool_ty *pool)
+static void run_lin_multi(nex_par_ntt_buf_ty *bufs, size_t count, size_t len,
+        const uint32_t *fac, const uint32_t *p, const uint32_t *p_inv,
+        unsigned tpb, nex_thread_pool_ty *pool)
 {
-    unsigned nt = pool_tasks(pool);
-    if ((size_t)nt > len) {
-        nt = (unsigned)len;
+    lin_job_ty jobs[PAR_MAX_JOBS];
+    size_t nj = 0U;
+    for (size_t b = 0U; b < count; b++) {
+        for (unsigned t = 0U; t < tpb; t++) {
+            jobs[nj].coeffs = bufs[b].buf;
+            jobs[nj].begin = len * (size_t)t / (size_t)tpb;
+            jobs[nj].end = len * (size_t)(t + 1U) / (size_t)tpb;
+            jobs[nj].fac = fac[b];
+            jobs[nj].p = p[b];
+            jobs[nj].p_inv = p_inv[b];
+            nj++;
+        }
     }
-    if (nt == 0U) {
-        return;
-    }
-    lin_job_ty jobs[PAR_MAX_TASKS];
-    for (unsigned t = 0U; t < nt; t++) {
-        jobs[t].coeffs = coeffs;
-        jobs[t].begin = len * (size_t)t / (size_t)nt;
-        jobs[t].end = len * (size_t)(t + 1U) / (size_t)nt;
-        jobs[t].fac = fac;
-        jobs[t].p = p;
-        jobs[t].p_inv = p_inv;
-    }
-    nex_thread_pool_run(pool, nt, lin_job_fn, jobs);
+    nex_thread_pool_run(pool, nj, lin_job_fn, jobs);
 }
 
 typedef struct {
@@ -166,86 +172,131 @@ static void stage_job_fn(void *ctx, size_t index)
     }
 }
 
-static void run_stage(uint32_t *coeffs, uint32_t log2n, uint32_t len,
-        uint32_t wlen, int inverse, uint32_t p, uint32_t p_inv, uint32_t r,
-        nex_thread_pool_ty *pool)
+static void run_stage_multi(nex_par_ntt_buf_ty *bufs, size_t count,
+        uint32_t log2n, uint32_t len, const uint32_t *wlen,
+        const uint32_t *p, const uint32_t *p_inv, const uint32_t *r,
+        int inverse, unsigned tpb, nex_thread_pool_ty *pool)
 {
     const uint32_t n = 1U << log2n;
     const uint32_t units = n / 2U;
-    unsigned nt = pool_tasks(pool);
-    if ((uint32_t)nt > units) {
-        nt = units;
+    stage_job_ty jobs[PAR_MAX_JOBS];
+    size_t nj = 0U;
+    for (size_t b = 0U; b < count; b++) {
+        for (unsigned t = 0U; t < tpb; t++) {
+            jobs[nj].coeffs = bufs[b].buf;
+            jobs[nj].n = n;
+            jobs[nj].len = len;
+            jobs[nj].half = len >> 1U;
+            jobs[nj].per_k = n / len;
+            jobs[nj].u0 = (uint32_t)((uint64_t)units * t / tpb);
+            jobs[nj].u1 = (uint32_t)((uint64_t)units * (t + 1U) / tpb);
+            jobs[nj].p = p[b];
+            jobs[nj].p_inv = p_inv[b];
+            jobs[nj].wlen = wlen[b];
+            jobs[nj].r = r[b];
+            jobs[nj].inverse = inverse;
+            nj++;
+        }
     }
-    if (nt == 0U) {
-        return;
-    }
-    stage_job_ty jobs[PAR_MAX_TASKS];
-    for (unsigned t = 0U; t < nt; t++) {
-        jobs[t].coeffs = coeffs;
-        jobs[t].n = n;
-        jobs[t].len = len;
-        jobs[t].half = len >> 1U;
-        jobs[t].per_k = n / len;
-        jobs[t].u0 = (uint32_t)((uint64_t)units * t / nt);
-        jobs[t].u1 = (uint32_t)((uint64_t)units * (t + 1U) / nt);
-        jobs[t].p = p;
-        jobs[t].p_inv = p_inv;
-        jobs[t].wlen = wlen;
-        jobs[t].r = r;
-        jobs[t].inverse = inverse;
-    }
-    nex_thread_pool_run(pool, nt, stage_job_fn, jobs);
+    nex_thread_pool_run(pool, nj, stage_job_fn, jobs);
 }
 
-void nex_par_ntt_forward(uint32_t *coeffs, uint32_t log2n,
-        const ntt_mod_ty *mod, nex_thread_pool_ty *pool)
+void nex_par_ntt_forward_multi(nex_par_ntt_buf_ty *bufs, size_t count,
+        uint32_t log2n, nex_thread_pool_ty *pool)
 {
-    if ((pool == NULL) || (nex_thread_pool_count(pool) <= 1U)) {
-        (void)ntt_forward(coeffs, log2n, mod);
+    if ((bufs == NULL) || (count == 0U)) {
         return;
     }
-    const uint32_t p = mod->p;
-    const uint32_t n = 1U << log2n;
-    const uint32_t p_inv = 0U - par_inv_pow2(p);
-    const uint32_t r = (uint32_t)((UINT64_C(1) << 32) % p);
-    const uint32_t r2 = (uint32_t)((uint64_t)r * r % p);
+    if ((count > PAR_MAX_BUFS) || (pool == NULL)
+            || (nex_thread_pool_count(pool) <= 1U)) {
+        for (size_t b = 0U; b < count; b++) {
+            (void)ntt_forward(bufs[b].buf, log2n, bufs[b].mod);
+        }
+        return;
+    }
 
-    lin_apply(coeffs, n, r2, p, p_inv, pool);
+    uint32_t p[PAR_MAX_BUFS];
+    uint32_t p_inv[PAR_MAX_BUFS];
+    uint32_t r[PAR_MAX_BUFS];
+    uint32_t r2[PAR_MAX_BUFS];
+    uint32_t one[PAR_MAX_BUFS];
+    const uint32_t n = 1U << log2n;
+    for (size_t b = 0U; b < count; b++) {
+        p[b] = bufs[b].mod->p;
+        p_inv[b] = 0U - par_inv_pow2(p[b]);
+        r[b] = (uint32_t)((UINT64_C(1) << 32) % p[b]);
+        r2[b] = (uint32_t)((uint64_t)r[b] * r[b] % p[b]);
+        one[b] = 1U;
+    }
+    const unsigned tpb = tasks_per_buf(pool_tasks(pool), count);
+
+    run_lin_multi(bufs, count, n, r2, p, p_inv, tpb, pool);
     for (uint32_t s = log2n; s >= 1U; s--) {
         const uint32_t len = 1U << s;
-        const uint32_t wlen = par_mont_mul(
-                ntt_mod_pow(mod->w, 1U << (mod->c - s), mod), r2, p, p_inv);
-        run_stage(coeffs, log2n, len, wlen, 0, p, p_inv, r, pool);
+        uint32_t wlen[PAR_MAX_BUFS];
+        for (size_t b = 0U; b < count; b++) {
+            wlen[b] = par_mont_mul(
+                    ntt_mod_pow(bufs[b].mod->w, 1U << (bufs[b].mod->c - s),
+                            bufs[b].mod),
+                    r2[b], p[b], p_inv[b]);
+        }
+        run_stage_multi(bufs, count, log2n, len, wlen, p, p_inv, r, 0, tpb,
+                pool);
     }
-    lin_apply(coeffs, n, 1U, p, p_inv, pool);
+    run_lin_multi(bufs, count, n, one, p, p_inv, tpb, pool);
 }
 
-void nex_par_ntt_inverse(uint32_t *coeffs, uint32_t log2n,
-        const ntt_mod_ty *mod, nex_thread_pool_ty *pool)
+void nex_par_ntt_inverse_multi(nex_par_ntt_buf_ty *bufs, size_t count,
+        uint32_t log2n, nex_thread_pool_ty *pool)
 {
-    if ((pool == NULL) || (nex_thread_pool_count(pool) <= 1U)) {
-        (void)ntt_inverse(coeffs, log2n, mod);
+    if ((bufs == NULL) || (count == 0U)) {
         return;
     }
-    const uint32_t p = mod->p;
-    const uint32_t n = 1U << log2n;
-    const uint32_t p_inv = 0U - par_inv_pow2(p);
-    const uint32_t r = (uint32_t)((UINT64_C(1) << 32) % p);
-    const uint32_t r2 = (uint32_t)((uint64_t)r * r % p);
-    const uint32_t root_inv = ntt_mod_inv(
-            ntt_mod_pow(mod->w, 1U << (mod->c - log2n), mod), mod);
+    if ((count > PAR_MAX_BUFS) || (pool == NULL)
+            || (nex_thread_pool_count(pool) <= 1U)) {
+        for (size_t b = 0U; b < count; b++) {
+            (void)ntt_inverse(bufs[b].buf, log2n, bufs[b].mod);
+        }
+        return;
+    }
 
-    lin_apply(coeffs, n, r2, p, p_inv, pool);
+    uint32_t p[PAR_MAX_BUFS];
+    uint32_t p_inv[PAR_MAX_BUFS];
+    uint32_t r[PAR_MAX_BUFS];
+    uint32_t r2[PAR_MAX_BUFS];
+    uint32_t root_inv[PAR_MAX_BUFS];
+    uint32_t n_inv_m[PAR_MAX_BUFS];
+    uint32_t one[PAR_MAX_BUFS];
+    const uint32_t n = 1U << log2n;
+    for (size_t b = 0U; b < count; b++) {
+        p[b] = bufs[b].mod->p;
+        p_inv[b] = 0U - par_inv_pow2(p[b]);
+        r[b] = (uint32_t)((UINT64_C(1) << 32) % p[b]);
+        r2[b] = (uint32_t)((uint64_t)r[b] * r[b] % p[b]);
+        root_inv[b] = ntt_mod_inv(
+                ntt_mod_pow(bufs[b].mod->w,
+                        1U << (bufs[b].mod->c - log2n), bufs[b].mod),
+                bufs[b].mod);
+        const uint32_t n_inv = ntt_mod_inv(n, bufs[b].mod);
+        n_inv_m[b] = par_mont_mul(n_inv, r2[b], p[b], p_inv[b]);
+        one[b] = 1U;
+    }
+    const unsigned tpb = tasks_per_buf(pool_tasks(pool), count);
+
+    run_lin_multi(bufs, count, n, r2, p, p_inv, tpb, pool);
     for (uint32_t s = 1U; s <= log2n; s++) {
         const uint32_t len = 1U << s;
-        const uint32_t wlen = par_mont_mul(
-                ntt_mod_pow(root_inv, n / len, mod), r2, p, p_inv);
-        run_stage(coeffs, log2n, len, wlen, 1, p, p_inv, r, pool);
+        uint32_t wlen[PAR_MAX_BUFS];
+        for (size_t b = 0U; b < count; b++) {
+            wlen[b] = par_mont_mul(
+                    ntt_mod_pow(root_inv[b], n / len, bufs[b].mod),
+                    r2[b], p[b], p_inv[b]);
+        }
+        run_stage_multi(bufs, count, log2n, len, wlen, p, p_inv, r, 1, tpb,
+                pool);
     }
-    const uint32_t n_inv = ntt_mod_inv(n, mod);
-    const uint32_t n_inv_m = par_mont_mul(n_inv, r2, p, p_inv);
-    lin_apply(coeffs, n, n_inv_m, p, p_inv, pool);
-    lin_apply(coeffs, n, 1U, p, p_inv, pool);
+    run_lin_multi(bufs, count, n, n_inv_m, p, p_inv, tpb, pool);
+    run_lin_multi(bufs, count, n, one, p, p_inv, tpb, pool);
 }
 
 typedef struct {
@@ -265,29 +316,55 @@ static void pw_job_fn(void *ctx, size_t index)
     }
 }
 
+void nex_par_ntt_pointwise_multi(nex_par_ntt_pw_ty *pw, size_t count,
+        size_t len, nex_thread_pool_ty *pool)
+{
+    if ((pw == NULL) || (count == 0U)) {
+        return;
+    }
+    if ((count > PAR_MAX_BUFS) || (pool == NULL)
+            || (nex_thread_pool_count(pool) <= 1U)) {
+        for (size_t b = 0U; b < count; b++) {
+            (void)ntt_pointwise_mul(pw[b].dst, pw[b].lhs, pw[b].rhs, len,
+                    pw[b].mod);
+        }
+        return;
+    }
+    const unsigned tpb = tasks_per_buf(pool_tasks(pool), count);
+    pw_job_ty jobs[PAR_MAX_JOBS];
+    size_t nj = 0U;
+    for (size_t b = 0U; b < count; b++) {
+        for (unsigned t = 0U; t < tpb; t++) {
+            jobs[nj].dst = pw[b].dst;
+            jobs[nj].lhs = pw[b].lhs;
+            jobs[nj].rhs = pw[b].rhs;
+            jobs[nj].begin = len * (size_t)t / (size_t)tpb;
+            jobs[nj].end = len * (size_t)(t + 1U) / (size_t)tpb;
+            jobs[nj].p = pw[b].mod->p;
+            nj++;
+        }
+    }
+    nex_thread_pool_run(pool, nj, pw_job_fn, jobs);
+}
+
+void nex_par_ntt_forward(uint32_t *coeffs, uint32_t log2n,
+        const ntt_mod_ty *mod, nex_thread_pool_ty *pool)
+{
+    nex_par_ntt_buf_ty b = { coeffs, mod };
+    nex_par_ntt_forward_multi(&b, 1U, log2n, pool);
+}
+
+void nex_par_ntt_inverse(uint32_t *coeffs, uint32_t log2n,
+        const ntt_mod_ty *mod, nex_thread_pool_ty *pool)
+{
+    nex_par_ntt_buf_ty b = { coeffs, mod };
+    nex_par_ntt_inverse_multi(&b, 1U, log2n, pool);
+}
+
 void nex_par_ntt_pointwise(uint32_t *dst, const uint32_t *lhs,
         const uint32_t *rhs, size_t len, const ntt_mod_ty *mod,
         nex_thread_pool_ty *pool)
 {
-    if ((pool == NULL) || (nex_thread_pool_count(pool) <= 1U)) {
-        (void)ntt_pointwise_mul(dst, lhs, rhs, len, mod);
-        return;
-    }
-    unsigned nt = pool_tasks(pool);
-    if ((size_t)nt > len) {
-        nt = (unsigned)len;
-    }
-    if (nt == 0U) {
-        return;
-    }
-    pw_job_ty jobs[PAR_MAX_TASKS];
-    for (unsigned t = 0U; t < nt; t++) {
-        jobs[t].dst = dst;
-        jobs[t].lhs = lhs;
-        jobs[t].rhs = rhs;
-        jobs[t].begin = len * (size_t)t / (size_t)nt;
-        jobs[t].end = len * (size_t)(t + 1U) / (size_t)nt;
-        jobs[t].p = mod->p;
-    }
-    nex_thread_pool_run(pool, nt, pw_job_fn, jobs);
+    nex_par_ntt_pw_ty j = { dst, lhs, rhs, mod };
+    nex_par_ntt_pointwise_multi(&j, 1U, len, pool);
 }
