@@ -236,6 +236,377 @@ static bigint_err_ty gcd_core(bigint_bin_ty *a, bigint_bin_ty *b)
 }
 
 
+/* ------------------------------------------------------------------ */
+/* 半 GCD（HGCD，§13 #2）：矩阵递归约减                                  */
+/* ------------------------------------------------------------------ */
+
+#ifdef NEX_GCD_HGCD_PATH
+/* 基例阈值：低于此位长直接走欧几里得（矩阵条目仍用 bigint）。
+ * 可由构建选项覆盖（如 -DGCD_HGCD_BASE_BITS=0xFFFFFFFFU 关闭 HGCD）用于对照。 */
+#ifndef GCD_HGCD_BASE_BITS
+#define GCD_HGCD_BASE_BITS 512U
+#endif
+
+/* 2×2 矩阵 [[a,b],[c,d]]，条目为带符号 bigint（行列式 ±1） */
+typedef struct {
+    bigint_bin_ty a;
+    bigint_bin_ty b;
+    bigint_bin_ty c;
+    bigint_bin_ty d;
+} gcd_mat_ty;
+
+static bigint_err_ty gcd_mat_init(gcd_mat_ty *m)
+{
+    bigint_err_ty err = bigint_bin_init(&m->a);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&m->b);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&m->c);
+    if (err == BIGINT_OK_E) err = bigint_bin_init(&m->d);
+    if (err != BIGINT_OK_E) {
+        bigint_bin_free(&m->d);
+        bigint_bin_free(&m->c);
+        bigint_bin_free(&m->b);
+        bigint_bin_free(&m->a);
+    }
+    return err;
+}
+
+static void gcd_mat_free(gcd_mat_ty *m)
+{
+    bigint_bin_free(&m->d);
+    bigint_bin_free(&m->c);
+    bigint_bin_free(&m->b);
+    bigint_bin_free(&m->a);
+}
+
+static bigint_err_ty gcd_mat_identity(gcd_mat_ty *m)
+{
+    bigint_err_ty err = bigint_bin_from_u64(&m->a, 1U);
+    if (err == BIGINT_OK_E) err = bigint_bin_from_u64(&m->b, 0U);
+    if (err == BIGINT_OK_E) err = bigint_bin_from_u64(&m->c, 0U);
+    if (err == BIGINT_OK_E) err = bigint_bin_from_u64(&m->d, 1U);
+    return err;
+}
+
+static bigint_err_ty gcd_mat_copy(gcd_mat_ty *dst, const gcd_mat_ty *src)
+{
+    bigint_err_ty err = bigint_bin_copy(&dst->a, &src->a);
+    if (err == BIGINT_OK_E) err = bigint_bin_copy(&dst->b, &src->b);
+    if (err == BIGINT_OK_E) err = bigint_bin_copy(&dst->c, &src->c);
+    if (err == BIGINT_OK_E) err = bigint_bin_copy(&dst->d, &src->d);
+    return err;
+}
+
+/* (x, y) = M·(u, v)；x / y 不得与 u / v 别名 */
+static bigint_err_ty gcd_mat_apply(bigint_bin_ty *x, bigint_bin_ty *y,
+        const gcd_mat_ty *m, const bigint_bin_ty *u,
+        const bigint_bin_ty *v)
+{
+    bigint_bin_ty t1;
+    bigint_bin_ty t2;
+    (void)bigint_bin_init(&t1);
+    (void)bigint_bin_init(&t2);
+    bigint_err_ty err = bigint_bin_mul(&t1, &m->a, u);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&t2, &m->b, v);
+    if (err == BIGINT_OK_E) err = bigint_bin_add(x, &t1, &t2);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&t1, &m->c, u);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&t2, &m->d, v);
+    if (err == BIGINT_OK_E) err = bigint_bin_add(y, &t1, &t2);
+    bigint_bin_free(&t2);
+    bigint_bin_free(&t1);
+    return err;
+}
+
+/* r = x·y（允许 r 与 x / y 别名） */
+static bigint_err_ty gcd_mat_mul(gcd_mat_ty *r, const gcd_mat_ty *x,
+        const gcd_mat_ty *y)
+{
+    gcd_mat_ty t;
+    bigint_err_ty err = gcd_mat_init(&t);
+    if (err != BIGINT_OK_E) {
+        return err;
+    }
+    bigint_bin_ty p;
+    bigint_bin_ty q;
+    (void)bigint_bin_init(&p);
+    (void)bigint_bin_init(&q);
+    err = bigint_bin_mul(&p, &x->a, &y->a);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&q, &x->b, &y->c);
+    if (err == BIGINT_OK_E) err = bigint_bin_add(&t.a, &p, &q);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&p, &x->a, &y->b);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&q, &x->b, &y->d);
+    if (err == BIGINT_OK_E) err = bigint_bin_add(&t.b, &p, &q);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&p, &x->c, &y->a);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&q, &x->d, &y->c);
+    if (err == BIGINT_OK_E) err = bigint_bin_add(&t.c, &p, &q);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&p, &x->c, &y->b);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&q, &x->d, &y->d);
+    if (err == BIGINT_OK_E) err = bigint_bin_add(&t.d, &p, &q);
+    bigint_bin_free(&q);
+    bigint_bin_free(&p);
+    if (err == BIGINT_OK_E) {
+        bigint_bin_move(&r->a, &t.a);
+        bigint_bin_move(&r->b, &t.b);
+        bigint_bin_move(&r->c, &t.c);
+        bigint_bin_move(&r->d, &t.d);
+    }
+    gcd_mat_free(&t);
+    return err;
+}
+
+/* m ← [[0,1],[1,−q]]·m（一步欧几里得） */
+static bigint_err_ty gcd_mat_step(gcd_mat_ty *m, const bigint_bin_ty *q)
+{
+    bigint_bin_ty na;
+    bigint_bin_ty nb;
+    bigint_bin_ty nc;
+    bigint_bin_ty nd;
+    bigint_bin_ty t;
+    (void)bigint_bin_init(&na);
+    (void)bigint_bin_init(&nb);
+    (void)bigint_bin_init(&nc);
+    (void)bigint_bin_init(&nd);
+    (void)bigint_bin_init(&t);
+    bigint_err_ty err = bigint_bin_copy(&na, &m->c);
+    if (err == BIGINT_OK_E) err = bigint_bin_copy(&nb, &m->d);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&t, q, &m->c);
+    if (err == BIGINT_OK_E) err = bigint_bin_sub(&nc, &m->a, &t);
+    if (err == BIGINT_OK_E) err = bigint_bin_mul(&t, q, &m->d);
+    if (err == BIGINT_OK_E) err = bigint_bin_sub(&nd, &m->b, &t);
+    if (err == BIGINT_OK_E) {
+        bigint_bin_move(&m->a, &na);
+        bigint_bin_move(&m->b, &nb);
+        bigint_bin_move(&m->c, &nc);
+        bigint_bin_move(&m->d, &nd);
+    }
+    bigint_bin_free(&t);
+    bigint_bin_free(&nd);
+    bigint_bin_free(&nc);
+    bigint_bin_free(&nb);
+    bigint_bin_free(&na);
+    return err;
+}
+
+/*
+ * brief: 基例：对 (a0, b0) 做精确欧几里得，直到 bitlen(b) ≤ target
+ * note: 同时累积矩阵 m；要求 a0 ≥ b0 ≥ 0
+ */
+static bigint_err_ty gcd_hgcd_base(gcd_mat_ty *m, const bigint_bin_ty *a0,
+        const bigint_bin_ty *b0, size_t target)
+{
+    bigint_bin_ty a;
+    bigint_bin_ty b;
+    bigint_bin_ty q;
+    bigint_bin_ty r;
+    (void)bigint_bin_init(&a);
+    (void)bigint_bin_init(&b);
+    (void)bigint_bin_init(&q);
+    (void)bigint_bin_init(&r);
+    bigint_err_ty err = bigint_bin_copy(&a, a0);
+    if (err == BIGINT_OK_E) err = bigint_bin_copy(&b, b0);
+    if (err == BIGINT_OK_E) err = gcd_mat_identity(m);
+    while ((err == BIGINT_OK_E) && !bigint_bin_is_zero(&b)
+            && (bigint_bin_bit_len(&b) > target)) {
+        err = bigint_bin_div_rem(&q, &r, &a, &b);
+        if (err == BIGINT_OK_E) err = gcd_mat_step(m, &q);
+        if (err == BIGINT_OK_E) {
+            bigint_bin_move(&a, &b);
+            bigint_bin_move(&b, &r);
+        }
+    }
+    bigint_bin_free(&r);
+    bigint_bin_free(&q);
+    bigint_bin_free(&b);
+    bigint_bin_free(&a);
+    return err;
+}
+
+/*
+ * brief: 递归 HGCD：返回矩阵 M，使 (a',b')=M·(a,b) 且 b' < 2^(bitlen(a)/2)
+ * note: 高位半段递归 + 应用 + 一次精确除法 + 第二次递归；
+ *       高位矩阵对完整数无效（负值/次序错）时回退精确基例
+ */
+static bigint_err_ty gcd_hgcd_matrix(gcd_mat_ty *m, const bigint_bin_ty *a,
+        const bigint_bin_ty *b)
+{
+    const size_t n = bigint_bin_bit_len(a);
+    if (bigint_bin_is_zero(b) || (bigint_bin_bit_len(b) <= n / 2U)) {
+        return gcd_mat_identity(m);
+    }
+    if (n <= GCD_HGCD_BASE_BITS) {
+        return gcd_hgcd_base(m, a, b, n / 2U);
+    }
+
+    const size_t h = n / 2U;
+    bigint_bin_ty ah;
+    bigint_bin_ty bh;
+    bigint_bin_ty a2;
+    bigint_bin_ty b2;
+    bigint_bin_ty q;
+    bigint_bin_ty r;
+    (void)bigint_bin_init(&ah);
+    (void)bigint_bin_init(&bh);
+    (void)bigint_bin_init(&a2);
+    (void)bigint_bin_init(&b2);
+    (void)bigint_bin_init(&q);
+    (void)bigint_bin_init(&r);
+    bigint_err_ty err = bigint_bin_shr(&ah, a, h);
+    if (err == BIGINT_OK_E) err = bigint_bin_shr(&bh, b, h);
+    if ((err == BIGINT_OK_E) && bigint_bin_is_zero(&bh)) {
+        err = gcd_hgcd_base(m, a, b, h);
+    }
+
+    gcd_mat_ty m1;
+    (void)gcd_mat_init(&m1);
+    if (err == BIGINT_OK_E) {
+        err = gcd_hgcd_matrix(&m1, &ah, &bh);
+    }
+    if (err == BIGINT_OK_E) {
+        err = gcd_mat_apply(&a2, &b2, &m1, a, b);
+    }
+    if ((err == BIGINT_OK_E)
+            && ((a2.sign == BIGINT_SIGN_NEG_E)
+                || (b2.sign == BIGINT_SIGN_NEG_E)
+                || (bigint_bin_cmp(&a2, &b2) < 0))) {
+        /* 高位矩阵不适用于完整数：退回精确基例（O(n²)，但正确） */
+        err = gcd_hgcd_base(m, a, b, h);
+        gcd_mat_free(&m1);
+        bigint_bin_free(&r);
+        bigint_bin_free(&q);
+        bigint_bin_free(&b2);
+        bigint_bin_free(&a2);
+        bigint_bin_free(&bh);
+        bigint_bin_free(&ah);
+        return err;
+    }
+    if ((err == BIGINT_OK_E)
+            && (bigint_bin_is_zero(&b2)
+                || (bigint_bin_bit_len(&b2) <= h))) {
+        err = gcd_mat_copy(m, &m1);
+    } else if (err == BIGINT_OK_E) {
+        err = bigint_bin_div_rem(&q, &r, &a2, &b2);
+        gcd_mat_ty m2;
+        (void)gcd_mat_init(&m2);
+        if (err == BIGINT_OK_E) {
+            err = gcd_hgcd_matrix(&m2, &b2, &r);
+        }
+        gcd_mat_ty e;
+        (void)gcd_mat_init(&e);
+        if (err == BIGINT_OK_E) {
+            err = gcd_mat_identity(&e);
+            if (err == BIGINT_OK_E) err = bigint_bin_from_u64(&e.a, 0U);
+            if (err == BIGINT_OK_E) err = bigint_bin_from_u64(&e.b, 1U);
+            if (err == BIGINT_OK_E) err = bigint_bin_from_u64(&e.c, 1U);
+            if (err == BIGINT_OK_E) err = bigint_bin_copy(&e.d, &q);
+            if (err == BIGINT_OK_E) err = bigint_bin_neg(&e.d);
+        }
+        if (err == BIGINT_OK_E) {
+            err = gcd_mat_mul(&m2, &m2, &e);
+        }
+        if (err == BIGINT_OK_E) {
+            err = gcd_mat_mul(m, &m2, &m1);
+        }
+        gcd_mat_free(&e);
+        gcd_mat_free(&m2);
+    }
+    gcd_mat_free(&m1);
+    bigint_bin_free(&r);
+    bigint_bin_free(&q);
+    bigint_bin_free(&b2);
+    bigint_bin_free(&a2);
+    bigint_bin_free(&bh);
+    bigint_bin_free(&ah);
+    return err;
+}
+/*
+ * brief: 半 GCD 约减：就地更新 (a,b)，使 b < 2^(bitlen(a)/2)（或 b=0）
+ * note: 用 gcd_hgcd_matrix 对完整数应用高位矩阵；若应用后无效则精确除法；
+ *       之后递归处理余下部分。gcd 保持不变（仅取幅值）。
+ */
+static bigint_err_ty gcd_hgcd_reduce(bigint_bin_ty *a, bigint_bin_ty *b)
+{
+    const size_t n = bigint_bin_bit_len(a);
+    if (bigint_bin_is_zero(b) || (bigint_bin_bit_len(b) <= n / 2U)) {
+        return BIGINT_OK_E;
+    }
+    if (n <= GCD_HGCD_BASE_BITS) {
+        bigint_bin_ty q;
+        bigint_bin_ty r;
+        (void)bigint_bin_init(&q);
+        (void)bigint_bin_init(&r);
+        bigint_err_ty err = BIGINT_OK_E;
+        while (!bigint_bin_is_zero(b) && (bigint_bin_bit_len(b) > n / 2U)) {
+            err = bigint_bin_div_rem(&q, &r, a, b);
+            if (err != BIGINT_OK_E) {
+                break;
+            }
+            bigint_bin_move(a, b);
+            bigint_bin_move(b, &r);
+        }
+        bigint_bin_free(&r);
+        bigint_bin_free(&q);
+        return err;
+    }
+
+    const size_t h = n / 2U;
+    bigint_bin_ty ah;
+    bigint_bin_ty bh;
+    bigint_bin_ty a2;
+    bigint_bin_ty b2;
+    bigint_bin_ty q;
+    bigint_bin_ty r;
+    (void)bigint_bin_init(&ah);
+    (void)bigint_bin_init(&bh);
+    (void)bigint_bin_init(&a2);
+    (void)bigint_bin_init(&b2);
+    (void)bigint_bin_init(&q);
+    (void)bigint_bin_init(&r);
+    bigint_err_ty err = bigint_bin_shr(&ah, a, h);
+    if (err == BIGINT_OK_E) err = bigint_bin_shr(&bh, b, h);
+
+    gcd_mat_ty m1;
+    (void)gcd_mat_init(&m1);
+    if (err == BIGINT_OK_E) {
+        err = gcd_hgcd_matrix(&m1, &ah, &bh);
+    }
+    if (err == BIGINT_OK_E) {
+        err = gcd_mat_apply(&a2, &b2, &m1, a, b);
+    }
+    gcd_mat_free(&m1);
+    if (err == BIGINT_OK_E) {
+        /* gcd 只关心幅值：矩阵结果符号无关 */
+        (void)bigint_bin_abs(&a2);
+        (void)bigint_bin_abs(&b2);
+        if (bigint_bin_cmp(&a2, &b2) < 0) {
+            bigint_bin_ty t = a2;
+            a2 = b2;
+            b2 = t;
+        }
+        if (bigint_bin_is_zero(&b2) || (bigint_bin_bit_len(&b2) <= h)) {
+            bigint_bin_move(a, &a2);
+            bigint_bin_move(b, &b2);
+        } else {
+            /* 一次精确除法后递归 */
+            err = bigint_bin_div_rem(&q, &r, &a2, &b2);
+            if (err == BIGINT_OK_E) {
+                bigint_bin_move(a, &b2);
+                bigint_bin_move(b, &r);
+                if (!bigint_bin_is_zero(b)) {
+                    err = gcd_hgcd_reduce(a, b);
+                }
+            }
+        }
+    }
+    bigint_bin_free(&r);
+    bigint_bin_free(&q);
+    bigint_bin_free(&b2);
+    bigint_bin_free(&a2);
+    bigint_bin_free(&bh);
+    bigint_bin_free(&ah);
+    return err;
+}
+
+#endif /* NEX_GCD_HGCD_PATH */
+
 bigint_err_ty bigint_bin_gcd(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
         const bigint_bin_ty *rhs)
 {
@@ -270,6 +641,34 @@ bigint_err_ty bigint_bin_gcd(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
             if (bigint_bin_cmp(&a, &b) < 0) {
                 gcd_swap(&a, &b);
             }
+#ifdef NEX_GCD_HGCD_PATH
+            /* 超大输入：半 GCD 递归约减（每轮把规模减半） */
+            if ((err == BIGINT_OK_E)
+                    && (bigint_bin_bit_len(&b) > GCD_HGCD_BASE_BITS)) {
+                bigint_bin_ty qh;
+                bigint_bin_ty rh;
+                (void)bigint_bin_init(&qh);
+                (void)bigint_bin_init(&rh);
+                while ((err == BIGINT_OK_E)
+                        && (bigint_bin_bit_len(&b) > GCD_HGCD_BASE_BITS)) {
+                    err = gcd_hgcd_reduce(&a, &b);
+                    if ((err != BIGINT_OK_E) || bigint_bin_is_zero(&b)) {
+                        break;
+                    }
+                    if (bigint_bin_cmp(&a, &b) < 0) {
+                        gcd_swap(&a, &b);
+                    }
+                    err = bigint_bin_div_rem(&qh, &rh, &a, &b);
+                    if (err != BIGINT_OK_E) {
+                        break;
+                    }
+                    bigint_bin_move(&a, &b);
+                    bigint_bin_move(&b, &rh);
+                }
+                bigint_bin_free(&rh);
+                bigint_bin_free(&qh);
+            }
+#endif /* NEX_GCD_HGCD_PATH */
             /* Lehmer 前导：两数都超单肢时用矩阵多步约减（§13 方向） */
             while ((err == BIGINT_OK_E)
                     && (bigint_bin_bit_len(&b) > 32U)) {

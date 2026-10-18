@@ -584,7 +584,7 @@ bin64 ↔ dec 经 bin 中转（分治基数转换复用，额外开销线性）�
 | 模幂 | 平方-乘，滑动窗口列为后续 | O(log e 次模乘） | Montgomery 约减 |
 | bin→dec | 分治（2 的幂切半 + 平方链表），小规模回退反复除 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
 | dec→bin | 分治（对称），小规模回退逐肢乘 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
-| gcd（供 bigfrac 使用，公开 API `bigint_bin_gcd`） | 大输入 Lehmer 矩阵约减 + 二进制 GCD 收尾；小输入纯二进制 GCD | O(n²)/32 常数改善，实测 4-6.5× | 半 GCD |
+| gcd（供 bigfrac 使用，公开 API `bigint_bin_gcd`） | 大输入 Lehmer 矩阵约减 + 二进制 GCD 收尾；小输入纯二进制 GCD | O(n²)/32 常数改善，实测 4-6.5× | 半 GCD 原型已评估（常数过大，默认关闭） |
 
 实现要点：
 
@@ -1274,7 +1274,7 @@ CI 每日基准见 `.github/workflows/benchmark.yml`（产物为 artifact，仅�
    倒数 + 商修正”并保留在 `NEX_DIV_NEWTON_PATH`（默认关闭），实测小商
    （Knuth O(m·n) 已线性）、大商（BZ 常数更小）与浮点除法（商仅 1–2 肢）
    均不占优；
-2. 半 gcd（Lehmer gcd 已落地，v0.14）；Montgomery 模幂经实测否定（v0.16：
+2. 半 gcd（Lehmer gcd 已落地，v0.14；v1.7 矩阵递归原型已验证但常数过大，默认关闭，见 §13 #2）；Montgomery 模幂经实测否定（v0.16：
    REDC 朴素 n² 不优于已优化 Knuth D，不启用）；
 3. 64 位肢变体：核心已落地（`nex/bigint/bin64/`，v0.13）——加/减/乘
    （schoolbook + Karatsuba），等位长下约 2 倍提速；64×64→128 经编译
@@ -1315,7 +1315,7 @@ CI 每日基准见 `.github/workflows/benchmark.yml`（产物为 artifact，仅�
 | 函数级子集 | 非目标（1.x 暂缓） | 成本高、收益低；替代见 §2.4 / §13 #11 |
 | 自定义分配器钩子 | 后续 | 现为内部统一分配器 `nex_alloc`（§13 #6） |
 | 十进制侧亚二次除法 | 已实现 | `bigint_dec` 大输入走 Burnikel-Ziegler（除数 ≥ 64 肢分派）；基 10⁹ 以 Knuth-D 归一化因子 + 肢移位规约（§13 #1） |
-| 超大输入 gcd | 限制 | Lehmer 仍 O(n²)；半 gcd 为后续（§13 #2） |
+| 超大输入 gcd | 限制 | Lehmer 仍 O(n²)；半 GCD 原型（`NEX_GCD_HGCD_PATH`）正确但 bigint 矩阵分配常数过大，暂不启用（§13 #2） |
 | 大端平台 | 已验证 | 实现为值语义；CI `linux-bigendian`（s390x + QEMU，v1.4.0）（§1.3） |
 | 32 位平台 | 已验证 | CI `linux-32bit`（`-m32 -msse2 -mfpmath=sse`，v1.4.0） |
 | 公开结构体字段 | 实现细节 | 布局在 1.x 冻结，但请使用访问器，勿依赖字段（§1.4） |
@@ -1684,4 +1684,4 @@ Payne–Hanek 规约（`nex/ball/nex_ball_pi.c`，内部接口）：
 | v1.4.0 | 2026-10-14 | 平台与正确性收口（TODO §G）：16-bit FFT 强制路径安全上限（超 1024 返回 `UNSUPPORTED`）；32 位（`-m32` + SSE2）与大端（s390x + QEMU）CI；内部未规范化视图比较规则（§3.4）；稀疏值定向测试 |
 | v1.5.0 | 2026-10-15 | 超越函数与十进制亚二次除法（§D、§I，新增 §16）：正确舍入的 `atan`/`atan2`/复数 `arg`、`exp`/`log`、`sin`/`cos`/`tan`、`asin`/`acos` 与复数超越（`exp`/`log`/`sqrt`/`sin`/`cos`/`tan`）——float/decimal 两套，球式严谨误差界 + Ziv，mpmath 黄金对拍；`bigint_dec` Burnikel-Ziegler 亚二次除法（10⁵ 位 ≈ 8×）；球系数截断级数；修复 `sincos` `one_ball` 半径缺陷并折半上限 20→64（覆盖 |x| ≲ 2⁶³）；新增 §16.1 正确舍入语义规范；行为准则与安全政策；§F 跨平台线程封装决策（独立可选目标，不进核心） |
 | v1.6.0 | 2026-10-18 | 超大实参与高精度性能（§16.2、§15.6、§9.2）：Payne–Hanek 规约（Chudnovsky 二分拆分 π，定点 2/π，象限还原），float/decimal 两套；`|x| > 2⁶³` 的 `sin`/`cos`/`tan` 不再返回 INVALID；输入半径 ≥ 4 时直接返回 `[−1,1]`；π 位数上限 2²⁰ bit。`log` 改为指数拆分 + 小实参规约（解除 40 次开方上限，覆盖全部可表示输入）。路线 A 的阶乘型/逆幂型部分和与阶估计改为扩展精度浮点递推（binomial 仍为精确 bigfrac；exp 4096 bit 10.2 s→63 ms，ln1p 1.64 s→180 ms）。复数除法改为 Smith 稳定缩放（有限输入，±∞ 回退共轭法）。修复 `bigfloat_from_bigint` 负输入尾数符号（`round_pack` 未取幅值）。mpmath 黄金对拍覆盖 2¹⁰⁰/2²⁰⁰/1e30/1e100/1e1000；文档漂移收口 |
-| v1.7.0（进行中） | — | §13 #3 64 位肢补齐：原生 `bigint_bin64_div_rem`（Knuth D，128/64 试商；GCC/Clang __int128，MSVC 等 4 字 ÷ 2 字便携 Knuth D），除数 ≥ 1024 肢且被除数 ≥ 2× 回退 bin 的 Burnikel-Ziegler；`bigint_bin64_from_str` / `to_str`（进制 2..36，2 的幂进制位切片，其余 uint64 分块）；`bigint_conv_*_bin64_*` 互转（bin / dec）。实测小/中规模除法较转换包装快 ~2×。测试扩展：除法交叉验证与对抗模式（全 1、2 的幂、精确倍数、超大 BZ 回退）、字符串往返与错误语义、互转往返；便携 128/64 路径独立校验。另评估 Newton 迭代除法：重写为精度倍增倒数（总代价 O(M(P))）并保留 `NEX_DIV_NEWTON_PATH`；实测 4096 肢、商 1 肢时 0.039 ms vs Knuth 0.012 ms，商 2× 时 31.6 ms vs BZ 5.7 ms，bigfloat_div 262144 bit 19.3 ms vs 16.7 ms——均不占优，默认关闭。BZ 分派由 m ≥ n 放宽为 m ≥ 96 且 m ≥ n/32（商 1.25n–1.75n 区间原为 O(n²)）：4096 肢、m=n/4 时 5.6→1.9 ms、m=n/2 时 11.3→3.0 ms；m < 96 仍走 Knuth D，m ≥ n 原已走 BZ |
+| v1.7.0（进行中） | — | §13 #3 64 位肢补齐：原生 `bigint_bin64_div_rem`（Knuth D，128/64 试商；GCC/Clang __int128，MSVC 等 4 字 ÷ 2 字便携 Knuth D），除数 ≥ 1024 肢且被除数 ≥ 2× 回退 bin 的 Burnikel-Ziegler；`bigint_bin64_from_str` / `to_str`（进制 2..36，2 的幂进制位切片，其余 uint64 分块）；`bigint_conv_*_bin64_*` 互转（bin / dec）。实测小/中规模除法较转换包装快 ~2×。测试扩展：除法交叉验证与对抗模式（全 1、2 的幂、精确倍数、超大 BZ 回退）、字符串往返与错误语义、互转往返；便携 128/64 路径独立校验。另评估 Newton 迭代除法：重写为精度倍增倒数（总代价 O(M(P))）并保留 `NEX_DIV_NEWTON_PATH`；实测 4096 肢、商 1 肢时 0.039 ms vs Knuth 0.012 ms，商 2× 时 31.6 ms vs BZ 5.7 ms，bigfloat_div 262144 bit 19.3 ms vs 16.7 ms——均不占优，默认关闭。BZ 分派由 m ≥ n 放宽为 m ≥ 96 且 m ≥ n/32（商 1.25n–1.75n 区间原为 O(n²)）：4096 肢、m=n/4 时 5.6→1.9 ms、m=n/2 时 11.3→3.0 ms；m < 96 仍走 Knuth D，m ≥ n 原已走 BZ。半 GCD 原型（`NEX_GCD_HGCD_PATH`，矩阵递归 + 精确高位/回退）通过单元与三组黄金对拍，但 bigint 矩阵的分配/乘法常数过大：64 肢 0.97 ms vs Lehmer 0.066 ms，8192 肢 2.15 s vs 0.29 s，默认关闭 |
