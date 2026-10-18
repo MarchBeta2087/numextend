@@ -30,6 +30,29 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
     超过 BZ 阈值的大输入）、字符串全进制往返与错误语义、互转往返；
     ASan 与 `NEX_BIN64_FORCE_PORTABLE` 两套构建均通过。
 
+### 性能
+
+- **放宽 Burnikel-Ziegler 分派（issue #82）**：原条件为“被除数 ≥ 2×除数”
+  （商肢数 m ≥ 除数肢数 n），导致 m ∈ [n/32, n) 的商仍走 O(m·n) 的
+  Knuth D，而 BZ 的 O(M(n)) 已可摊薄。新条件（除数 ≥ 64 肢）：
+  `m ≥ 96 且 m ≥ n/32`。Release 交错实测（4096 肢除数）：
+  m=n/4 时 5.6→1.9 ms，m=n/2 时 11.3→3.0 ms；m ≥ n 原已走 BZ。
+  `m < 96` 仍走 Knuth D，避免小商时 BZ 的常数开销。阈值可由
+  `NEX_DIV_BZ_MIN_QUOT` / `NEX_DIV_BZ_QUOT_DIV` 覆盖用于对照。
+  测试新增 m≈n/4 的 BZ 分派区间用例。
+
+### 评估与决策
+
+- **Newton 迭代除法（issue #82）**：将 `NEX_DIV_NEWTON_PATH` 的旧实现
+  （每轮在全精度上迭代）重写为**精度倍增倒数**（p → 2p，总代价
+  O(M(P))）+ 商修正，并修正便携 128/64 试商。实测（-O2）：
+  - 商 1 肢（4096 肢除数）：Newton 0.039 ms，Knuth D 0.012 ms
+    ——Knuth 为 O(m·n)，商小时已是线性；
+  - 商 ≈ 2n：Newton 31.6 ms，BZ 5.7 ms；
+  - `bigfloat_div` 262144 bit：Newton 19.3 ms，默认路径 16.7 ms。
+  各规模均不占优，**默认关闭**（保留 `NEX_DIV_NEWTON_PATH` 供后续
+  实验；启用后全部 42 项测试与除法不变量 fuzz 通过）。
+
 ## [1.6.0] - 2026-10-18
 
 ### 新增

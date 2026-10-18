@@ -553,9 +553,10 @@ static void test_bits(void) {
 }
 
 /*
- * Burnikel-Ziegler 递归除法专项：除数 ≥ 512 肢（约 1.6 万位）且被除数 ≥ 2×
- * 覆盖稀疏值（2 的幂、全 1）、随机大数；黄金值由库内算术构造（q0·b+r0）
- * 并与乘法交叉验证商余不变量 q·b + r == a
+ * Burnikel-Ziegler 递归除法专项：除数 ≥ 512 肢（约 1.6 万位）；
+ * 覆盖商 ≥ 2n、新分派区间 m ≥ n/32（含 m≈n/4）与稀疏值（2 的幂、全 1）、
+ * 随机大数；黄金值由库内算术构造（q0·b+r0）并与乘法交叉验证
+ * 商余不变量 q·b + r == a
  */
 static void test_bz_div(void) {
     bigint_bin_ty a, b, q, r, t, one;
@@ -679,6 +680,38 @@ static void test_bz_div(void) {
             bigint_bin_free(&w);
             bigint_bin_free(&q0);
         }
+    }
+
+    /* case 9：商约为除数 n/4（新分派区间 m ∈ [96, n)，BZ 摊薄） */
+    {
+        const size_t bl = 1200U;
+        const size_t ql = 300U;
+        uint32_t seed = 0xC0FFEEU;
+        bigint_bin_ty q0;
+        bigint_bin_init(&q0);
+        bigint_bin_free(&b);
+        CHECK(bigint_bin_init_cap(&b, bl) == BIGINT_OK_E);
+        CHECK(bigint_bin_init_cap(&q0, ql) == BIGINT_OK_E);
+        b.len = bl;
+        q0.len = ql;
+        for (size_t i = 0U; i < bl; i++) {
+            seed = seed * 1664525U + 1013904223U;
+            b.limbs[i] = seed;
+        }
+        b.limbs[bl - 1U] |= 0x80000000U;
+        b.sign = BIGINT_SIGN_POS_E;
+        for (size_t i = 0U; i < ql; i++) {
+            seed = seed * 1664525U + 1013904223U;
+            q0.limbs[i] = seed;
+        }
+        q0.limbs[ql - 1U] |= 0x80000000U;
+        q0.sign = BIGINT_SIGN_POS_E;
+        CHECK(bigint_bin_mul(&a, &q0, &b) == BIGINT_OK_E);
+        CHECK(bigint_bin_add(&a, &a, &one) == BIGINT_OK_E);
+        CHECK(bigint_bin_div_rem(&t, &r, &a, &b) == BIGINT_OK_E);
+        CHECK(bigint_bin_cmp_abs(&t, &q0) == 0);
+        CHECK(bigint_bin_cmp_abs(&r, &one) == 0);
+        bigint_bin_free(&q0);
     }
 
     bigint_bin_free(&one);
