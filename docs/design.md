@@ -577,7 +577,7 @@ bin64 ↔ dec 经 bin 中转（分治基数转换复用，额外开销线性）�
 |------|---------|--------|----------|
 | 加 / 减 | 逐肢带进位扫描 | O(n) | — |
 | 乘法 | schoolbook；肢数 ≥ 32 切换 Karatsuba；≥ 512 切换 Toom-3；≥ 16384 切换多模数 CRT NTT；`mul_ex` 可强制选择各算法（FFT 已实现但不参与 AUTO，见 §4.3） | O(n²) / O(n^1.585) / O(n log n) | FFT 的 SIMD 化与 AUTO 启用再评估、分治基数转换（见 §13） |
-| 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正）；大输入（除数 ≥ 64 肢且被除数 ≥ 2×）则 Burnikel-Ziegler 递归除法 | O(n·m) / 亚二次 | Newton 倒数已评估（各规模不占优，默认关闭） |
+| 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正）；商肢数 m ≥ 96 且 m ≥ n/32（n 为除数肢数，n ≥ 64）时切 Burnikel-Ziegler 递归除法 | O(n·m) / 亚二次 | Newton 倒数已评估（各规模不占优，默认关闭） |
 | bin64 除法 | 原生 64 位肢 Knuth D（128/64 试商，__int128 或 32 位字便携路径）；除数 ≥ 1024 肢且被除数 ≥ 2× 转 bin 走 BZ | O(n·m) / 亚二次 | 64 位肢 BZ 移植 |
 | bin64 ↔ bin / dec | 半字拆分 / 合并；dec 经 bin 分治转换中转 | O(n) / O(n^1.585) | 原生 64 位肢十进制转换 |
 | 平方 | 专用 schoolbook 平方（利用对称性减半乘累加） | O(n²/2) | 随乘法升级 |
@@ -1267,10 +1267,13 @@ CI 每日基准见 `.github/workflows/benchmark.yml`（产物为 artifact，仅�
    （Burnikel-Ziegler v0.16 修复并启用：随机大数 + 稀疏/全 1/2 的幂/负数黄金
    对拍全过，块直写优化后 a/b=256 时较 Knuth D 快 ~22%；dec 侧 v1.5.0 移植，
    基 10⁹ 以 Knuth-D 归一化因子 d + 肢移位 pad 代替 bin 的位规约，除数 ≥ 64
-   肢分派，10⁵ 位 ≈ 45 ms 约 8×）、Newton 迭代开方（已落地）；Newton
-   迭代除法已评估：v1.7 改为“精度倍增倒数 + 商修正”并保留在
-   `NEX_DIV_NEWTON_PATH`（默认关闭），实测小商（Knuth O(m·n) 已线性）、
-   大商（BZ 常数更小）与浮点除法（商仅 1–2 肢）均不占优；
+   肢分派，10⁵ 位 ≈ 45 ms 约 8×；v1.7 将 bin 侧分派由“被除数 ≥ 2×”放宽为
+   “商 m ≥ 96 且 m ≥ n/32”，填补 m ∈ [n/32, n) 的 O(n²) 区间（4096 肢：
+   m=n/4 时 5.6→1.9 ms，m=n/2 时 11.3→3.0 ms；m ≥ n 原已走 BZ）、
+   Newton 迭代开方（已落地）；Newton 迭代除法已评估：v1.7 改为“精度倍增
+   倒数 + 商修正”并保留在 `NEX_DIV_NEWTON_PATH`（默认关闭），实测小商
+   （Knuth O(m·n) 已线性）、大商（BZ 常数更小）与浮点除法（商仅 1–2 肢）
+   均不占优；
 2. 半 gcd（Lehmer gcd 已落地，v0.14）；Montgomery 模幂经实测否定（v0.16：
    REDC 朴素 n² 不优于已优化 Knuth D，不启用）；
 3. 64 位肢变体：核心已落地（`nex/bigint/bin64/`，v0.13）——加/减/乘
@@ -1681,4 +1684,4 @@ Payne–Hanek 规约（`nex/ball/nex_ball_pi.c`，内部接口）：
 | v1.4.0 | 2026-10-14 | 平台与正确性收口（TODO §G）：16-bit FFT 强制路径安全上限（超 1024 返回 `UNSUPPORTED`）；32 位（`-m32` + SSE2）与大端（s390x + QEMU）CI；内部未规范化视图比较规则（§3.4）；稀疏值定向测试 |
 | v1.5.0 | 2026-10-15 | 超越函数与十进制亚二次除法（§D、§I，新增 §16）：正确舍入的 `atan`/`atan2`/复数 `arg`、`exp`/`log`、`sin`/`cos`/`tan`、`asin`/`acos` 与复数超越（`exp`/`log`/`sqrt`/`sin`/`cos`/`tan`）——float/decimal 两套，球式严谨误差界 + Ziv，mpmath 黄金对拍；`bigint_dec` Burnikel-Ziegler 亚二次除法（10⁵ 位 ≈ 8×）；球系数截断级数；修复 `sincos` `one_ball` 半径缺陷并折半上限 20→64（覆盖 |x| ≲ 2⁶³）；新增 §16.1 正确舍入语义规范；行为准则与安全政策；§F 跨平台线程封装决策（独立可选目标，不进核心） |
 | v1.6.0 | 2026-10-18 | 超大实参与高精度性能（§16.2、§15.6、§9.2）：Payne–Hanek 规约（Chudnovsky 二分拆分 π，定点 2/π，象限还原），float/decimal 两套；`|x| > 2⁶³` 的 `sin`/`cos`/`tan` 不再返回 INVALID；输入半径 ≥ 4 时直接返回 `[−1,1]`；π 位数上限 2²⁰ bit。`log` 改为指数拆分 + 小实参规约（解除 40 次开方上限，覆盖全部可表示输入）。路线 A 的阶乘型/逆幂型部分和与阶估计改为扩展精度浮点递推（binomial 仍为精确 bigfrac；exp 4096 bit 10.2 s→63 ms，ln1p 1.64 s→180 ms）。复数除法改为 Smith 稳定缩放（有限输入，±∞ 回退共轭法）。修复 `bigfloat_from_bigint` 负输入尾数符号（`round_pack` 未取幅值）。mpmath 黄金对拍覆盖 2¹⁰⁰/2²⁰⁰/1e30/1e100/1e1000；文档漂移收口 |
-| v1.7.0（进行中） | — | §13 #3 64 位肢补齐：原生 `bigint_bin64_div_rem`（Knuth D，128/64 试商；GCC/Clang __int128，MSVC 等 4 字 ÷ 2 字便携 Knuth D），除数 ≥ 1024 肢且被除数 ≥ 2× 回退 bin 的 Burnikel-Ziegler；`bigint_bin64_from_str` / `to_str`（进制 2..36，2 的幂进制位切片，其余 uint64 分块）；`bigint_conv_*_bin64_*` 互转（bin / dec）。实测小/中规模除法较转换包装快 ~2×。测试扩展：除法交叉验证与对抗模式（全 1、2 的幂、精确倍数、超大 BZ 回退）、字符串往返与错误语义、互转往返；便携 128/64 路径独立校验。另评估 Newton 迭代除法：重写为精度倍增倒数（总代价 O(M(P))）并保留 `NEX_DIV_NEWTON_PATH`；实测 4096 肢、商 1 肢时 0.039 ms vs Knuth 0.012 ms，商 2× 时 31.6 ms vs BZ 5.7 ms，bigfloat_div 262144 bit 19.3 ms vs 16.7 ms——均不占优，默认关闭 |
+| v1.7.0（进行中） | — | §13 #3 64 位肢补齐：原生 `bigint_bin64_div_rem`（Knuth D，128/64 试商；GCC/Clang __int128，MSVC 等 4 字 ÷ 2 字便携 Knuth D），除数 ≥ 1024 肢且被除数 ≥ 2× 回退 bin 的 Burnikel-Ziegler；`bigint_bin64_from_str` / `to_str`（进制 2..36，2 的幂进制位切片，其余 uint64 分块）；`bigint_conv_*_bin64_*` 互转（bin / dec）。实测小/中规模除法较转换包装快 ~2×。测试扩展：除法交叉验证与对抗模式（全 1、2 的幂、精确倍数、超大 BZ 回退）、字符串往返与错误语义、互转往返；便携 128/64 路径独立校验。另评估 Newton 迭代除法：重写为精度倍增倒数（总代价 O(M(P))）并保留 `NEX_DIV_NEWTON_PATH`；实测 4096 肢、商 1 肢时 0.039 ms vs Knuth 0.012 ms，商 2× 时 31.6 ms vs BZ 5.7 ms，bigfloat_div 262144 bit 19.3 ms vs 16.7 ms——均不占优，默认关闭。BZ 分派由 m ≥ n 放宽为 m ≥ 96 且 m ≥ n/32（商 1.25n–1.75n 区间原为 O(n²)）：4096 肢、m=n/4 时 5.6→1.9 ms、m=n/2 时 11.3→3.0 ms；m < 96 仍走 Knuth D，m ≥ n 原已走 BZ |

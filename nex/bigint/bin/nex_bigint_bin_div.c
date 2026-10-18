@@ -333,6 +333,15 @@ static bigint_err_ty mag_divmod(bigint_bin_ty *quot, bigint_bin_ty *rem,
 #define NEX_DIV_BZ_DISPATCH 64U
 #endif
 
+/* BZ 分派阈值（商肢数 m 与除数肢数 n）：m ≥ MIN_QUOT 且 m ≥ n/DIV + 1。
+ * 默认值经 -O2 交错基准标定；构建选项可覆盖用于对照。 */
+#ifndef NEX_DIV_BZ_MIN_QUOT
+#define NEX_DIV_BZ_MIN_QUOT 96U
+#endif
+#ifndef NEX_DIV_BZ_QUOT_DIV
+#define NEX_DIV_BZ_QUOT_DIV 32U
+#endif
+
 /* Newton 除法阈值（32 位肢）：低于此值 Knuth D 更快。
  * 可由构建选项覆盖（如 -DNEX_DIV_NEWTON_THRESHOLD=...）用于对照基准。 */
 #ifndef NEX_DIV_NEWTON_THRESHOLD
@@ -1124,11 +1133,19 @@ bigint_err_ty bigint_bin_div_rem(bigint_bin_ty *quot, bigint_bin_ty *rem,
     }
 
     /* 算法分派：
-     *   - 大商（被除数 ≥ 2× 除数）且除数 ≥ 64 肢：Burnikel-Ziegler；
-     *   - 其余：Knuth D。
+     *   - 商肢数 m 足够大（m ≥ 96 且 m ≥ n/32），且除数 ≥ 64 肢：
+     *     Burnikel-Ziegler（O(M(n)) 开销可用大商摊薄）；
+     *   - 其余：Knuth D（O(m·n)；小商时已是线性）。
+     * 旧条件仅按 m ≥ n 分派；Release 交错实测 m ∈ [n/32, n) 时 BZ 快
+     * 1.2–3.8×（4096 肢、m=1.5n：11.3 ms → 3.0 ms），而 m < 96 时
+     * BZ 的常数开销不划算。阈值经 -O2 标定，可由构建选项覆盖。
      * Newton 倒数（NEX_DIV_NEWTON_PATH）为实验路径：实测在各规模均慢于
-     * 上述组合（小商 Knuth O(m·n) 已线性，大商 BZ 常数更小），默认关闭。 */
-    if ((rhs->len >= NEX_DIV_BZ_DISPATCH) && (lhs->len >= 2U * rhs->len)) {
+     * 上述组合，默认关闭。 */
+    const size_t q_limbs = lhs->len - rhs->len;
+    const bool use_bz = (rhs->len >= NEX_DIV_BZ_DISPATCH)
+            && (q_limbs >= NEX_DIV_BZ_MIN_QUOT)
+            && (q_limbs >= (rhs->len / NEX_DIV_BZ_QUOT_DIV) + 1U);
+    if (use_bz) {
         err = bz_div_rem(&tmp_quot, &tmp_rem, lhs, rhs);
 #ifdef NEX_DIV_NEWTON_PATH
     } else if (rhs->len >= NEX_DIV_NEWTON_THRESHOLD) {

@@ -30,6 +30,17 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
     超过 BZ 阈值的大输入）、字符串全进制往返与错误语义、互转往返；
     ASan 与 `NEX_BIN64_FORCE_PORTABLE` 两套构建均通过。
 
+### 性能
+
+- **放宽 Burnikel-Ziegler 分派（issue #82）**：原条件为“被除数 ≥ 2×除数”
+  （商肢数 m ≥ 除数肢数 n），导致 m ∈ [n/32, n) 的商仍走 O(m·n) 的
+  Knuth D，而 BZ 的 O(M(n)) 已可摊薄。新条件（除数 ≥ 64 肢）：
+  `m ≥ 96 且 m ≥ n/32`。Release 交错实测（4096 肢除数）：
+  m=n/4 时 5.6→1.9 ms，m=n/2 时 11.3→3.0 ms；m ≥ n 原已走 BZ。
+  `m < 96` 仍走 Knuth D，避免小商时 BZ 的常数开销。阈值可由
+  `NEX_DIV_BZ_MIN_QUOT` / `NEX_DIV_BZ_QUOT_DIV` 覆盖用于对照。
+  测试新增 m≈n/4 的 BZ 分派区间用例。
+
 ### 评估与决策
 
 - **Newton 迭代除法（issue #82）**：将 `NEX_DIV_NEWTON_PATH` 的旧实现
