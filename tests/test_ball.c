@@ -153,9 +153,25 @@ static void test_elem(void) {
     CHECK(bigfloat_ball_cos(&r, &x, &ctx) == BIGFLOAT_OK_E);
     CHECK(fabs(center_d(&r) - 0.5403023058681397) < 1e-12);
 
-    /* |x| 过大（k > 20）-> INVALID */
+    /* |x| 过大：exp 折半超限 -> INVALID（sin/cos 走 Payne–Hanek） */
     mk(&x, 1e9, 0.0, &ctx);
     CHECK(bigfloat_ball_exp(&r, &x, &ctx) == BIGFLOAT_ERR_INVALID_E);
+
+    /* 2^100（binary64 可精确表示）：Payne–Hanek 规约 */
+    mk(&x, ldexp(1.0, 100), 0.0, &ctx);
+    CHECK(bigfloat_ball_sin(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(fabs(center_d(&r) - (-0.8721836054182673)) < 1e-15);
+    CHECK(bigfloat_ball_cos(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(fabs(center_d(&r) - 0.48917865697472146) < 1e-15);
+
+    /* 宽区间（半径 4 → 长度 8 > 2π）：sin/cos 覆盖 [−1,1] */
+    mk(&x, 1.0, 4.0, &ctx);
+    CHECK(bigfloat_ball_sin(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(contains_d(&r, 1.0, &ctx));
+    CHECK(contains_d(&r, -1.0, &ctx));
+    CHECK(bigfloat_ball_cos(&r, &x, &ctx) == BIGFLOAT_OK_E);
+    CHECK(contains_d(&r, 1.0, &ctx));
+    CHECK(contains_d(&r, -1.0, &ctx));
 
     bigfloat_ball_free(&r);
     bigfloat_ball_free(&x);
@@ -192,6 +208,13 @@ static void test_elem_decimal(void) {
 
     mk_dec(&x, "1000000000", "0", &ctx);
     CHECK(bigdecimal_ball_exp(&r, &x, &ctx) == BIGDECIMAL_ERR_INVALID_E);
+
+    /* 1e30：十进制 Payne–Hanek 规约 */
+    mk_dec(&x, "1e30", "0", &ctx);
+    CHECK(bigdecimal_ball_sin(&r, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(fabs(dec_center_d(&r) - (-0.09011690191213806)) < 1e-15);
+    CHECK(bigdecimal_ball_cos(&r, &x, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(fabs(dec_center_d(&r) - (-0.9959311944053957)) < 1e-15);
 
     /* sqrt / atan：球应包含真值（decimal64） */
     mk_dec(&x, "2", "0", &ctx);

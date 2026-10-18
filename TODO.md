@@ -2,7 +2,7 @@
 
 > **活文档**：v1.0.0 – v1.4.0 已发布，本文件记录 **v1.4 之后的规划**。只收录已评估、
 > 可执行的方向；未决/否定的候选集中列在文末。优先级见 §0。
-> 最后更新：2026-10-14（v1.4.0：§G 已知技术债收口）
+> 最后更新：2026-10-18（v1.6.0 已发布：Payne–Hanek、路线 A 加速、Smith、bench_math）
 
 ---
 
@@ -14,6 +14,7 @@
 | **P1** | 子集化 + 单文件组合 | v1.2 | CMake 源列表显式、模块依赖单向；amalgamation 有 44 处跨文件 `static` 重名待解 |
 | **P2** | 秦九韶 / 幂级数 / Padé | v1.3 | 精确有理数 `bigfrac` 天然适配；属超越函数前置基础设施 |
 | **P3** | 超越函数（分阶段） | v1.x | `docs/design.md` §13 #8 已列；正确舍入工作量最大 |
+| **P3.5** | 超大实参三角（Payne–Hanek） | v1.6 ✅ | §16.2 唯一遗留正确性缺口；已落地 |
 | **P4** | 无穷列表（重新设计后决策） | 探索 | C99 无生成器，惰性抽象与本库句柄式 API 不契合 |
 | **X** | 跨平台多线程封装 | 隔离评估 | §14 明确「内部多线程」为非目标；建议独立模块/仓库 |
 
@@ -138,7 +139,8 @@
   - [x] 路线 B：`nex/ball/` 的 `bigfloat_ball_ty` / `bigdecimal_ball_ty` +
         `add/sub/mul/div/contains`（定向舍入严格区间）；实参规约
         `bigfloat_ball_exp/sin/cos` 与 `bigdecimal_ball_exp/sin/cos`
-        （折半 + 球平方 / half-angle）；测试 `tests/test_ball.c`。待续：更大 |x|。
+        （折半 + 球平方 / half-angle）；测试 `tests/test_ball.c`。v1.6 起
+        sin/cos 的大 |x| 由 Payne–Hanek（§16.2）处理，log 用指数拆分（§16）。
   - [x] 数值类型（bigfloat/bigdecimal）严谨误差界 + 自适应截断（路线 A
         `*_order` + `err_out`；路线 B 球式传播）。
   - [x] 通用（球系数）数值级数 `bigfloat_ball_series` / `bigdecimal_ball_series`
@@ -174,7 +176,8 @@
 - [x] **D3 `sin` / `cos` / `tan`**：✅ `bigfloat_*` / `bigdecimal_*` 正确舍入
       （球式折半 + half-angle 倍角 + Ziv；球式 `ball_tan` = sin/cos）；折半上限
       提到 64（覆盖 |x| ≲ 2⁶³）；修复 `sincos_reduced` 的 `one_ball` 半径错误
-      （原为 [0,2]）。待续：超大 |x|（> 2⁶³）的 Payne–Hanek 规约（需高精度 π）。
+      （原为 [0,2]）。✅ v1.6 已落地：超大 |x|（> 2⁶³）改走 Payne–Hanek
+      规约（Chudnovsky 二分拆分 π + 定点 2/π；float 与 decimal 两套，§16.2）。
 - [x] **D4 `asin` / `acos` / `atan`**：✅ `bigfloat_asin`/`acos` 与
       `bigdecimal_asin`/`acos` 正确舍入（球式 `asin = atan(x/√(1−x²))`、`acos =
       π/2 − asin`；`atan` 见 D1）；特判 `acos(1)=0` 避免对称球跨 0 时 Ziv 不收敛。
@@ -260,7 +263,7 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 
 ---
 
-## I. v1.5.0 规划（候选）
+## I. v1.5.0 已落地（历史）
 
 - **通用（球系数）数值级数**：✅ `bigfloat_ball_series` 与
   `bigdecimal_ball_series`（init/free/from_array/copy/add/sub/mul/eval/compose）
@@ -275,12 +278,53 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 
 ---
 
+## J. v1.6 进展（Payne–Hanek）
+
+- [x] **J1 高精度 π**：`nex/ball/nex_ball_pi.c`（内部）Chudnovsky + 整数二分
+      拆分，每项约 47 bit，96 bit 保护位；输出 `floor(π·2^p)`；位数上限
+      `NEX_PH_MAX_PI_BITS = 2²⁰`。
+- [x] **J2 float 规约**：`nex_ph_reduce_internal`（定点 `2/π` → 就近象限
+      + `r ∈ [−π/4,π/4]`）；`bigfloat_ball_sin/cos/tan` 在 `|x| > 2⁶³` 时接入；
+      误差界（2/π、π/2、商截断）以 `2^{err_exp}` 合成。
+- [x] **J3 decimal 规约**：同一二进制内核 + `R·2^{-K} = (R·5^K)·10^{-K}`
+      精确十进制换算；舍入按 `10^{d-p+1}` 计入。
+- [x] **J4 宽区间**：输入球半径 ≥ 4（长度 > 2π）时 `sin`/`cos` 返回 `[−1,1]`。
+- [x] **J5 测试**：`test_transcend`（2¹⁰⁰、1e30、1e100、正负号/象限）、
+      `test_ball`（PH 路径、宽区间、十进制 1e30）；`golden_series.py` 新增
+      2¹⁰⁰/2²⁰⁰/1e30/1e100/1e1000 的 mpmath 对拍，参考精度按实参量级自动提高。
+- [x] **J6 文档**：design §16.1/§16.2/§16.3、§13 #8、§14；README 测试数与
+      模块说明；`nex_ball.h` 过时注释（k > 20 → 64 / PH）。
+- [x] **J7 `log` 上限评估与重构**：原 40 次开方上限的真实瓶颈是巨大指数下
+      `ball_sqrt` 端点的精确对齐；改为**指数拆分 + 小实参规约**
+      （`x = m·2^E` / `m·10^E`，`ln x = ln m + E·ln2` / `E·ln10`），
+      `|ln x|` 不再受限，上限 16 仅用于 `m ∈ [1,2)`/`[1,10)`。
+      测试：2^(2^40)、2^(2^56)、10^(6e10)（旧上限 40 会 INVALID）。
+- [x] **J8 路线 A 高精度加速**：部分和与阶估计改为扩展精度浮点递推
+      （`p + 48 + log2 n`，尾界向上舍入；decimal 复用 bigfloat 阶估计），
+      去除精确有理公共分母。实测 exp 4096 bit 10.2 s → 63 ms，
+      ln1p 1.64 s → 180 ms，`log(3)` 512 bit 11.0 s → 4.6 ms。
+- [x] **J9 复数 Smith 稳定除法**：float/decimal 有限输入用 Smith 缩放，
+      ±∞ 分量回退共轭法；新增极大/极小分量单元测试；黄金参考同步。
+- [x] **J10 性能测试工具**：新增 `bench/bench_math.c` + `scripts/bench-math.sh`：
+      - `trans`：所有公开超越函数（float/decimal/复数，含 `atan2`/`arg`）×
+        多种精度；
+      - `const`：π（4atan1/2asin1/acos(−1)/2acos0/Machin/Chudnovsky）、
+        e（exp1/sqrt(exp2)/exp(.5)²/级数）、ζ(3)（Apéry float/decimal、
+        Euler 变换低精度）、γ（Brent–McMillan n / 2n、decimal）；
+      - `throughput`：各规模整数/浮点/十进制运算的 ops/s。
+      分段可选（`--sections`），预设 full/quick/ci（默认预算 7200/600/300 s）；
+      `--json` 输出 JSON Lines。CI 每日运行 `--preset ci --budget 300` 并上传
+      artifact。全量本地预算 2 小时；本机实测 5791.8 s（约 96.5 min），
+      结果与解读见 `docs/bench-math.md`。
+
+---
+
 ## 流程与约定
 
 - **分支**：`feature/*` / `chore/*` → PR → `dev` → `main`；PR 触发多平台 CI。
 - **性能**：用 `-O2` 构建；`bench_sweep`（交错采样）做规模扫描。**基准必须与
   对比基线同优化级别**——不同 level 会颠倒算法交叉点（如 FFT 与 Toom-3）。
-- **测试**：`ctest --test-dir build`（当前 41 项，含 Python/mpmath 黄金对拍）；
+- **测试**：`ctest --test-dir build`（当前 42 项，含 Python/mpmath 黄金对拍）；
   平台矩阵含 32 位（`-m32 -msse2 -mfpmath=sse`）与大端（s390x + QEMU）。
 - **文档**：算法与决策入 `docs/design.md`；API 手册由 `sh scripts/docs.sh` 生成
   （API 页取自头文件 + Pandoc 合成 `docs/manual.html`），手写页随能力更新；

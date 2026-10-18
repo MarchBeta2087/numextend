@@ -325,73 +325,7 @@ bigfrac_err_ty nex_series_sin_order(size_t *out_n, const bigfrac_ty *r,
     return fact_order_tail(out_n, NULL, r, eps, 1, 2, 1);
 }
 
-/* 精确部分和 Σ_{j<n} (−1)^{alt·j} z^{start+step·j}/(start+step·j)! */
-static bigfrac_err_ty fact_eval_frac(bigfrac_ty *out, const bigfrac_ty *z,
-        size_t n, int start, int step, int alt) {
-    if (n == 0U) {
-        bigfrac_ty zero;
-        bigfrac_init(&zero);
-        bigfrac_err_ty e = bigfrac_copy(out, &zero);
-        bigfrac_free(&zero);
-        return e;
-    }
-    size_t len = (size_t)step * (n - 1U) + 1U;
-    bigfrac_ty *coeffs = (bigfrac_ty *)nex_malloc(len * sizeof(bigfrac_ty));
-    if (coeffs == NULL) {
-        return BIGFRAC_ERR_OOM_E;
-    }
-    for (size_t i = 0U; i < len; i++) {
-        bigfrac_init(&coeffs[i]);
-    }
 
-    bigfrac_ty fact;
-    bigfrac_ty inv;
-    bigfrac_init(&fact);
-    bigfrac_init(&inv);
-    bigfrac_err_ty err = frac_u64(&fact, 1U);   /* 0! = 1! = 1 */
-    for (size_t j = 0U; j < n && err == BIGFRAC_OK_E; j++) {
-        size_t idx = (size_t)step * j;
-        err = bigfrac_copy(&inv, &fact);
-        if (err == BIGFRAC_OK_E) {
-            err = bigfrac_inv(&inv);            /* 1/(start+step·j)! */
-        }
-        if (err == BIGFRAC_OK_E && alt != 0 && (j & 1U) != 0U) {
-            err = bigfrac_neg(&inv);
-        }
-        if (err == BIGFRAC_OK_E) {
-            err = bigfrac_copy(&coeffs[idx], &inv);
-        }
-        /* fact *= Π (start+step·j+i)，到 (start+step·(j+1))! */
-        for (int i = 1; i <= step && err == BIGFRAC_OK_E; i++) {
-            bigfrac_ty factor;
-            bigfrac_init(&factor);
-            err = frac_u64(&factor,
-                           (uint64_t)(start + (int)(step * j) + i));
-            if (err == BIGFRAC_OK_E) {
-                err = bigfrac_mul(&fact, &fact, &factor);
-            }
-            bigfrac_free(&factor);
-        }
-    }
-
-    bigfrac_series_ty s;
-    bigfrac_series_init(&s);
-    if (err == BIGFRAC_OK_E) {
-        err = bigfrac_series_from_array(&s, (int64_t)start, coeffs, len);
-    }
-    if (err == BIGFRAC_OK_E) {
-        err = bigfrac_series_eval(out, &s, z);
-    }
-
-    bigfrac_series_free(&s);
-    bigfrac_free(&inv);
-    bigfrac_free(&fact);
-    for (size_t i = 0U; i < len; i++) {
-        bigfrac_free(&coeffs[i]);
-    }
-    free(coeffs);
-    return err;
-}
 
 /* ------------------------------------------------------------------ */
 /* 错误映射与数值求值                                                  */
@@ -571,6 +505,812 @@ bigdecimal_err_ty nex_series_binom_eval_decimal(bigdecimal_ty *out,
     return result;
 }
 
+/* 工作精度：p + 48 + ceil(log2 n)（覆盖 ~3n 次递推舍入，余量 > 40 bit） */
+static size_t series_guard_bits(size_t n) {
+    size_t g = 48U;
+    size_t m = n;
+    while (m > 1U) {
+        g += 1U;
+        m >>= 1U;
+    }
+    return g;
+}
+
+static bigfloat_err_ty series_bf_u64(bigfloat_ty *out, uint64_t v,
+        const bigfloat_ctx_ty *ctx) {
+    bigint_bin_ty bi;
+    bigint_bin_init(&bi);
+    bigint_err_ty ierr = bigint_bin_from_u64(&bi, v);
+    bigfloat_err_ty err;
+    if (ierr == BIGINT_OK_E) {
+        err = bigfloat_from_bigint(out, &bi, ctx);
+    } else {
+        err = (ierr == BIGINT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                         : BIGFLOAT_ERR_INVALID_E;
+    }
+    bigint_bin_free(&bi);
+    return err;
+}
+
+static bigdecimal_err_ty series_bd_u64(bigdecimal_ty *out, uint64_t v,
+        const bigdecimal_ctx_ty *ctx) {
+    bigint_dec_ty bi;
+    bigint_dec_init(&bi);
+    bigint_err_ty ierr = bigint_dec_from_u64(&bi, v);
+    bigdecimal_err_ty err;
+    if (ierr == BIGINT_OK_E) {
+        err = bigdecimal_from_bigint(out, &bi, ctx);
+    } else {
+        err = (ierr == BIGINT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                         : BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigint_dec_free(&bi);
+    return err;
+}
+
+/* 工作精度结果一次性舍入到 ctx（误差远低于 ctx 的 1 ulp） */
+static bigfloat_err_ty series_bf_round(bigfloat_ty *out,
+        const bigfloat_ty *val, const bigfloat_ctx_ty *ctx) {
+    bigint_bin_ty mant;
+    bigint_bin_init(&mant);
+    int64_t e = 0;
+    bigfloat_flag_ty fl = BIGFLOAT_POS_ZERO_E;
+    bigfloat_err_ty err = bigfloat_decompose(val, &mant, &e, &fl);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_compose(out, &mant, e, fl, ctx);
+    }
+    bigint_bin_free(&mant);
+    return err;
+}
+
+static bigdecimal_err_ty series_bd_round(bigdecimal_ty *out,
+        const bigdecimal_ty *val, const bigdecimal_ctx_ty *ctx) {
+    bigint_dec_ty mant;
+    bigint_dec_init(&mant);
+    int64_t e = 0;
+    bigdecimal_flag_ty fl = BIGDECIMAL_POS_ZERO_E;
+    bigdecimal_err_ty err = bigdecimal_decompose(val, &mant, &e, &fl);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_compose(out, &mant, e, fl, ctx);
+    }
+    bigint_dec_free(&mant);
+    return err;
+}
+
+/* 扩展精度阶估计：用定向舍入的 bigfloat 递推尾界
+   （尾界只用于选阶与 err_out；比精确 bigfrac 快一个量级以上）。 */
+static bigfloat_err_ty series_bf_abs(bigfloat_ty *out,
+        const bigfloat_ty *x) {
+    bigfloat_err_ty err = bigfloat_copy(out, x);
+    if (err == BIGFLOAT_OK_E && x->flag == BIGFLOAT_NEG_E) {
+        err = bigfloat_neg(out);
+    }
+    return err;
+}
+
+static bigdecimal_err_ty series_bd_abs(bigdecimal_ty *out,
+        const bigdecimal_ty *x) {
+    bigdecimal_err_ty err = bigdecimal_copy(out, x);
+    if (err == BIGDECIMAL_OK_E && x->flag == BIGDECIMAL_NEG_E) {
+        err = bigdecimal_neg(out);
+    }
+    return err;
+}
+
+/* tail（扩展精度、向上舍入）→ err_out（ctx 精度、向上舍入） */
+static bigfloat_err_ty series_bf_emit_upper(bigfloat_ty *err_out,
+        const bigfloat_ty *tail, const bigfloat_ctx_ty *ctx) {
+    if (err_out == NULL) {
+        return BIGFLOAT_OK_E;
+    }
+    bigfloat_ctx_ty up;
+    bigfloat_err_ty err = bigfloat_ctx_make(&up, ctx->mant_bits,
+            ctx->exp_bits, BIGFLOAT_ROUND_TOWARD_POS_E);
+    bigint_bin_ty mant;
+    bigint_bin_init(&mant);
+    int64_t e = 0;
+    bigfloat_flag_ty fl = BIGFLOAT_POS_ZERO_E;
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_decompose(tail, &mant, &e, &fl);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_compose(err_out, &mant, e, fl, &up);
+    }
+    bigint_bin_free(&mant);
+    return err;
+}
+
+static bigdecimal_err_ty series_bd_emit_upper(bigdecimal_ty *err_out,
+        const bigdecimal_ty *tail, const bigdecimal_ctx_ty *ctx) {
+    if (err_out == NULL) {
+        return BIGDECIMAL_OK_E;
+    }
+    bigdecimal_ctx_ty up;
+    bigdecimal_err_ty err = bigdecimal_ctx_make(&up, ctx->mant_digits,
+            ctx->exp_digits, BIGDECIMAL_ROUND_TOWARD_POS_E);
+    bigint_dec_ty mant;
+    bigint_dec_init(&mant);
+    int64_t e = 0;
+    bigdecimal_flag_ty fl = BIGDECIMAL_POS_ZERO_E;
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_decompose(tail, &mant, &e, &fl);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_compose(err_out, &mant, e, fl, &up);
+    }
+    bigint_dec_free(&mant);
+    return err;
+}
+
+/* 阶乘型：返回最小 n 与尾界（bigfloat 上界） */
+static bigfloat_err_ty fact_order_fast(size_t *out_n, bigfloat_ty *out_tail,
+        const bigfloat_ty *z, const bigfrac_ty *eps, int start, int step,
+        int alt, const bigfloat_ctx_ty *ctx) {
+    (void)alt;   /* 幅度与符号无关 */
+    if (out_n == NULL || z == NULL || eps == NULL || ctx == NULL) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    if (ctx->mant_bits > SIZE_MAX - 32U) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    const size_t wp = ctx->mant_bits + 32U;
+    bigfloat_ctx_ty wup;
+    bigfloat_ctx_ty wdn;
+    bigfloat_err_ty err = bigfloat_ctx_make(&wup, wp, ctx->exp_bits,
+            BIGFLOAT_ROUND_TOWARD_POS_E);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ctx_make(&wdn, wp, ctx->exp_bits,
+                BIGFLOAT_ROUND_TOWARD_NEG_E);
+    }
+    bigfloat_ty eps_bf;
+    bigfloat_ty az;
+    bigfloat_ty u;
+    bigfloat_ty term;
+    bigfloat_ty q;
+    bigfloat_ty one;
+    bigfloat_ty omq;
+    bigfloat_ty tail;
+    bigfloat_ty f;
+    bigfloat_init(&eps_bf);
+    bigfloat_init(&az);
+    bigfloat_init(&u);
+    bigfloat_init(&term);
+    bigfloat_init(&q);
+    bigfloat_init(&one);
+    bigfloat_init(&omq);
+    bigfloat_init(&tail);
+    bigfloat_init(&f);
+    if (err == BIGFLOAT_OK_E) {
+        nex_convert_err_ty conv = nex_convert_frac_to_float(&eps_bf, eps,
+                &wdn);
+        if (conv != NEX_CONVERT_OK_E) {
+            err = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                                  : BIGFLOAT_ERR_INVALID_E;
+        }
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = series_bf_abs(&az, z);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = (step == 1) ? bigfloat_copy(&u, &az)
+                          : bigfloat_mul(&u, &az, &az, &wup);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_from_f64(&one, 1.0);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        if (start == 0) {
+            err = bigfloat_from_f64(&term, 1.0);
+        } else {
+            err = bigfloat_copy(&term, &az);
+        }
+    }
+    for (size_t n = 0U; n <= NEX_SERIES_ORDER_CAP && err == BIGFLOAT_OK_E;
+            n++) {
+        /* q_n = |z|^step / Π_{i=1..step}(start+step·n+i) */
+        err = bigfloat_from_f64(&q, 1.0);
+        for (int i = 1; i <= step && err == BIGFLOAT_OK_E; i++) {
+            const uint64_t d = (uint64_t)(start + (int)(step * n) + i);
+            err = series_bf_u64(&f, d, &wup);
+            if (err == BIGFLOAT_OK_E) {
+                err = bigfloat_div(&q, &q, &f, &wup);
+            }
+        }
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_mul(&q, &q, &u, &wup);
+        }
+        bool bounded = false;
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_sub(&omq, &one, &q, &wdn);
+            bounded = !bigfloat_is_zero(&omq)
+                    && omq.flag != BIGFLOAT_NEG_E;
+        }
+        if (err == BIGFLOAT_OK_E && bounded) {
+            err = bigfloat_div(&tail, &term, &omq, &wup);
+            if (err == BIGFLOAT_OK_E
+                    && bigfloat_cmp(&tail, &eps_bf) <= 0) {
+                *out_n = n;
+                if (out_tail != NULL) {
+                    err = bigfloat_copy(out_tail, &tail);
+                }
+                break;
+            }
+        }
+        if (n == NEX_SERIES_ORDER_CAP) {
+            err = BIGFLOAT_ERR_INVALID_E;
+        }
+        if (err == BIGFLOAT_OK_E) {
+            /* term_{n+1} = term_n·u / Π_{i=1..step}(k+i) */
+            err = bigfloat_mul(&term, &term, &u, &wup);
+            for (int i = 1; i <= step && err == BIGFLOAT_OK_E; i++) {
+                const uint64_t d = (uint64_t)(start + (int)(step * n) + i);
+                err = series_bf_u64(&f, d, &wup);
+                if (err == BIGFLOAT_OK_E) {
+                    err = bigfloat_div(&term, &term, &f, &wup);
+                }
+            }
+        }
+    }
+    bigfloat_free(&f);
+    bigfloat_free(&tail);
+    bigfloat_free(&omq);
+    bigfloat_free(&one);
+    bigfloat_free(&q);
+    bigfloat_free(&term);
+    bigfloat_free(&u);
+    bigfloat_free(&az);
+    bigfloat_free(&eps_bf);
+    return err;
+}
+
+/* 逆幂型：返回最小 n 与尾界（几何尾界 term/(1−q)） */
+static bigfloat_err_ty invpow_order_fast(size_t *out_n,
+        bigfloat_ty *out_tail, const bigfloat_ty *z, const bigfrac_ty *eps,
+        int start, int step, int den0, const bigfloat_ctx_ty *ctx) {
+    if (out_n == NULL || z == NULL || eps == NULL || ctx == NULL) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    if (ctx->mant_bits > SIZE_MAX - 32U) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    const size_t wp = ctx->mant_bits + 32U;
+    bigfloat_ctx_ty wup;
+    bigfloat_ctx_ty wdn;
+    bigfloat_err_ty err = bigfloat_ctx_make(&wup, wp, ctx->exp_bits,
+            BIGFLOAT_ROUND_TOWARD_POS_E);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ctx_make(&wdn, wp, ctx->exp_bits,
+                BIGFLOAT_ROUND_TOWARD_NEG_E);
+    }
+    bigfloat_ty eps_bf;
+    bigfloat_ty az;
+    bigfloat_ty u;
+    bigfloat_ty term;
+    bigfloat_ty one;
+    bigfloat_ty omq;
+    bigfloat_ty tail;
+    bigfloat_ty f;
+    bigfloat_init(&eps_bf);
+    bigfloat_init(&az);
+    bigfloat_init(&u);
+    bigfloat_init(&term);
+    bigfloat_init(&one);
+    bigfloat_init(&omq);
+    bigfloat_init(&tail);
+    bigfloat_init(&f);
+    if (err == BIGFLOAT_OK_E) {
+        nex_convert_err_ty conv = nex_convert_frac_to_float(&eps_bf, eps,
+                &wdn);
+        if (conv != NEX_CONVERT_OK_E) {
+            err = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                                  : BIGFLOAT_ERR_INVALID_E;
+        }
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = series_bf_abs(&az, z);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = (step == 1) ? bigfloat_copy(&u, &az)
+                          : bigfloat_mul(&u, &az, &az, &wup);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_from_f64(&one, 1.0);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sub(&omq, &one, &u, &wdn);
+        if (bigfloat_is_zero(&omq) || omq.flag == BIGFLOAT_NEG_E) {
+            err = BIGFLOAT_ERR_INVALID_E;   /* 需 |z|^step < 1 */
+        }
+    }
+    if (err == BIGFLOAT_OK_E) {
+        if (start == 0) {
+            err = bigfloat_from_f64(&term, 1.0);
+        } else {
+            err = bigfloat_copy(&term, &az);
+        }
+        if (err == BIGFLOAT_OK_E) {
+            err = series_bf_u64(&f, (uint64_t)den0, &wup);
+        }
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_div(&term, &term, &f, &wup);
+        }
+    }
+    for (size_t n = 0U; n <= NEX_SERIES_ORDER_CAP && err == BIGFLOAT_OK_E;
+            n++) {
+        err = bigfloat_div(&tail, &term, &omq, &wup);
+        if (err == BIGFLOAT_OK_E && bigfloat_cmp(&tail, &eps_bf) <= 0) {
+            *out_n = n;
+            if (out_tail != NULL) {
+                err = bigfloat_copy(out_tail, &tail);
+            }
+            break;
+        }
+        if (n == NEX_SERIES_ORDER_CAP) {
+            err = BIGFLOAT_ERR_INVALID_E;
+        }
+        if (err == BIGFLOAT_OK_E) {
+            /* term *= u·(den0+step·n)/(den0+step·(n+1)) */
+            err = bigfloat_mul(&term, &term, &u, &wup);
+            if (err == BIGFLOAT_OK_E) {
+                err = series_bf_u64(&f,
+                        (uint64_t)(den0 + step * (int)n), &wup);
+            }
+            if (err == BIGFLOAT_OK_E) {
+                err = bigfloat_mul(&term, &term, &f, &wup);
+            }
+            if (err == BIGFLOAT_OK_E) {
+                err = series_bf_u64(&f,
+                        (uint64_t)(den0 + step * (int)(n + 1U)), &wup);
+            }
+            if (err == BIGFLOAT_OK_E) {
+                err = bigfloat_div(&term, &term, &f, &wup);
+            }
+        }
+    }
+    bigfloat_free(&f);
+    bigfloat_free(&tail);
+    bigfloat_free(&omq);
+    bigfloat_free(&one);
+    bigfloat_free(&term);
+    bigfloat_free(&u);
+    bigfloat_free(&az);
+    bigfloat_free(&eps_bf);
+    return err;
+}
+
+/* decimal 阶估计：|z| 向上转 bigfloat 复用 float 快速阶估计，尾界转回 decimal */
+static bigdecimal_err_ty fact_order_fast_dec(size_t *out_n,
+        bigdecimal_ty *out_tail, const bigdecimal_ty *z,
+        const bigfrac_ty *eps, int start, int step, int alt,
+        const bigdecimal_ctx_ty *ctx) {
+    if (out_n == NULL || z == NULL || eps == NULL || ctx == NULL) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    const size_t pb = (ctx->mant_digits * 3322U) / 1000U + 32U;
+    if (pb > SIZE_MAX - 32U) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigfloat_ctx_ty octx;
+    bigfloat_ctx_ty oup;
+    bigfloat_err_ty ferr = bigfloat_ctx_make(&octx, pb, 61U,
+            BIGFLOAT_ROUND_NEAREST_EVEN_E);
+    if (ferr == BIGFLOAT_OK_E) {
+        ferr = bigfloat_ctx_make(&oup, pb, 61U,
+                BIGFLOAT_ROUND_TOWARD_POS_E);
+    }
+    bigdecimal_ty az;
+    bigfloat_ty zbf;
+    bigfloat_ty tailbf;
+    bigdecimal_init(&az);
+    bigfloat_init(&zbf);
+    bigfloat_init(&tailbf);
+    bigdecimal_err_ty err = BIGDECIMAL_OK_E;
+    if (ferr == BIGFLOAT_OK_E) {
+        err = series_bd_abs(&az, z);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        nex_convert_err_ty conv = nex_convert_decimal_to_float(&zbf, &az,
+                &oup);
+        if (conv != NEX_CONVERT_OK_E) {
+            err = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                                  : BIGDECIMAL_ERR_INVALID_E;
+        }
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        ferr = fact_order_fast(out_n,
+                (out_tail != NULL) ? &tailbf : NULL, &zbf, eps, start, step,
+                alt, &octx);
+        if (ferr == BIGFLOAT_ERR_OOM_E) {
+            err = BIGDECIMAL_ERR_OOM_E;
+        } else if (ferr != BIGFLOAT_OK_E) {
+            err = BIGDECIMAL_ERR_INVALID_E;
+        }
+    }
+    if (err == BIGDECIMAL_OK_E && out_tail != NULL) {
+        bigdecimal_ctx_ty dup;
+        err = bigdecimal_ctx_make(&dup, ctx->mant_digits, ctx->exp_digits,
+                BIGDECIMAL_ROUND_TOWARD_POS_E);
+        if (err == BIGDECIMAL_OK_E) {
+            nex_convert_err_ty conv = nex_convert_float_to_decimal(out_tail,
+                    &tailbf, &dup);
+            if (conv != NEX_CONVERT_OK_E) {
+                err = (conv == NEX_CONVERT_ERR_OOM_E)
+                        ? BIGDECIMAL_ERR_OOM_E
+                        : BIGDECIMAL_ERR_INVALID_E;
+            }
+        }
+    }
+    bigfloat_free(&tailbf);
+    bigfloat_free(&zbf);
+    bigdecimal_free(&az);
+    return err;
+}
+
+static bigdecimal_err_ty invpow_order_fast_dec(size_t *out_n,
+        bigdecimal_ty *out_tail, const bigdecimal_ty *z,
+        const bigfrac_ty *eps, int start, int step, int den0,
+        const bigdecimal_ctx_ty *ctx) {
+    if (out_n == NULL || z == NULL || eps == NULL || ctx == NULL) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    const size_t pb = (ctx->mant_digits * 3322U) / 1000U + 32U;
+    if (pb > SIZE_MAX - 32U) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigfloat_ctx_ty octx;
+    bigfloat_ctx_ty oup;
+    bigfloat_err_ty ferr = bigfloat_ctx_make(&octx, pb, 61U,
+            BIGFLOAT_ROUND_NEAREST_EVEN_E);
+    if (ferr == BIGFLOAT_OK_E) {
+        ferr = bigfloat_ctx_make(&oup, pb, 61U,
+                BIGFLOAT_ROUND_TOWARD_POS_E);
+    }
+    bigdecimal_ty az;
+    bigfloat_ty zbf;
+    bigfloat_ty tailbf;
+    bigdecimal_init(&az);
+    bigfloat_init(&zbf);
+    bigfloat_init(&tailbf);
+    bigdecimal_err_ty err = BIGDECIMAL_OK_E;
+    if (ferr == BIGFLOAT_OK_E) {
+        err = series_bd_abs(&az, z);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        nex_convert_err_ty conv = nex_convert_decimal_to_float(&zbf, &az,
+                &oup);
+        if (conv != NEX_CONVERT_OK_E) {
+            err = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                                  : BIGDECIMAL_ERR_INVALID_E;
+        }
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        ferr = invpow_order_fast(out_n,
+                (out_tail != NULL) ? &tailbf : NULL, &zbf, eps, start, step,
+                den0, &octx);
+        if (ferr == BIGFLOAT_ERR_OOM_E) {
+            err = BIGDECIMAL_ERR_OOM_E;
+        } else if (ferr != BIGFLOAT_OK_E) {
+            err = BIGDECIMAL_ERR_INVALID_E;
+        }
+    }
+    if (err == BIGDECIMAL_OK_E && out_tail != NULL) {
+        bigdecimal_ctx_ty dup;
+        err = bigdecimal_ctx_make(&dup, ctx->mant_digits, ctx->exp_digits,
+                BIGDECIMAL_ROUND_TOWARD_POS_E);
+        if (err == BIGDECIMAL_OK_E) {
+            nex_convert_err_ty conv = nex_convert_float_to_decimal(out_tail,
+                    &tailbf, &dup);
+            if (conv != NEX_CONVERT_OK_E) {
+                err = (conv == NEX_CONVERT_ERR_OOM_E)
+                        ? BIGDECIMAL_ERR_OOM_E
+                        : BIGDECIMAL_ERR_INVALID_E;
+            }
+        }
+    }
+    bigfloat_free(&tailbf);
+    bigfloat_free(&zbf);
+    bigdecimal_free(&az);
+    return err;
+}
+
+/* 阶乘型部分和：Σ_{j<n} (−1)^{alt·j} z^{start+step·j}/(start+step·j)!
+   （extended precision 递推；err_out 仍只输出截断尾界） */
+static bigfloat_err_ty fact_sum_float(bigfloat_ty *out, bigfloat_ty *err_out,
+        const bigfloat_ty *z, const bigfloat_ty *tail, size_t n,
+        int start, int step, int alt, const bigfloat_ctx_ty *ctx) {
+    const size_t guard = series_guard_bits(n);
+    if (ctx->mant_bits > SIZE_MAX - guard) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ctx_ty wctx;
+    bigfloat_err_ty err = bigfloat_ctx_make(&wctx,
+            ctx->mant_bits + guard, ctx->exp_bits,
+            BIGFLOAT_ROUND_NEAREST_EVEN_E);
+    bigfloat_ty u;
+    bigfloat_ty term;
+    bigfloat_ty sum;
+    bigfloat_ty d;
+    bigfloat_init(&u);
+    bigfloat_init(&term);
+    bigfloat_init(&sum);
+    bigfloat_init(&d);
+    if (err == BIGFLOAT_OK_E) {
+        err = (step == 1) ? bigfloat_copy(&u, z)
+                          : bigfloat_mul(&u, z, z, &wctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        if (n == 0U) {
+            err = bigfloat_from_f64(&sum, 0.0);
+        } else {
+            err = (start == 0) ? bigfloat_from_f64(&term, 1.0)
+                               : bigfloat_copy(&term, z);
+            if (err == BIGFLOAT_OK_E) {
+                err = bigfloat_copy(&sum, &term);
+            }
+            for (size_t j = 1U; j < n && err == BIGFLOAT_OK_E; j++) {
+                err = bigfloat_mul(&term, &term, &u, &wctx);
+                if (err == BIGFLOAT_OK_E && alt != 0) {
+                    err = bigfloat_neg(&term);
+                }
+                uint64_t denom;
+                if (step == 1) {
+                    denom = (uint64_t)j;
+                } else if (start == 0) {
+                    const uint64_t k = 2U * (uint64_t)j;
+                    denom = (k - 1U) * k;
+                } else {
+                    const uint64_t k = 2U * (uint64_t)j;
+                    denom = k * (k + 1U);
+                }
+                if (err == BIGFLOAT_OK_E) {
+                    err = series_bf_u64(&d, denom, &wctx);
+                }
+                if (err == BIGFLOAT_OK_E) {
+                    err = bigfloat_div(&term, &term, &d, &wctx);
+                }
+                if (err == BIGFLOAT_OK_E) {
+                    err = bigfloat_add(&sum, &sum, &term, &wctx);
+                }
+            }
+        }
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = series_bf_emit_upper(err_out, tail, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = series_bf_round(out, &sum, ctx);
+    }
+    bigfloat_free(&d);
+    bigfloat_free(&sum);
+    bigfloat_free(&term);
+    bigfloat_free(&u);
+    return err;
+}
+
+/* 阶乘型部分和（bigdecimal 版） */
+static bigdecimal_err_ty fact_sum_decimal(bigdecimal_ty *out,
+        bigdecimal_ty *err_out, const bigdecimal_ty *z,
+        const bigdecimal_ty *tail, size_t n, int start, int step, int alt,
+        const bigdecimal_ctx_ty *ctx) {
+    const size_t guard = series_guard_bits(n);
+    const size_t extra = guard / 3U + 2U;
+    if (ctx->mant_digits > SIZE_MAX - extra) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ctx_ty wctx;
+    bigdecimal_err_ty err = bigdecimal_ctx_make(&wctx,
+            ctx->mant_digits + extra, ctx->exp_digits,
+            BIGDECIMAL_ROUND_NEAREST_EVEN_E);
+    bigdecimal_ty u;
+    bigdecimal_ty term;
+    bigdecimal_ty sum;
+    bigdecimal_ty d;
+    bigdecimal_init(&u);
+    bigdecimal_init(&term);
+    bigdecimal_init(&sum);
+    bigdecimal_init(&d);
+    if (err == BIGDECIMAL_OK_E) {
+        err = (step == 1) ? bigdecimal_copy(&u, z)
+                          : bigdecimal_mul(&u, z, z, &wctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        if (n == 0U) {
+            err = bigdecimal_from_str(&sum, "0", &wctx, NULL);
+        } else {
+            err = (start == 0) ? bigdecimal_from_str(&term, "1", &wctx, NULL)
+                               : bigdecimal_copy(&term, z);
+            if (err == BIGDECIMAL_OK_E) {
+                err = bigdecimal_copy(&sum, &term);
+            }
+            for (size_t j = 1U; j < n && err == BIGDECIMAL_OK_E; j++) {
+                err = bigdecimal_mul(&term, &term, &u, &wctx);
+                if (err == BIGDECIMAL_OK_E && alt != 0) {
+                    err = bigdecimal_neg(&term);
+                }
+                uint64_t denom;
+                if (step == 1) {
+                    denom = (uint64_t)j;
+                } else if (start == 0) {
+                    const uint64_t k = 2U * (uint64_t)j;
+                    denom = (k - 1U) * k;
+                } else {
+                    const uint64_t k = 2U * (uint64_t)j;
+                    denom = k * (k + 1U);
+                }
+                if (err == BIGDECIMAL_OK_E) {
+                    err = series_bd_u64(&d, denom, &wctx);
+                }
+                if (err == BIGDECIMAL_OK_E) {
+                    err = bigdecimal_div(&term, &term, &d, &wctx);
+                }
+                if (err == BIGDECIMAL_OK_E) {
+                    err = bigdecimal_add(&sum, &sum, &term, &wctx);
+                }
+            }
+        }
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = series_bd_emit_upper(err_out, tail, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = series_bd_round(out, &sum, ctx);
+    }
+    bigdecimal_free(&d);
+    bigdecimal_free(&sum);
+    bigdecimal_free(&term);
+    bigdecimal_free(&u);
+    return err;
+}
+
+/* 逆幂型部分和：Σ_{j<n} (−1)^{alt·j} z^{start+step·j}/(den0+step·j) */
+static bigfloat_err_ty invpow_sum_float(bigfloat_ty *out,
+        bigfloat_ty *err_out, const bigfloat_ty *z, const bigfloat_ty *tail,
+        size_t n, int start, int step, int den0, int alt,
+        const bigfloat_ctx_ty *ctx) {
+    const size_t guard = series_guard_bits(n);
+    if (ctx->mant_bits > SIZE_MAX - guard) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ctx_ty wctx;
+    bigfloat_err_ty err = bigfloat_ctx_make(&wctx,
+            ctx->mant_bits + guard, ctx->exp_bits,
+            BIGFLOAT_ROUND_NEAREST_EVEN_E);
+    bigfloat_ty u;
+    bigfloat_ty p;
+    bigfloat_ty term;
+    bigfloat_ty sum;
+    bigfloat_ty d;
+    bigfloat_init(&u);
+    bigfloat_init(&p);
+    bigfloat_init(&term);
+    bigfloat_init(&sum);
+    bigfloat_init(&d);
+    if (err == BIGFLOAT_OK_E) {
+        err = (step == 1) ? bigfloat_copy(&u, z)
+                          : bigfloat_mul(&u, z, z, &wctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        if (n == 0U) {
+            err = bigfloat_from_f64(&sum, 0.0);
+        } else {
+            err = (start == 0) ? bigfloat_from_f64(&p, 1.0)
+                               : bigfloat_copy(&p, z);
+            if (err == BIGFLOAT_OK_E) {
+                err = series_bf_u64(&d, (uint64_t)den0, &wctx);
+            }
+            if (err == BIGFLOAT_OK_E) {
+                err = bigfloat_div(&term, &p, &d, &wctx);
+            }
+            if (err == BIGFLOAT_OK_E) {
+                err = bigfloat_copy(&sum, &term);
+            }
+            for (size_t j = 1U; j < n && err == BIGFLOAT_OK_E; j++) {
+                err = bigfloat_mul(&p, &p, &u, &wctx);
+                if (err == BIGFLOAT_OK_E) {
+                    err = series_bf_u64(&d,
+                            (uint64_t)(den0 + step * (int)j), &wctx);
+                }
+                if (err == BIGFLOAT_OK_E) {
+                    err = bigfloat_div(&term, &p, &d, &wctx);
+                }
+                if (err == BIGFLOAT_OK_E && alt != 0 && (j & 1U) != 0U) {
+                    err = bigfloat_neg(&term);
+                }
+                if (err == BIGFLOAT_OK_E) {
+                    err = bigfloat_add(&sum, &sum, &term, &wctx);
+                }
+            }
+        }
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = series_bf_emit_upper(err_out, tail, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = series_bf_round(out, &sum, ctx);
+    }
+    bigfloat_free(&d);
+    bigfloat_free(&sum);
+    bigfloat_free(&term);
+    bigfloat_free(&p);
+    bigfloat_free(&u);
+    return err;
+}
+
+/* 逆幂型部分和（bigdecimal 版） */
+static bigdecimal_err_ty invpow_sum_decimal(bigdecimal_ty *out,
+        bigdecimal_ty *err_out, const bigdecimal_ty *z,
+        const bigdecimal_ty *tail, size_t n, int start, int step, int den0,
+        int alt, const bigdecimal_ctx_ty *ctx) {
+    const size_t guard = series_guard_bits(n);
+    const size_t extra = guard / 3U + 2U;
+    if (ctx->mant_digits > SIZE_MAX - extra) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ctx_ty wctx;
+    bigdecimal_err_ty err = bigdecimal_ctx_make(&wctx,
+            ctx->mant_digits + extra, ctx->exp_digits,
+            BIGDECIMAL_ROUND_NEAREST_EVEN_E);
+    bigdecimal_ty u;
+    bigdecimal_ty p;
+    bigdecimal_ty term;
+    bigdecimal_ty sum;
+    bigdecimal_ty d;
+    bigdecimal_init(&u);
+    bigdecimal_init(&p);
+    bigdecimal_init(&term);
+    bigdecimal_init(&sum);
+    bigdecimal_init(&d);
+    if (err == BIGDECIMAL_OK_E) {
+        err = (step == 1) ? bigdecimal_copy(&u, z)
+                          : bigdecimal_mul(&u, z, z, &wctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        if (n == 0U) {
+            err = bigdecimal_from_str(&sum, "0", &wctx, NULL);
+        } else {
+            err = (start == 0) ? bigdecimal_from_str(&p, "1", &wctx, NULL)
+                               : bigdecimal_copy(&p, z);
+            if (err == BIGDECIMAL_OK_E) {
+                err = series_bd_u64(&d, (uint64_t)den0, &wctx);
+            }
+            if (err == BIGDECIMAL_OK_E) {
+                err = bigdecimal_div(&term, &p, &d, &wctx);
+            }
+            if (err == BIGDECIMAL_OK_E) {
+                err = bigdecimal_copy(&sum, &term);
+            }
+            for (size_t j = 1U; j < n && err == BIGDECIMAL_OK_E; j++) {
+                err = bigdecimal_mul(&p, &p, &u, &wctx);
+                if (err == BIGDECIMAL_OK_E) {
+                    err = series_bd_u64(&d,
+                            (uint64_t)(den0 + step * (int)j), &wctx);
+                }
+                if (err == BIGDECIMAL_OK_E) {
+                    err = bigdecimal_div(&term, &p, &d, &wctx);
+                }
+                if (err == BIGDECIMAL_OK_E && alt != 0 && (j & 1U) != 0U) {
+                    err = bigdecimal_neg(&term);
+                }
+                if (err == BIGDECIMAL_OK_E) {
+                    err = bigdecimal_add(&sum, &sum, &term, &wctx);
+                }
+            }
+        }
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = series_bd_emit_upper(err_out, tail, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = series_bd_round(out, &sum, ctx);
+    }
+    bigdecimal_free(&d);
+    bigdecimal_free(&sum);
+    bigdecimal_free(&term);
+    bigdecimal_free(&p);
+    bigdecimal_free(&u);
+    return err;
+}
+
 /* 通用阶乘型数值求值（bigfloat） */
 static bigfloat_err_ty fact_eval_float(bigfloat_ty *out, bigfloat_ty *err_out,
         const bigfloat_ty *z, const bigfrac_ty *eps,
@@ -578,47 +1318,20 @@ static bigfloat_err_ty fact_eval_float(bigfloat_ty *out, bigfloat_ty *err_out,
     if (out == NULL || z == NULL || eps == NULL || ctx == NULL) {
         return BIGFLOAT_ERR_INVALID_E;
     }
-    bigfrac_ty zf;
-    bigfrac_init(&zf);
-    nex_convert_err_ty conv = nex_convert_float_to_frac(&zf, z);
-    if (conv != NEX_CONVERT_OK_E) {
-        bigfrac_free(&zf);
-        return (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
-                                               : BIGFLOAT_ERR_INVALID_E;
-    }
-    bigfrac_ty r;
-    bigfrac_ty tail;
-    bigfrac_init(&r);
-    bigfrac_init(&tail);
-    bigfrac_err_ty err = frac_abs(&r, &zf);
     size_t n = 0U;
-    if (err == BIGFRAC_OK_E) {
-        err = fact_order_tail(&n, &tail, &r, eps, start, step, alt);
+    bigfloat_ty tail;
+    bigfloat_init(&tail);
+    bigfloat_err_ty err = fact_order_fast(&n, &tail, z, eps, start, step,
+            alt, ctx);
+    if (err == BIGFLOAT_OK_E) {
+        err = fact_sum_float(out, err_out, z, &tail, n, start, step, alt,
+                ctx);
     }
-    bigfrac_ty partial;
-    bigfrac_init(&partial);
-    if (err == BIGFRAC_OK_E) {
-        err = fact_eval_frac(&partial, &zf, n, start, step, alt);
-    }
-    bigfloat_err_ty result = BIGFLOAT_OK_E;
-    if (err != BIGFRAC_OK_E) {
-        result = map_frac_err(err);
-    } else {
-        conv = nex_convert_frac_to_float(out, &partial, ctx);
-        if (conv == NEX_CONVERT_OK_E) {
-            conv = emit_bound_float(err_out, &tail, ctx);
-        }
-        if (conv != NEX_CONVERT_OK_E) {
-            result = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
-                                                     : BIGFLOAT_ERR_INVALID_E;
-        }
-    }
-    bigfrac_free(&partial);
-    bigfrac_free(&tail);
-    bigfrac_free(&r);
-    bigfrac_free(&zf);
-    return result;
+    bigfloat_free(&tail);
+    return err;
 }
+
+
 
 /* 通用阶乘型数值求值（bigdecimal） */
 static bigdecimal_err_ty fact_eval_decimal(bigdecimal_ty *out,
@@ -628,47 +1341,20 @@ static bigdecimal_err_ty fact_eval_decimal(bigdecimal_ty *out,
     if (out == NULL || z == NULL || eps == NULL || ctx == NULL) {
         return BIGDECIMAL_ERR_INVALID_E;
     }
-    bigfrac_ty zf;
-    bigfrac_init(&zf);
-    nex_convert_err_ty conv = nex_convert_decimal_to_frac(&zf, z);
-    if (conv != NEX_CONVERT_OK_E) {
-        bigfrac_free(&zf);
-        return (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
-                                               : BIGDECIMAL_ERR_INVALID_E;
-    }
-    bigfrac_ty r;
-    bigfrac_ty tail;
-    bigfrac_init(&r);
-    bigfrac_init(&tail);
-    bigfrac_err_ty err = frac_abs(&r, &zf);
     size_t n = 0U;
-    if (err == BIGFRAC_OK_E) {
-        err = fact_order_tail(&n, &tail, &r, eps, start, step, alt);
+    bigdecimal_ty tail;
+    bigdecimal_init(&tail);
+    bigdecimal_err_ty err = fact_order_fast_dec(&n, &tail, z, eps, start,
+            step, alt, ctx);
+    if (err == BIGDECIMAL_OK_E) {
+        err = fact_sum_decimal(out, err_out, z, &tail, n, start, step, alt,
+                ctx);
     }
-    bigfrac_ty partial;
-    bigfrac_init(&partial);
-    if (err == BIGFRAC_OK_E) {
-        err = fact_eval_frac(&partial, &zf, n, start, step, alt);
-    }
-    bigdecimal_err_ty result = BIGDECIMAL_OK_E;
-    if (err != BIGFRAC_OK_E) {
-        result = map_frac_err_dec(err);
-    } else {
-        conv = nex_convert_frac_to_decimal(out, &partial, ctx);
-        if (conv == NEX_CONVERT_OK_E) {
-            conv = emit_bound_decimal(err_out, &tail, ctx);
-        }
-        if (conv != NEX_CONVERT_OK_E) {
-            result = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
-                                                     : BIGDECIMAL_ERR_INVALID_E;
-        }
-    }
-    bigfrac_free(&partial);
-    bigfrac_free(&tail);
-    bigfrac_free(&r);
-    bigfrac_free(&zf);
-    return result;
+    bigdecimal_free(&tail);
+    return err;
 }
+
+
 
 bigfloat_err_ty nex_series_exp_eval_float(bigfloat_ty *out,
         bigfloat_ty *err_out, const bigfloat_ty *z, const bigfrac_ty *eps,
@@ -819,59 +1505,7 @@ static bigfrac_err_ty invpow_order_tail(size_t *out_n, bigfrac_ty *out_tail,
     return err;
 }
 
-/* 精确部分和 Σ_{j<n} (−1)^{alt·j} z^{start+step·j}/(den0+step·j) */
-static bigfrac_err_ty invpow_eval_frac(bigfrac_ty *out, const bigfrac_ty *z,
-        size_t n, int start, int step, int den0, int alt) {
-    if (n == 0U) {
-        bigfrac_ty zero;
-        bigfrac_init(&zero);
-        bigfrac_err_ty e = bigfrac_copy(out, &zero);
-        bigfrac_free(&zero);
-        return e;
-    }
-    size_t len = (size_t)step * (n - 1U) + 1U;
-    bigfrac_ty *coeffs = (bigfrac_ty *)nex_malloc(len * sizeof(bigfrac_ty));
-    if (coeffs == NULL) {
-        return BIGFRAC_ERR_OOM_E;
-    }
-    for (size_t i = 0U; i < len; i++) {
-        bigfrac_init(&coeffs[i]);
-    }
-    bigfrac_err_ty err = BIGFRAC_OK_E;
-    for (size_t j = 0U; j < n && err == BIGFRAC_OK_E; j++) {
-        size_t idx = (size_t)step * j;
-        bigfrac_ty den;
-        bigfrac_ty one;
-        bigfrac_init(&den);
-        bigfrac_init(&one);
-        err = frac_u64(&den, (uint64_t)(den0 + step * (int)j));
-        if (err == BIGFRAC_OK_E) {
-            err = frac_u64(&one, 1U);
-        }
-        if (err == BIGFRAC_OK_E) {
-            err = bigfrac_div(&coeffs[idx], &one, &den);
-        }
-        if (err == BIGFRAC_OK_E && alt != 0 && (j & 1U) != 0U) {
-            err = bigfrac_neg(&coeffs[idx]);
-        }
-        bigfrac_free(&one);
-        bigfrac_free(&den);
-    }
-    bigfrac_series_ty s;
-    bigfrac_series_init(&s);
-    if (err == BIGFRAC_OK_E) {
-        err = bigfrac_series_from_array(&s, (int64_t)start, coeffs, len);
-    }
-    if (err == BIGFRAC_OK_E) {
-        err = bigfrac_series_eval(out, &s, z);
-    }
-    bigfrac_series_free(&s);
-    for (size_t i = 0U; i < len; i++) {
-        bigfrac_free(&coeffs[i]);
-    }
-    free(coeffs);
-    return err;
-}
+
 
 bigfrac_err_ty nex_series_ln1p_order(size_t *out_n, const bigfrac_ty *r,
         const bigfrac_ty *eps) {
@@ -889,95 +1523,42 @@ static bigfloat_err_ty invpow_eval_float(bigfloat_ty *out,
     if (out == NULL || z == NULL || eps == NULL || ctx == NULL) {
         return BIGFLOAT_ERR_INVALID_E;
     }
-    bigfrac_ty zf;
-    bigfrac_init(&zf);
-    nex_convert_err_ty conv = nex_convert_float_to_frac(&zf, z);
-    if (conv != NEX_CONVERT_OK_E) {
-        bigfrac_free(&zf);
-        return (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
-                                               : BIGFLOAT_ERR_INVALID_E;
-    }
-    bigfrac_ty r;
-    bigfrac_ty tail;
-    bigfrac_init(&r);
-    bigfrac_init(&tail);
-    bigfrac_err_ty err = frac_abs(&r, &zf);
     size_t n = 0U;
-    if (err == BIGFRAC_OK_E) {
-        err = invpow_order_tail(&n, &tail, &r, eps, start, step, den0);
+    bigfloat_ty tail;
+    bigfloat_init(&tail);
+    bigfloat_err_ty err = invpow_order_fast(&n, &tail, z, eps, start, step,
+            den0, ctx);
+    if (err == BIGFLOAT_OK_E) {
+        err = invpow_sum_float(out, err_out, z, &tail, n, start, step, den0,
+                alt, ctx);
     }
-    bigfrac_ty partial;
-    bigfrac_init(&partial);
-    if (err == BIGFRAC_OK_E) {
-        err = invpow_eval_frac(&partial, &zf, n, start, step, den0, alt);
-    }
-    bigfloat_err_ty result = BIGFLOAT_OK_E;
-    if (err != BIGFRAC_OK_E) {
-        result = map_frac_err(err);
-    } else {
-        conv = nex_convert_frac_to_float(out, &partial, ctx);
-        if (conv == NEX_CONVERT_OK_E) {
-            conv = emit_bound_float(err_out, &tail, ctx);
-        }
-        if (conv != NEX_CONVERT_OK_E) {
-            result = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
-                                                     : BIGFLOAT_ERR_INVALID_E;
-        }
-    }
-    bigfrac_free(&partial);
-    bigfrac_free(&tail);
-    bigfrac_free(&r);
-    bigfrac_free(&zf);
-    return result;
+    bigfloat_free(&tail);
+    return err;
 }
 
+
+
 static bigdecimal_err_ty invpow_eval_decimal(bigdecimal_ty *out,
-        bigdecimal_ty *err_out, const bigdecimal_ty *z, const bigfrac_ty *eps,
-        const bigdecimal_ctx_ty *ctx, int start, int step, int den0, int alt) {
+        bigdecimal_ty *err_out, const bigdecimal_ty *z,
+        const bigfrac_ty *eps, const bigdecimal_ctx_ty *ctx, int start,
+        int step, int den0, int alt) {
     if (out == NULL || z == NULL || eps == NULL || ctx == NULL) {
         return BIGDECIMAL_ERR_INVALID_E;
     }
-    bigfrac_ty zf;
-    bigfrac_init(&zf);
-    nex_convert_err_ty conv = nex_convert_decimal_to_frac(&zf, z);
-    if (conv != NEX_CONVERT_OK_E) {
-        bigfrac_free(&zf);
-        return (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
-                                               : BIGDECIMAL_ERR_INVALID_E;
-    }
-    bigfrac_ty r;
-    bigfrac_ty tail;
-    bigfrac_init(&r);
-    bigfrac_init(&tail);
-    bigfrac_err_ty err = frac_abs(&r, &zf);
     size_t n = 0U;
-    if (err == BIGFRAC_OK_E) {
-        err = invpow_order_tail(&n, &tail, &r, eps, start, step, den0);
+    bigdecimal_ty tail;
+    bigdecimal_init(&tail);
+    bigdecimal_err_ty err = invpow_order_fast_dec(&n, &tail, z, eps, start,
+            step, den0, ctx);
+    if (err == BIGDECIMAL_OK_E) {
+        err = invpow_sum_decimal(out, err_out, z, &tail, n, start, step,
+                den0, alt, ctx);
     }
-    bigfrac_ty partial;
-    bigfrac_init(&partial);
-    if (err == BIGFRAC_OK_E) {
-        err = invpow_eval_frac(&partial, &zf, n, start, step, den0, alt);
-    }
-    bigdecimal_err_ty result = BIGDECIMAL_OK_E;
-    if (err != BIGFRAC_OK_E) {
-        result = map_frac_err_dec(err);
-    } else {
-        conv = nex_convert_frac_to_decimal(out, &partial, ctx);
-        if (conv == NEX_CONVERT_OK_E) {
-            conv = emit_bound_decimal(err_out, &tail, ctx);
-        }
-        if (conv != NEX_CONVERT_OK_E) {
-            result = (conv == NEX_CONVERT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
-                                                     : BIGDECIMAL_ERR_INVALID_E;
-        }
-    }
-    bigfrac_free(&partial);
-    bigfrac_free(&tail);
-    bigfrac_free(&r);
-    bigfrac_free(&zf);
-    return result;
+    bigdecimal_free(&tail);
+    return err;
 }
+
+
 
 bigfloat_err_ty nex_series_ln1p_eval_float(bigfloat_ty *out,
         bigfloat_ty *err_out, const bigfloat_ty *z, const bigfrac_ty *eps,

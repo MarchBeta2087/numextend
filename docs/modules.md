@@ -383,8 +383,8 @@
 
 ### `ball`
 
-- 直接依赖：`bigfloat`, `bigdecimal`, `series`
-- 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`, `nex/ball/nex_ball_series.c`, `nex/ball/nex_ball_series_dec.c`
+- 直接依赖：`bigdecimal`, `bigfloat`, `bigint_bin`, `bigint_conv`, `series`
+- 源文件：`nex/ball/nex_ball.c`, `nex/ball/nex_ball_elem.c`, `nex/ball/nex_ball_elem_dec.c`, `nex/ball/nex_ball_pi.c`, `nex/ball/nex_ball_series.c`, `nex/ball/nex_ball_series_dec.c`
 - 公开头：`nex/ball/nex_ball.h`
 - 公开函数（54）：
   - `bigdecimal_ball_acos`

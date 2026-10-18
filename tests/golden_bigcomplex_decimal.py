@@ -86,11 +86,33 @@ def cmul(a, b, ctx):
     return (gbd.sub(ac, bd, ctx), gbd.add(bc, ad, ctx))
 
 
+def _cabs_scalar(x):
+    """幅值：负数取反（Smith 选支用）。"""
+    return gbd.neg(x) if x[0] in (F_NEG, F_NEG_ZERO, F_NEG_INF) else x
+
+
 def cdiv(a, b, ctx):
-    re_num = gbd.add(gbd.mul(a[0], b[0], ctx), gbd.mul(a[1], b[1], ctx), ctx)
-    im_num = gbd.sub(gbd.mul(a[1], b[0], ctx), gbd.mul(a[0], b[1], ctx), ctx)
-    den = gbd.add(gbd.mul(b[0], b[0], ctx), gbd.mul(b[1], b[1], ctx), ctx)
-    return (gbd.div(re_num, den, ctx), gbd.div(im_num, den, ctx))
+    """Smith 稳定除法（与 C 实现一致）；含 ±∞ 时回退共轭法。"""
+    if any(x[0] in (F_POS_INF, F_NEG_INF)
+           for x in (a[0], a[1], b[0], b[1])):
+        re_num = gbd.add(gbd.mul(a[0], b[0], ctx),
+                         gbd.mul(a[1], b[1], ctx), ctx)
+        im_num = gbd.sub(gbd.mul(a[1], b[0], ctx),
+                         gbd.mul(a[0], b[1], ctx), ctx)
+        den = gbd.add(gbd.mul(b[0], b[0], ctx),
+                      gbd.mul(b[1], b[1], ctx), ctx)
+        return (gbd.div(re_num, den, ctx), gbd.div(im_num, den, ctx))
+    if gbd.cmp(_cabs_scalar(b[0]), _cabs_scalar(b[1])) >= 0:
+        r = gbd.div(b[1], b[0], ctx)
+        den = gbd.add(b[0], gbd.mul(b[1], r, ctx), ctx)
+        t1 = gbd.add(a[0], gbd.mul(a[1], r, ctx), ctx)
+        t2 = gbd.sub(a[1], gbd.mul(a[0], r, ctx), ctx)
+    else:
+        r = gbd.div(b[0], b[1], ctx)
+        den = gbd.add(b[1], gbd.mul(b[0], r, ctx), ctx)
+        t1 = gbd.add(gbd.mul(a[0], r, ctx), a[1], ctx)
+        t2 = gbd.sub(gbd.mul(a[1], r, ctx), a[0], ctx)
+    return (gbd.div(t1, den, ctx), gbd.div(t2, den, ctx))
 
 
 def cabs(a, ctx):

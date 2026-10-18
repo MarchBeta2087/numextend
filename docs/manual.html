@@ -2763,9 +2763,9 @@ im</p>
 <h3 id="bigcomplex_float_div"><code>bigcomplex_float_div</code></h3>
 <div class="sourceCode" id="cb224"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb224-1"><a href="#cb224-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_div<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：除法 dst = lhs / rhs</p>
-<p><strong>备注</strong>：共轭法 (a+bi)/(c+di) =
-(a+bi)(c−di)/(c²+d²)；中间量可能过早 溢出/下溢（如 ∞ 分量经中间乘法产生
-NaN），Smith 缩放算法列为 后续方向（§9.2），v1
+<p><strong>备注</strong>：有限输入用 Smith 稳定缩放（|c|≥|d| →
+r=d/c，否则 r=c/d），避免 c²+d² 过早溢出/下溢；任一分量为 ±∞
+时回退共轭法以维持特殊值语义。 各步按 ctx 正确舍入（§9.2），v1
 按&quot;分量独立求值后组合&quot;的朴素语义</p>
 <h2 id="相等性复数无序不提供-cmp92">相等性（复数无序，不提供
 cmp，§9.2）</h2>
@@ -2906,9 +2906,9 @@ im（十进制版）</p>
 <h3 id="bigcomplex_decimal_div"><code>bigcomplex_decimal_div</code></h3>
 <div class="sourceCode" id="cb246"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb246-1"><a href="#cb246-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_div<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：除法 dst = lhs / rhs</p>
-<p><strong>备注</strong>：共轭法 (a+bi)/(c+di) =
-(a+bi)(c−di)/(c²+d²)；中间量可能过早溢出/ 下溢，Smith
-缩放算法列为后续方向（§9.2）</p>
+<p><strong>备注</strong>：有限输入用 Smith 稳定缩放，避免 c²+d²
+越过指数范围；任一分量为 ±∞ 时回退共轭法；各步按 ctx
+正确舍入（§9.2）</p>
 <h2 id="相等性复数无序不提供-cmp92-1">相等性（复数无序，不提供
 cmp，§9.2）</h2>
 <h3 id="bigcomplex_decimal_eq"><code>bigcomplex_decimal_eq</code></h3>
@@ -3021,11 +3021,14 @@ bigfloat（经精确有理数中间值，一次舍入，§10）</p>
 <p>NEX_CONVERT_H</p>
 <h1 id="series--幂级数求值精确系数--全局尾界">series ——
 幂级数求值（精确系数 + 全局尾界）</h1>
-<p>nex_series：幂级数求值的「精确系数 + 全局尾界」路线 A（设计文档
-§15.6）。</p>
-<p>以精确有理解的截断级数在数值点求值：系数为
-<code>bigfrac</code>（精确），仅截断与
-最终舍入引入误差。截断尾由尾界界定：</p>
+<p>nex_series：幂级数求值的「严格尾界 + 扩展精度求值」路线
+A（§15.6）。</p>
+<p>在数值点求值时，阶乘型/逆幂型（exp/cos/sin/ln1p/atan）的部分和与阶估计
+以 <code>p + 48 + log2 n</code>
+工作精度递推（尾界向上舍入，保证上界），最终一次 舍入到目标
+<code>ctx</code>；不再构造精确有理公共分母，高精度（≳256 bit）下快 1–2
+个数量级。二项式 <code>(1+z)^alpha</code> 仍用精确 <code>bigfrac</code>
+系数与精确部分和。截断 尾仍由尾界界定：</p>
 <ul>
 <li>几何型 <code>A·q^n/(1−q)</code>（q = B·r）：有界系数（如二项式
 <code>α ≥ −1</code>）；</li>
@@ -3097,7 +3100,7 @@ BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E</p>
 <p><strong>返回</strong>：同 exp_order</p>
 <h3 id="nex_series_exp_eval_float"><code>nex_series_exp_eval_float</code></h3>
 <div class="sourceCode" id="cb273"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb273-1"><a href="#cb273-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty nex_series_exp_eval_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>out<span class="op">,</span> bigfloat_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
-<p><strong>说明</strong>：在 bigfloat 点求值 exp(z)（精确系数 +
+<p><strong>说明</strong>：在 bigfloat 点求值 exp(z)（扩展精度递推 +
 比值尾界）</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -3107,7 +3110,7 @@ BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E</p>
 非有限返回 BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E（out
 不变）</p>
 <p><strong>备注</strong>：未做实参规约，建议 |z| ≲ 1；总误差 ≤ eps +
-终值一次舍入</p>
+终值一次舍入 （工作精度保护位远高于目标 ulp）</p>
 <h3 id="nex_series_cos_eval_float"><code>nex_series_cos_eval_float</code></h3>
 <div class="sourceCode" id="cb274"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb274-1"><a href="#cb274-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty nex_series_cos_eval_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>out<span class="op">,</span> bigfloat_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：在 bigfloat 点求值 cos(z)（语义同
@@ -3150,7 +3153,7 @@ BIGFRAC_ERR_INVALID_E； 超出迭代上限返回
 BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E</p>
 <h3 id="nex_series_ln1p_eval_float"><code>nex_series_ln1p_eval_float</code></h3>
 <div class="sourceCode" id="cb280"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb280-1"><a href="#cb280-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty nex_series_ln1p_eval_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>out<span class="op">,</span> bigfloat_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
-<p><strong>说明</strong>：在 bigfloat 点求值 ln(1+z)（精确系数 +
+<p><strong>说明</strong>：在 bigfloat 点求值 ln(1+z)（扩展精度递推 +
 比值尾界 + 可选误差输出）</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -3160,7 +3163,7 @@ BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E</p>
 |z| ≥ 1 返回 BIGFLOAT_ERR_INVALID_E；内存不足返回
 BIGFLOAT_ERR_OOM_E（out 不变）</p>
 <p><strong>备注</strong>：未做实参规约，建议 |z| ≲ 1/2；总误差 ≤ eps +
-终值一次舍入</p>
+终值一次舍入 （工作精度保护位远高于目标 ulp）</p>
 <h3 id="nex_series_ln1p_eval_decimal"><code>nex_series_ln1p_eval_decimal</code></h3>
 <div class="sourceCode" id="cb281"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb281-1"><a href="#cb281-1" aria-hidden="true" tabindex="-1"></a>bigdecimal_err_ty nex_series_ln1p_eval_decimal<span class="op">(</span>bigdecimal_ty <span class="op">*</span>out<span class="op">,</span> bigdecimal_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigdecimal_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：在 bigdecimal 点求值 ln(1+z)（语义同 bigfloat
@@ -3289,7 +3292,7 @@ BIGFLOAT_ERR_INVALID_E； 其余同 add</p>
 <li><code>dst</code>：输出；x 输入球；ctx 精度上下文</li>
 </ul>
 <p><strong>返回</strong>：成功返回 BIGFLOAT_OK_E；参数非法、含 NaN/±∞ 或
-|x| 过大（k &gt; 20） 返回 BIGFLOAT_ERR_INVALID_E；内存不足返回
+|x| 过大（折半上限 64） 返回 BIGFLOAT_ERR_INVALID_E；内存不足返回
 BIGFLOAT_ERR_OOM_E</p>
 <p><strong>备注</strong>：半径由球运算严格传播；总误差含截断与逐次舍入</p>
 <h3 id="bigfloat_ball_log"><code>bigfloat_ball_log</code></h3>
@@ -3303,8 +3306,8 @@ NaN/±∞/区间含 ≤0 返回 INVALID； 内存不足返回 OOM（dst 不变�
 <div class="sourceCode" id="cb301"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb301-1"><a href="#cb301-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_ball_sin<span class="op">(</span>bigfloat_ball_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ball_ty <span class="op">*</span>x<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：球式 sin(x)（half-angle 倍角：sin2θ = 2 sinθ
 cosθ）</p>
-<p><strong>返回</strong>：同 exp（|x| 过大时 k &gt; 20 返回
-INVALID）</p>
+<p><strong>返回</strong>：同 exp；|x| &gt; 2^63 时走 Payne–Hanek
+规约（§16.2）</p>
 <h3 id="bigfloat_ball_cos"><code>bigfloat_ball_cos</code></h3>
 <div class="sourceCode" id="cb302"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb302-1"><a href="#cb302-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_ball_cos<span class="op">(</span>bigfloat_ball_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ball_ty <span class="op">*</span>x<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：球式 cos(x)（half-angle 倍角：cos2θ = 2cos²θ −
@@ -3316,6 +3319,8 @@ INVALID）</p>
 <p><strong>返回</strong>：成功返回 BIGFLOAT_OK_E；参数非法/含 NaN/±∞/|x|
 过大返回 INVALID； cos 区间含 0（极点附近）返回 INVALID；内存不足返回
 OOM（dst 不变）</p>
+<p><strong>备注</strong>：|x| &gt; 2^63 时经 Payne–Hanek
+规约（§16.2）后求值</p>
 <h3 id="bigfloat_ball_asin"><code>bigfloat_ball_asin</code></h3>
 <div class="sourceCode" id="cb304"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb304-1"><a href="#cb304-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty bigfloat_ball_asin<span class="op">(</span>bigfloat_ball_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigfloat_ball_ty <span class="op">*</span>x<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：球式 asin(x) = atan(x/√(1−x²))，|x| ≤ 1（±1 取

@@ -119,7 +119,7 @@ bigfloat_err_ty bigfloat_ball_exp(bigfloat_ball_ty *dst, const bigfloat_ball_ty 
 **参数**
 - `dst`：输出；x 输入球；ctx 精度上下文
 
-**返回**：成功返回 BIGFLOAT_OK_E；参数非法、含 NaN/±∞ 或 |x| 过大（k > 20） 返回 BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E
+**返回**：成功返回 BIGFLOAT_OK_E；参数非法、含 NaN/±∞ 或 |x| 过大（折半上限 64） 返回 BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E
 
 **备注**：半径由球运算严格传播；总误差含截断与逐次舍入
 
@@ -143,7 +143,7 @@ bigfloat_err_ty bigfloat_ball_sin(bigfloat_ball_ty *dst, const bigfloat_ball_ty 
 
 **说明**：球式 sin(x)（half-angle 倍角：sin2θ = 2 sinθ cosθ）
 
-**返回**：同 exp（|x| 过大时 k > 20 返回 INVALID）
+**返回**：同 exp；|x| > 2^63 时走 Payne–Hanek 规约（§16.2）
 
 ### `bigfloat_ball_cos`
 
@@ -164,6 +164,8 @@ bigfloat_err_ty bigfloat_ball_tan(bigfloat_ball_ty *dst, const bigfloat_ball_ty 
 **说明**：球式 tan(x) = sin(x)/cos(x)
 
 **返回**：成功返回 BIGFLOAT_OK_E；参数非法/含 NaN/±∞/|x| 过大返回 INVALID； cos 区间含 0（极点附近）返回 INVALID；内存不足返回 OOM（dst 不变）
+
+**备注**：|x| > 2^63 时经 Payne–Hanek 规约（§16.2）后求值
 
 ### `bigfloat_ball_asin`
 

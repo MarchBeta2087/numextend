@@ -1127,8 +1127,9 @@ bool bigcomplex_float_eq(const bigcomplex_float_ty *lhs, const bigcomplex_float_
 实现要点：
 
 - 乘法 `(a+bi)(c+di)` v1 用朴素四乘二加（Karatsuba 三乘式列为后续）；
-- 除法 v1 用共轭法 `(a+bi)/(c+di) = (a+bi)(c−di)/(c²+d²)`；该方法在中间量
-  上可能过早溢出/下溢，Smith 缩放算法列为后续方向并在文档与注释中注明取舍；
+- 除法：有限输入用 **Smith 稳定缩放**（`|c| ≥ |d|` 时 `r = d/c`，
+  `den = c + d·r`；否则 `r = c/d`，`den = d + c·r`），避免 `c²+d²`
+  过早溢出/下溢；任一分量为 ±∞ 时回退共轭法以维持特殊值语义（§9.2）；
 - `abs` 经 `sqrt(re² + im²)` 实现，同样的溢出注意事项适用；
 - 超越函数（§D5）为**分量运算**：`exp`/`log`/`sqrt`/`sin`/`cos`/`tan`，各步
   调用正确舍入的实函数 + 复四则；`sinh`/`cosh` 由 `exp` 组合；`sqrt` 用
@@ -1216,9 +1217,9 @@ O 可能溢出 / 超范围（返回错误或产生 ±∞）；— 不提供直�
 
 ## 12. 测试与验证策略
 
-- **单元测试**：按模块组织于 `tests/`（目录与构建待定，不属本文档范围），
-  每个公开函数至少覆盖：正常路径、每个错误码、边界值（0、±1、肢进位边界
-  如 2^32−1 与 2^32、10^9−1 与 10^9）；
+- **单元测试**：按模块组织于 `tests/`，由 CTest 驱动；每个公开函数至少覆盖：
+  正常路径、每个错误码、边界值（0、±1、肢进位边界如 2^32−1 与 2^32、
+  10^9−1 与 10^9）；
 - **交叉验证**：`bigint_bin` 与 `bigint_dec` 是同一抽象的两种实现，
   随机用例经互转后比较结果（加法/乘法/除法/字符串输出）必须一致——
   这是本架构自带的廉价差分测试；
@@ -1237,8 +1238,11 @@ O 可能溢出 / 超范围（返回错误或产生 ±∞）；— 不提供直�
 
 v1 性能目标（参考量级，非硬指标）：万位十进制整数乘法 < 10ms（schoolbook 可达成），
 Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模扫描报告见
-`docs/performance.md`（由 `scripts/bench.sh` 生成）；CI 每日基准见
-`.github/workflows/benchmark.yml`（产物为 artifact，仅作趋势参考）。
+`docs/performance.md`（由 `scripts/bench.sh` 生成）；数学专项基准
+`bench_math`（`scripts/bench-math.sh`）分 `trans` / `const` / `throughput`
+三段，可单独选择；全量默认预算 2 小时，CI 用 `ci` 预设（约 5 分钟）。
+完整结果见 `docs/bench-math.md`。
+CI 每日基准见 `.github/workflows/benchmark.yml`（产物为 artifact，仅作趋势参考）。
 
 已识别的后续方向（均不改变 v1 语义，仅优化或扩展）：
 
@@ -1257,10 +1261,10 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 4. 十进制输出的 Ryū 式快速算法；
 5. 次正规浮点数支持（需放松"最高位恒 1"不变式，影响面大，单独设计评审）；
 6. 自定义分配器钩子；
-7. 复数 Karatsuba 三乘式、Smith 稳定除法；
+7. 复数 Karatsuba 三乘式（未做）；Smith 稳定除法已落地（v1.6）；
 8. 超越函数：`atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos`、复数
    超越与复数辐角 `arg` 已全部落地（float + decimal，§16）；超大 `|x|` 的
-   Payne–Hanek 规约待续（§16.2）；
+   Payne–Hanek 规约已落地（v1.6，§16.2）；
 9. 浮点 FFT 的 SIMD 化与 AUTO 启用再评估（标量 double 下 8-bit/16-bit
    节在 -O2 实测均不优于 Toom-3/NTT，见 §4.3；SIMD 后需重新标定）；
 10. 分治基数转换 bin↔dec（已落地）与十进制字符串 I/O（已接入，
@@ -1280,7 +1284,7 @@ Karatsuba 切换阈值经实测标定（初定 32 肢）。本机基准与规模
 
 | 项目 | 状态 | 说明 / 后续 |
 |------|------|--------------|
-| 超越函数 exp/log/sin/cos | 已实现 | `atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos`、复数超越与 `arg` 已全部落地（float + decimal，§16）；超大 `|x|` 的 Payne–Hanek 待续（§16.2） |
+| 超越函数 exp/log/sin/cos | 已实现 | `atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos`、复数超越与 `arg` 已全部落地（float + decimal，§16）；超大 `|x|` 的 Payne–Hanek 已落地（§16.2） |
 | 次正规（subnormal）浮点 | 非目标 | 需放松“最高位恒 1”不变式，影响面大（§7.3） |
 | SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3）；跨平台线程封装列为**独立可选目标**（`contrib/nex_thread`，不进核心/amalgam，TODO §F） |
 | 函数级子集 | 非目标（1.x 暂缓） | 成本高、收益低；替代见 §2.4 / §13 #11 |
@@ -1412,12 +1416,14 @@ C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
 为 C2 续（`bigfloat`/`bigdecimal` 级数）提供两种（互补的）误差处理；两者
 共享「尾界」数学：
 
-- **路线 A：精确系数 + 全局尾界**（先做）
-  - 系数保持精确（`bigfrac`），只有**截断**引入误差；若 `|a_k| ≤ A·B^k`、
-    `|z| ≤ r` 且 `q = B·r < 1`，则
+- **路线 A：严格尾界 + 扩展精度求值**（先做）
+  - 若 `|a_k| ≤ A·B^k`、`|z| ≤ r` 且 `q = B·r < 1`，则
     `|Σ_{k≥n} a_k z^k| ≤ A·q^n/(1−q)`（几何型全局尾界）。
   - 自适应选阶：最小 n 使 `A·q^n ≤ eps·(1−q)`。
-  - 轻量、可在有理数上**精确**比较；适合系数增长已知的直接 Taylor 求值。
+  - 轻量；精确 `*_order` 可在有理数上**精确**比较，数值求值的快速阶估计
+    则用定向舍入（向上）的 bigfloat 上界，仍保证严格性。
+  - 求值分两类：二项式级数仍用 `bigfrac` 精确系数与精确部分和；阶乘型
+    （exp/cos/sin）与逆幂型（ln1p/atan）用扩展精度浮点递推（见下）。
   - 已落地：`bigfrac_series_tail_geometric` / `bigfrac_series_order_geometric`；
     新模块 `nex/series/`：`nex_series_binom_model`（(A,B) 模型）、
     `nex_series_binom_order`（自适应阶）、`nex_series_binom_eval_float` /
@@ -1429,6 +1435,12 @@ C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
   - 已落地（逆幂核）：`nex_series_ln1p_order`/`atan_order` 与
     `nex_series_{ln1p,atan}_eval_float`/`_decimal`（`ln(1+z)`、`atan(z)`，
     常数比值尾界 `r^step/(1−r^step)`；|z| ≲ 1/2）。
+  - **高精度加速（v1.6）**：阶乘型/逆幂型部分和改为**扩展精度浮点递推**（`p + 48 + log2 n`
+    工作位，尾界向上舍入），阶估计同样在扩展精度下用定向舍入完成（decimal
+    先经 `|z|` 向上转 bigfloat，复用 float 阶估计）；最终一次舍入到 `ctx`。
+    不再构造公共分母随阶数膨胀的精确有理部分和。实测（-O2，本机）：
+    `exp` 4096 bit 10.2 s → 63 ms，`ln1p` 1.64 s → 180 ms；`log(3)`
+    512 bit 11.0 s → 4.6 ms。精确 `*_order` API 保留（供精确比较）。
 - **路线 B：球式（中心 + 误差半径）**（已落地）
   - `nex/ball/`：`bigfloat_ball_ty` / `bigdecimal_ball_ty` = `{mid, rad}`（区间
     `[mid−rad, mid+rad]`）；`add/sub/mul/div` 在端点间用**定向舍入**
@@ -1438,7 +1450,7 @@ C(n,k) = n(n−1)···(n−k+1)/k!,   C(n,0) = 1
     `exp`/`log`/`sin`/`cos`/`tan`/`sqrt`/`atan`/`atan2`/`asin`/`acos`——折半
     （2 的幂精确缩放，上限 64）/ 迭代平方根规约 → 路线 A 级数得初始球（尾界 +
     舍入余量 + 输入半径膨胀）→ 球平方 / half-angle 倍角 / 球加法回放；半径全程
-    严格传播。`|x|` 过大返回 INVALID（超大 `|x|` 的 Payne–Hanek 见 §16.2）。
+    严格传播。`log` 先做指数拆分（§16），三角大实参走 Payne–Hanek（§16.2）。
 - **关系**：路线 A 是路线 B 的轻量特例；B 在 A 之上加半径传播。分阶段交付，
   B 作为可选层，避免一次性扩大公开面。
 
@@ -1495,19 +1507,25 @@ S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}
 - **球式 `sqrt`**：单调函数，两端点定向舍入 + 中心化半径（float / decimal 各一）。
 - **`exp`**：球式折半 `x/2^k` + 路线 A 指数级数 + k 次球平方；`x` 为区间时
   另乘 `r/(1−r)` 因子保守放大半径；Ziv 正确舍入。
-- **`log`**：迭代平方根规约 `y = x^(1/2^k)`（使 `|y−1| ≤ 1/8`）+ `ln1p` 级数
-  + 2^k 球加法回放；对 float/decimal 统一，不依赖进制常数；Ziv 正确舍入。
+- **`log`**：指数拆分 + 小实参规约（v1.6）：float 取
+  `x = m·2^E`（m ∈ [1,2)）、decimal 取 `x = m·10^E`（m ∈ [1,10)），
+  `ln x = ln m + E·ln 2`（或 `E·ln 10`）；`ln m`、`ln 2`、`ln 10` 用迭代平方根
+  + `ln1p` 级数（小实参，≤ 16 次开方），`E` 以大整数转球（舍入误差计入半径）。
+  这避免了在巨大指数值上做球式 sqrt（端点的精确对齐会随指数差爆炸），也解除
+  了原 40 次开方上限；Ziv 正确舍入。
 - **`sin`/`cos`/`tan`**：球式折半（2 的幂精确缩放）+ half-angle 倍角
   （`cos2θ=2cos²θ−1`、`sin2θ=2 sinθ cosθ`）；球式 `tan` = `sin/cos`；折半上限
-  64（覆盖 |x| ≲ 2⁶³），超大 |x| 的 Payne–Hanek 归约待续。
+  64（覆盖 |x| ≲ 2⁶³）；|x| > 2⁶³ 时转 Payne–Hanek 规约（§16.2），不再受折半
+  上限限制（受 π 定点位数上限约束）。
 - **`asin`/`acos`**：`asin(x) = atan(x/√(1−x²))`（±1 → ±π/2）；
   `acos(x) = π/2 − asin(x)`；`acos(1)=0` 特判（结果恰 0、对称球跨 0 时 Ziv
   无法收敛）。Ziv 正确舍入。
 - **复数超越（§D5）**：`bigcomplex_*_exp/log/sqrt/sin/cos/tan` 由上述实函数 +
   复四则按分量组合（`sinh`/`cosh` 由 `exp` 得到）；整体为各步正确舍入。
-- **规模提示**：路线 A 精确有理求值 `invpow_eval_frac` 的公共分母随阶数阶乘级
-  膨胀，高精度（≳ 80 位 / 256 bit）显著变慢，float / decimal 同量级；后续可
-  改逐项浮点或分块求值。
+- **规模提示**：路线 A 部分和与阶估计已改为扩展精度浮点递推（v1.6，§15.6），
+  高精度（≳ 256 bit）下比原精确有理求值快 1–2 个数量级；精确 `*_order`
+  公共 API 保留。
+
 ### 16.1 正确舍入语义与边界
 
 - **算术运算**（float `add/sub/mul/div/sqrt` 与 decimal 对应项）：以
@@ -1521,16 +1539,40 @@ S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}
 - **Ziv 终止与边界**：判据为球两端点舍入到 `ctx` 后相等；当结果恰为可表示值
   且球对称跨该值（如 `acos(1)=0`）时判据不成立，须特判（各条已注明）；工作
   精度按 `p ← 2p` 提升，至多 10 轮，超限返回 INVALID（而非常错值）。
-- **有界范围**：球式实参规约的折半/平方根上限（`atan`/`atan2` 64、`exp`/`sin`/
-  `cos` 64、`log` 40）限制可处理幅值；超限返回 INVALID。`|x| > 2⁶³` 的三角
-  函数需 Payne–Hanek 归约（待续）。
+- **有界范围**：`atan`/`atan2` 的 64 次折半守卫实际不会触发（递推两步即
+  收敛）；`exp` 折半上限 64；`log` 的小实参规约上限 16（仅对 `m ∈ [1,2)` /
+  `[1,10)`，大指数经拆分处理，可覆盖全部可表示输入）；超限返回 INVALID。
+  `sin`/`cos`/`tan` 在 `|x| > 2⁶³` 时改用 Payne–Hanek（§16.2），其可处理幅值
+  受 π 定点位数上限 `2²⁰ bit` 约束（即 `|x| ≲ 2^{2²⁰}`），超限返回 INVALID。
+  输入球半径 ≥ 4（区间长度 > 2π）时 `sin`/`cos` 直接返回 `[−1,1]`。
 - **无次正规**：flush-to-zero（§7.3），`emin` 附近精度下降对所有运算一致。
 
-### 16.2 后续（§D）
+### 16.2 Payne–Hanek 规约（v1.6）
 
-- 超大 `|x|`（> 2⁶³）的 Payne–Hanek 规约（需整数/定点高精度 π）；
-- 复数超越的 Smith 稳定除法与更紧误差界；
-- 路线 A 精确有理求值的高精度加速（逐项浮点 / 分块 / binary splitting）。
+`sin`/`cos`/`tan` 在 `|x| > 2⁶³` 时（折半 64 次仍无法使 `|x|/2^k ≤ 1/2`）转入
+Payne–Hanek 规约（`nex/ball/nex_ball_pi.c`，内部接口）：
+
+- **高精度 π**：Chudnovsky 公式 + 整数二分拆分，每项约 47 bit；内部保留 96 bit
+  保护位，输出 `π·2^p` 的向下取整。π 位数上限 `NEX_PH_MAX_PI_BITS = 2²⁰`。
+- **规约**：以 N 位定点 `Q = floor(2/π·2^N)` 计算 `y = x·2/π`，取
+  `q = round(y)`、`r = (y−q)·π/2 ∈ [−π/4, π/4]`，`q mod 4` 为象限；按
+  `sin(qπ/2+r)`/`cos(qπ/2+r)` 的象限公式还原。`r` 以 `R·2^{-K}` 的整数形式
+  输出，避免中间浮点舍入。
+- **误差界**：三部分合成——`2/π` 截断 `≤ |x|·4·2^{-N}`、`π/2` 截断
+  `≤ 2^{-M-1}`、商截断 `< 2^{-K}`；取最大指数再留 2 bit，作为 `r` 球的半径。
+  输入球自身的半径直接叠加（Lipschitz 1）。
+- **float / decimal**：二进制路径直接由 `R·2^{-K}` 合成 `bigfloat`；十进制路径
+  利用 `R·2^{-K} = (R·5^K)·10^{-K}` **精确**换算为 `bigdecimal`，舍入误差按
+  `10^{d-p+1}`（d 为十进制科学指数）保守计入，不做有损中间转换。
+- **宽区间**：输入半径 ≥ 4 时区间长度 > 2π，`sin`/`cos` 直接返回 `[−1,1]`。
+- **验证**：`tests/test_transcend`（2¹⁰⁰、1e30、1e100）、`tests/test_ball`
+  （PH 路径与宽区间）、`golden_series.py` 增加 2¹⁰⁰/2²⁰⁰/1e30/1e100/1e1000
+  的 mpmath 对拍（参考精度按实参量级自动提高）。
+
+### 16.3 后续（§D）
+
+- 复数超越更紧的误差界（Smith 除法已落地，见 §9.2）；
+- 路线 A 的 binary splitting / 分块求值（当前扩展精度递推已覆盖主要瓶颈）。
 
 ---
 
@@ -1616,3 +1658,4 @@ S(z) = Σ_{i=0}^{len-1} coeffs[i] · z^{val+i}
 | v1.3.0 | 2026-10-14 | 幂级数与超越函数基础设施（§C，新增 §15「多项式与级数」）：Horner 多项式求值；`bigfrac` 截断幂级数/Laurent（加减乘/倒数/求值/复合/求导/积分）；广义二项式系数与二项式级数；路线 A（精确系数 + 几何/比值尾界 + 自适应阶 + 数值点求值 `nex_series_*_eval`）；路线 B 球式（`bigfloat`/`bigdecimal`）+ `exp/sin/cos` 实参规约；Padé 精确版（高斯消元）与求值；mpmath 外部黄金参考 |
 | v1.4.0 | 2026-10-14 | 平台与正确性收口（TODO §G）：16-bit FFT 强制路径安全上限（超 1024 返回 `UNSUPPORTED`）；32 位（`-m32` + SSE2）与大端（s390x + QEMU）CI；内部未规范化视图比较规则（§3.4）；稀疏值定向测试 |
 | v1.5.0 | 2026-10-15 | 超越函数与十进制亚二次除法（§D、§I，新增 §16）：正确舍入的 `atan`/`atan2`/复数 `arg`、`exp`/`log`、`sin`/`cos`/`tan`、`asin`/`acos` 与复数超越（`exp`/`log`/`sqrt`/`sin`/`cos`/`tan`）——float/decimal 两套，球式严谨误差界 + Ziv，mpmath 黄金对拍；`bigint_dec` Burnikel-Ziegler 亚二次除法（10⁵ 位 ≈ 8×）；球系数截断级数；修复 `sincos` `one_ball` 半径缺陷并折半上限 20→64（覆盖 |x| ≲ 2⁶³）；新增 §16.1 正确舍入语义规范；行为准则与安全政策；§F 跨平台线程封装决策（独立可选目标，不进核心） |
+| v1.6.0 | 2026-10-18 | 超大实参与高精度性能（§16.2、§15.6、§9.2）：Payne–Hanek 规约（Chudnovsky 二分拆分 π，定点 2/π，象限还原），float/decimal 两套；`|x| > 2⁶³` 的 `sin`/`cos`/`tan` 不再返回 INVALID；输入半径 ≥ 4 时直接返回 `[−1,1]`；π 位数上限 2²⁰ bit。`log` 改为指数拆分 + 小实参规约（解除 40 次开方上限，覆盖全部可表示输入）。路线 A 的阶乘型/逆幂型部分和与阶估计改为扩展精度浮点递推（binomial 仍为精确 bigfrac；exp 4096 bit 10.2 s→63 ms，ln1p 1.64 s→180 ms）。复数除法改为 Smith 稳定缩放（有限输入，±∞ 回退共轭法）。修复 `bigfloat_from_bigint` 负输入尾数符号（`round_pack` 未取幅值）。mpmath 黄金对拍覆盖 2¹⁰⁰/2²⁰⁰/1e30/1e100/1e1000；文档漂移收口 |

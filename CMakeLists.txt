@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(numextend VERSION 1.5.0 LANGUAGES C)
+project(numextend VERSION 1.6.0 LANGUAGES C)
 
 # 默认构建类型：未显式指定且非多配置生成器时取 RelWithDebInfo（-O2 -g）。
 # 否则 CMake 会以空 CMAKE_BUILD_TYPE 生成 -O0 构建：既严重拖慢性能，
@@ -125,6 +125,11 @@ if(NEX_MODULES STREQUAL "all")
     add_executable(bench_sweep bench/bench_sweep.c)
     target_link_libraries(bench_sweep PRIVATE nex)
     target_include_directories(bench_sweep PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    # 数学函数 / 常数 / 吞吐量基准（分段可选，2026-10 新增）
+    add_executable(bench_math bench/bench_math.c)
+    target_link_libraries(bench_math PRIVATE nex)
+    target_include_directories(bench_math PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 elseif("bigint_bin" IN_LIST NEX_RESOLVED_MODULES)
     # 子集构建：最小冒烟测试（仅依赖 bigint_bin 闭包）。
     add_executable(subset_smoke tests/subset_smoke.c)
