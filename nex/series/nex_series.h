@@ -10,9 +10,11 @@
 /*
  * nex_series：幂级数求值的「严格尾界 + 扩展精度求值」路线 A（§15.6）。
  *
- * 在数值点求值时，部分和与阶估计均以 `p + 48 + log2 n` 工作精度递推（尾界
- * 用向上舍入，保证上界），最终一次舍入到目标 `ctx`；不再构造精确有理公共
- * 分母，高精度（≳256 bit）下快 1–2 个数量级。截断尾仍由尾界界定：
+ * 在数值点求值时，阶乘型/逆幂型（exp/cos/sin/ln1p/atan）的部分和与阶估计
+ * 以 `p + 48 + log2 n` 工作精度递推（尾界向上舍入，保证上界），最终一次
+ * 舍入到目标 `ctx`；不再构造精确有理公共分母，高精度（≳256 bit）下快 1–2
+ * 个数量级。二项式 `(1+z)^alpha` 仍用精确 `bigfrac` 系数与精确部分和。截断
+ * 尾仍由尾界界定：
  *   - 几何型 `A·q^n/(1−q)`（q = B·r）：有界系数（如二项式 `α ≥ −1`）；
  *   - 比值型 `t_n/(1−q_n)`：阶乘型系数（exp / sin / cos）。
  * 求值返回结果，并可经可选 `err` 输出收到**该截断的严格上界**。
@@ -92,7 +94,7 @@ bigfrac_err_ty nex_series_sin_order(size_t *out_n, const bigfrac_ty *r,
         const bigfrac_ty *eps);
 
 /*
- * brief: 在 bigfloat 点求值 exp(z)（精确系数 + 比值尾界）
+ * brief: 在 bigfloat 点求值 exp(z)（扩展精度递推 + 比值尾界）
  * param: out/err_out/z/eps/ctx 语义同 binom_eval_float
  * return: 成功返回 BIGFLOAT_OK_E；参数非法或 z 非有限返回
  *         BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E（out 不变）
@@ -153,7 +155,7 @@ bigfrac_err_ty nex_series_ln1p_order(size_t *out_n, const bigfrac_ty *r,
         const bigfrac_ty *eps);
 
 /*
- * brief: 在 bigfloat 点求值 ln(1+z)（精确系数 + 比值尾界 + 可选误差输出）
+ * brief: 在 bigfloat 点求值 ln(1+z)（扩展精度递推 + 比值尾界 + 可选误差输出）
  * param: out/err_out/z/eps/ctx 语义同 binom_eval_float
  * return: 成功返回 BIGFLOAT_OK_E；参数非法、z 非有限或 |z| ≥ 1 返回
  *         BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E（out 不变）

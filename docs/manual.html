@@ -3023,10 +3023,12 @@ bigfloat（经精确有理数中间值，一次舍入，§10）</p>
 幂级数求值（精确系数 + 全局尾界）</h1>
 <p>nex_series：幂级数求值的「严格尾界 + 扩展精度求值」路线
 A（§15.6）。</p>
-<p>在数值点求值时，部分和与阶估计均以 <code>p + 48 + log2 n</code>
-工作精度递推（尾界 用向上舍入，保证上界），最终一次舍入到目标
-<code>ctx</code>；不再构造精确有理公共 分母，高精度（≳256 bit）下快 1–2
-个数量级。截断尾仍由尾界界定：</p>
+<p>在数值点求值时，阶乘型/逆幂型（exp/cos/sin/ln1p/atan）的部分和与阶估计
+以 <code>p + 48 + log2 n</code>
+工作精度递推（尾界向上舍入，保证上界），最终一次 舍入到目标
+<code>ctx</code>；不再构造精确有理公共分母，高精度（≳256 bit）下快 1–2
+个数量级。二项式 <code>(1+z)^alpha</code> 仍用精确 <code>bigfrac</code>
+系数与精确部分和。截断 尾仍由尾界界定：</p>
 <ul>
 <li>几何型 <code>A·q^n/(1−q)</code>（q = B·r）：有界系数（如二项式
 <code>α ≥ −1</code>）；</li>
@@ -3098,7 +3100,7 @@ BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E</p>
 <p><strong>返回</strong>：同 exp_order</p>
 <h3 id="nex_series_exp_eval_float"><code>nex_series_exp_eval_float</code></h3>
 <div class="sourceCode" id="cb273"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb273-1"><a href="#cb273-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty nex_series_exp_eval_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>out<span class="op">,</span> bigfloat_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
-<p><strong>说明</strong>：在 bigfloat 点求值 exp(z)（精确系数 +
+<p><strong>说明</strong>：在 bigfloat 点求值 exp(z)（扩展精度递推 +
 比值尾界）</p>
 <p><strong>参数</strong></p>
 <ul>
@@ -3151,7 +3153,7 @@ BIGFRAC_ERR_INVALID_E； 超出迭代上限返回
 BIGFRAC_ERR_INVALID_E；内存不足返回 BIGFRAC_ERR_OOM_E</p>
 <h3 id="nex_series_ln1p_eval_float"><code>nex_series_ln1p_eval_float</code></h3>
 <div class="sourceCode" id="cb280"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb280-1"><a href="#cb280-1" aria-hidden="true" tabindex="-1"></a>bigfloat_err_ty nex_series_ln1p_eval_float<span class="op">(</span>bigfloat_ty <span class="op">*</span>out<span class="op">,</span> bigfloat_ty <span class="op">*</span>err_out<span class="op">,</span> <span class="dt">const</span> bigfloat_ty <span class="op">*</span>z<span class="op">,</span> <span class="dt">const</span> bigfrac_ty <span class="op">*</span>eps<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
-<p><strong>说明</strong>：在 bigfloat 点求值 ln(1+z)（精确系数 +
+<p><strong>说明</strong>：在 bigfloat 点求值 ln(1+z)（扩展精度递推 +
 比值尾界 + 可选误差输出）</p>
 <p><strong>参数</strong></p>
 <ul>
