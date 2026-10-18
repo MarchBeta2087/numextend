@@ -315,7 +315,9 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
       分段可选（`--sections`），预设 full/quick/ci（默认预算 7200/600/300 s）；
       `--json` 输出 JSON Lines。CI 每日运行 `--preset ci --budget 300` 并上传
       artifact。全量本地预算 2 小时；本机实测 5791.8 s（约 96.5 min），
-      结果与解读见 `docs/bench-math.md`。
+      结果与解读见 `docs/bench-math.md`。v1.7 起 `throughput` 的 full 档
+      新增 **32768 bit**（实测该段 31 → 109 s，约 +1.3 min；full 总耗时仍
+      在 2 h 预算内），32768 bit 下 `log` 仍最慢（约 55.5 s/次）。
 
 ---
 
