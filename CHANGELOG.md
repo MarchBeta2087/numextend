@@ -7,7 +7,7 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
-## [未发布] - 2026-10-18
+## [1.6.0] - 2026-10-18
 
 ### 新增
 
@@ -275,6 +275,7 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
+[1.6.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.6.0
 [1.5.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.5.0
 [1.4.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.4.0
 [1.3.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.3.0
