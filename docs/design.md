@@ -200,7 +200,7 @@ nex/
 │   ├── bin/
 │   │   └── nex_bigint_bin.h / .c    # 可拆分为多个 .c（见下）
 │   ├── bin64/
-│   │   └── nex_bigint_bin64.h / .c  # 64 位肢变体（§13 #3，v0.13）
+│   │   └── nex_bigint_bin64.h / .c  # 64 位肢变体（§13 #3；_div.c / _str.c）
 │   └── dec/
 │       └── nex_bigint_dec.h / .c
 ├── fft/
@@ -550,14 +550,26 @@ size_t        bigint_bin_popcount(const bigint_bin_ty *val);  // 幅值中 1 的
 负数位运算语义：按**二进制补码的无限符号扩展**解释（与 Python 一致），
 例如 `-1 & x == x`。该约定写入头文件注释，避免实现歧义。
 
-#### 4.2.6 与 bigint_dec 互转
+#### 4.2.6 与 bigint_dec / bigint_bin64 互转
 
-定义于 `nex/bigint/nex_bigint_conv.h`（唯一同时包含两个模块头文件的单元）：
+定义于 `nex/bigint/nex_bigint_conv.h`（唯一同时包含 bin / bin64 / dec
+头文件的单元）：
 
 ```c99
 bigint_err_ty bigint_conv_bin_to_dec(bigint_dec_ty *dst, const bigint_bin_ty *src);
 bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *src);
+bigint_err_ty bigint_conv_bin64_to_bin(bigint_bin_ty *dst,
+        const bigint_bin64_ty *src);
+bigint_err_ty bigint_conv_bin_to_bin64(bigint_bin64_ty *dst,
+        const bigint_bin_ty *src);
+bigint_err_ty bigint_conv_bin64_to_dec(bigint_dec_ty *dst,
+        const bigint_bin64_ty *src);
+bigint_err_ty bigint_conv_dec_to_bin64(bigint_bin64_ty *dst,
+        const bigint_dec_ty *src);
 ```
+
+bin64 ↔ dec 经 bin 中转（分治基数转换复用，额外开销线性）；bin64 ↔ bin
+为按 32 位半字拆分 / 合并的线性转换。
 
 ### 4.3 内部算法
 
@@ -566,6 +578,8 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
 | 加 / 减 | 逐肢带进位扫描 | O(n) | — |
 | 乘法 | schoolbook；肢数 ≥ 32 切换 Karatsuba；≥ 512 切换 Toom-3；≥ 16384 切换多模数 CRT NTT；`mul_ex` 可强制选择各算法（FFT 已实现但不参与 AUTO，见 §4.3） | O(n²) / O(n^1.585) / O(n log n) | FFT 的 SIMD 化与 AUTO 启用再评估、分治基数转换（见 §13） |
 | 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正）；大输入（除数 ≥ 64 肢且被除数 ≥ 2×）则 Burnikel-Ziegler 递归除法 | O(n·m) / 亚二次 | — |
+| bin64 除法 | 原生 64 位肢 Knuth D（128/64 试商，__int128 或 32 位字便携路径）；除数 ≥ 1024 肢且被除数 ≥ 2× 转 bin 走 BZ | O(n·m) / 亚二次 | 64 位肢 BZ 移植 |
+| bin64 ↔ bin / dec | 半字拆分 / 合并；dec 经 bin 分治转换中转 | O(n) / O(n^1.585) | 原生 64 位肢十进制转换 |
 | 平方 | 专用 schoolbook 平方（利用对称性减半乘累加） | O(n²/2) | 随乘法升级 |
 | 模幂 | 平方-乘，滑动窗口列为后续 | O(log e 次模乘） | Montgomery 约减 |
 | bin→dec | 分治（2 的幂切半 + 平方链表），小规模回退反复除 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
@@ -1257,7 +1271,10 @@ CI 每日基准见 `.github/workflows/benchmark.yml`（产物为 artifact，仅�
 3. 64 位肢变体：核心已落地（`nex/bigint/bin64/`，v0.13）——加/减/乘
    （schoolbook + Karatsuba），等位长下约 2 倍提速；64×64→128 经编译
    器探测（GCC/Clang __int128 + MSVC 便携 4 乘，§13 #3 条件编译落地）；
-   除法 / 字符串 / 互转待按需扩展；
+   v1.7 补齐原生除法（64 位肢 Knuth D，128/64 试商经 __int128 或
+   4 字 ÷ 2 字便携 Knuth D；超大输入回退 bin 的 BZ）、字符串 I/O
+   （2..36 进制，2 的幂走位切片、其余按 uint64 分块；解析分块累加）与
+   bin / dec 互转（`nex_bigint_conv.h`）；
 4. 十进制输出的 Ryū 式快速算法；
 5. 次正规浮点数支持（需放松"最高位恒 1"不变式，影响面大，单独设计评审）；
 6. 自定义分配器钩子；
@@ -1659,3 +1676,4 @@ Payne–Hanek 规约（`nex/ball/nex_ball_pi.c`，内部接口）：
 | v1.4.0 | 2026-10-14 | 平台与正确性收口（TODO §G）：16-bit FFT 强制路径安全上限（超 1024 返回 `UNSUPPORTED`）；32 位（`-m32` + SSE2）与大端（s390x + QEMU）CI；内部未规范化视图比较规则（§3.4）；稀疏值定向测试 |
 | v1.5.0 | 2026-10-15 | 超越函数与十进制亚二次除法（§D、§I，新增 §16）：正确舍入的 `atan`/`atan2`/复数 `arg`、`exp`/`log`、`sin`/`cos`/`tan`、`asin`/`acos` 与复数超越（`exp`/`log`/`sqrt`/`sin`/`cos`/`tan`）——float/decimal 两套，球式严谨误差界 + Ziv，mpmath 黄金对拍；`bigint_dec` Burnikel-Ziegler 亚二次除法（10⁵ 位 ≈ 8×）；球系数截断级数；修复 `sincos` `one_ball` 半径缺陷并折半上限 20→64（覆盖 |x| ≲ 2⁶³）；新增 §16.1 正确舍入语义规范；行为准则与安全政策；§F 跨平台线程封装决策（独立可选目标，不进核心） |
 | v1.6.0 | 2026-10-18 | 超大实参与高精度性能（§16.2、§15.6、§9.2）：Payne–Hanek 规约（Chudnovsky 二分拆分 π，定点 2/π，象限还原），float/decimal 两套；`|x| > 2⁶³` 的 `sin`/`cos`/`tan` 不再返回 INVALID；输入半径 ≥ 4 时直接返回 `[−1,1]`；π 位数上限 2²⁰ bit。`log` 改为指数拆分 + 小实参规约（解除 40 次开方上限，覆盖全部可表示输入）。路线 A 的阶乘型/逆幂型部分和与阶估计改为扩展精度浮点递推（binomial 仍为精确 bigfrac；exp 4096 bit 10.2 s→63 ms，ln1p 1.64 s→180 ms）。复数除法改为 Smith 稳定缩放（有限输入，±∞ 回退共轭法）。修复 `bigfloat_from_bigint` 负输入尾数符号（`round_pack` 未取幅值）。mpmath 黄金对拍覆盖 2¹⁰⁰/2²⁰⁰/1e30/1e100/1e1000；文档漂移收口 |
+| v1.7.0（进行中） | — | §13 #3 64 位肢补齐：原生 `bigint_bin64_div_rem`（Knuth D，128/64 试商；GCC/Clang __int128，MSVC 等 4 字 ÷ 2 字便携 Knuth D），除数 ≥ 1024 肢且被除数 ≥ 2× 回退 bin 的 Burnikel-Ziegler；`bigint_bin64_from_str` / `to_str`（进制 2..36，2 的幂进制位切片，其余 uint64 分块）；`bigint_conv_*_bin64_*` 互转（bin / dec）。实测小/中规模除法较转换包装快 ~2×。测试扩展：除法交叉验证与对抗模式（全 1、2 的幂、精确倍数、超大 BZ 回退）、字符串往返与错误语义、互转往返；便携 128/64 路径独立校验 |

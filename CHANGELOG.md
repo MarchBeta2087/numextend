@@ -7,6 +7,29 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [Unreleased]
+
+### 新增
+
+- **`bigint_bin64` 原生除法、字符串 I/O 与互转（issue #82，v1.7）**：
+  - `bigint_bin64_div_rem` 改为原生 64 位肢 Knuth Algorithm D，不再对所有
+    输入经 32 位肢 bin 转换。128/64 试商在 GCC/Clang 用 `__int128`，
+    其他编译器（含 MSVC）走以 2^32 为基的专用 4 字 ÷ 2 字 Knuth D
+    （`nex_u128_divmod`，可用 `NEX_BIN64_FORCE_PORTABLE` 强制）。
+  - 超大输入（除数 ≥ 1024 肢且被除数 ≥ 2×除数）自动回退 32 位肢 bin 的
+    Burnikel-Ziegler，避免 O(n²) 在大位宽下反超。
+  - 实测（-O2，MinGW x86-64，被除数 2n / 除数 n 肢）：n = 16/64/256/512
+    时较原转换包装快 **2.15× / 2.28× / 2.06× / 1.65×**；n ≥ 1024 回退 BZ。
+  - 新增 `bigint_bin64_from_str` / `bigint_bin64_to_str`（进制 2..36，
+    可选 `-` 符号，16/2 进制前缀；2 的幂进制按位切片 O(n)，其余按
+    uint64 分块；语义与 `bigint_bin` 一致）。
+  - 新增 `bigint_conv_bin64_to_bin` / `bigint_conv_bin_to_bin64` /
+    `bigint_conv_bin64_to_dec` / `bigint_conv_dec_to_bin64`
+    （bin64 ↔ dec 经 bin 中转，复用分治基数转换）。
+  - 测试：除法与 bin 交叉验证、对抗模式（全 1 除数、2 的幂、精确倍数、
+    超过 BZ 阈值的大输入）、字符串全进制往返与错误语义、互转往返；
+    ASan 与 `NEX_BIN64_FORCE_PORTABLE` 两套构建均通过。
+
 ## [1.6.0] - 2026-10-18
 
 ### 新增
