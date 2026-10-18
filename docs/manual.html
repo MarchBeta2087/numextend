@@ -746,7 +746,8 @@ I/O（进制 2..36）、比较与符号；<code>bin ↔︎ dec</code> 互转</td
 </tr>
 <tr>
 <td><code>bigint_bin64</code></td>
-<td>64 位肢整数核心（加减乘、除法；用例见头文件）</td>
+<td>64 位肢整数：加/减/乘/除、字符串 I/O（2..36 进制）、与
+<code>bigint_bin</code>/<code>bigint_dec</code> 互转</td>
 </tr>
 <tr>
 <td><code>bigfrac</code></td>
@@ -777,8 +778,9 @@ I/O；<strong>正确舍入超越函数</strong>
 <li><strong>强异常安全</strong>：内存不足或非法参数时，输出参数保持调用前状态；</li>
 <li><strong>不做</strong>（v1.x
 非目标）：SIMD/GPU/内部多线程（跨平台线程封装列为独立
-可选目标，不进核心）、次正规浮点、超大 <code>|x|</code>（&gt;
-2⁶³）三角函数的 Payne–Hanek 规约（当前折半上限覆盖 |x| ≲ 2⁶³）。</li>
+可选目标，不进核心；<code>contrib/</code> 实验见 TODO
+§F）、次正规浮点。超大 <code>|x|</code> 的三角函数已由 Payne–Hanek
+规约覆盖（§16.2）。</li>
 </ol>
 <h2 id="13-基本用法">1.3 基本用法</h2>
 <div class="sourceCode" id="cb1"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&quot;nex/bigint/bin/nex_bigint_bin.h&quot;</span></span>
@@ -1019,7 +1021,9 @@ NTT 之间分派。</p>
 <span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_ty e<span class="op">;</span></span>
 <span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_exp<span class="op">(&amp;</span>e<span class="op">,</span> <span class="op">&amp;</span>z<span class="op">,</span> <span class="op">&amp;</span>ctx<span class="op">);</span>           <span class="co">/* exp(z) */</span></span></code></pre></div>
 <p><code>bigdecimal</code> 与 <code>bigcomplex_decimal</code>
-接口对称；三角/反三角支持 <code>|x| ≲ 2⁶³</code>。</p>
+接口对称；<code>sin</code>/<code>cos</code>/<code>tan</code> 对超大
+<code>|x|</code> 经 Payne–Hanek
+规约（§16.2），反三角定义域见头文件。</p>
 <h2 id="47-跨类型转换">4.7 跨类型转换</h2>
 <div class="sourceCode" id="cb14"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&quot;nex/convert/nex_convert.h&quot;</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
