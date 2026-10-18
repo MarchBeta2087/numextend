@@ -88,6 +88,22 @@ CASES = [
     ("asinpubdec", 16, "0.5"),
     ("acospubdec", 16, "0.5"),
     ("asinpubdec", 20, "-1"),
+    # Payne–Hanek：超大实参（float 侧取 2 的幂，可被二进制精度精确表示）
+    ("sinpub", 64, "1267650600228229401496703205376"),
+    ("cospub", 64, "1267650600228229401496703205376"),
+    ("sinpub", 64, "-1267650600228229401496703205376"),
+    ("tanpub", 64, "1267650600228229401496703205376"),
+    ("sinpub", 128, "1606938044258990275541962092341162602522202993782792835301376"),
+    ("cospub", 128, "1606938044258990275541962092341162602522202993782792835301376"),
+    ("sinpub", 256, "1267650600228229401496703205376"),
+    # 十进制超大实参（精确的 10 的幂）
+    ("sinpubdec", 16, "1e30"),
+    ("cospubdec", 16, "1e30"),
+    ("sinpubdec", 16, "1e100"),
+    ("cospubdec", 16, "1e100"),
+    ("sinpubdec", 20, "-1e1000"),
+    ("cospubdec", 20, "1e1000"),
+    ("sinpubdec", 34, "1e100"),
 ]
 
 
@@ -108,13 +124,20 @@ def main():
             print("FAIL: %s %d %s -> ERR" % (fn, bits, z))
             failures += 1
             continue
+        # 实参量级：|x| ≈ 10^(digits + exp)，十进制位数 × 4 是二进制位数的上界
+        body = z.lower()
+        exp10 = 0
+        if "e" in body:
+            body, exp_part = body.split("e")
+            exp10 = int(exp_part)
+        arg_bits = (sum(ch.isdigit() for ch in body) + abs(exp10)) * 4
         if fn.endswith("dec"):
-            mpmath.mp.prec = bits * 4 + 40
+            mpmath.mp.prec = bits * 4 + 40 + arg_bits
             ref = FUNCS[fn](mpmath.mp, mpmath.mpf(z))
             got = mpmath.mpf(line)
             tol = mpmath.mpf(10) ** (-(bits - 2))
         else:
-            mpmath.mp.prec = bits + 20
+            mpmath.mp.prec = bits + 20 + arg_bits
             ref = FUNCS[fn](mpmath.mp, mpmath.mpf(z))
             got = mpmath.mpf(line)
             tol = mpmath.mpf(2) ** (-(bits - 4))

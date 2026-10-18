@@ -188,9 +188,9 @@ bigcomplex_float_err_ty bigcomplex_float_mul(bigcomplex_float_ty *dst,
 
 /*
  * brief: 除法 dst = lhs / rhs
- * note: 共轭法 (a+bi)/(c+di) = (a+bi)(c−di)/(c²+d²)；中间量可能过早
- *       溢出/下溢（如 ∞ 分量经中间乘法产生 NaN），Smith 缩放算法列为
- *       后续方向（§9.2），v1 按"分量独立求值后组合"的朴素语义
+ * note: 有限输入用 Smith 稳定缩放（|c|≥|d| → r=d/c，否则 r=c/d），避免
+ *       c²+d² 过早溢出/下溢；任一分量为 ±∞ 时回退共轭法以维持特殊值语义。
+ *       各步按 ctx 正确舍入（§9.2），v1 按"分量独立求值后组合"的朴素语义
  */
 bigcomplex_float_err_ty bigcomplex_float_div(bigcomplex_float_ty *dst,
         const bigcomplex_float_ty *lhs, const bigcomplex_float_ty *rhs,

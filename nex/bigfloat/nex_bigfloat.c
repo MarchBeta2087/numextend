@@ -586,6 +586,10 @@ bigfloat_err_ty nex_bf_round_pack(bigfloat_ty *dst, const bigint_bin_ty *raw_man
         bigint_bin_free(&work);
         return map_bigint_err(berr);
     }
+    /* 尾数为幅值：from_bigint 可能传入负值（符号另行给出） */
+    if (bigint_bin_sign(&work) == BIGINT_SIGN_NEG_E) {
+        (void)bigint_bin_abs(&work);
+    }
 
     const size_t bl = bigint_bin_bit_len(&work);
     int64_t exp = raw_exp;

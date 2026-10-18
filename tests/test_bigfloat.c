@@ -771,6 +771,14 @@ static void test_neg_from_bigint(void) {
     double out = 0.0;
     bigfloat_to_f64(&v, &out);
     CHECK(out == 123456789.0);
+    /* 负整数：尾数保持为正（v1.6 修复） */
+    CHECK(bigint_bin_from_i64(&n, -123456789) == BIGINT_OK_E);
+    CHECK(bigfloat_from_bigint(&v, &n, &ctx) == BIGFLOAT_OK_E);
+    CHECK(v.flag == BIGFLOAT_NEG_E);
+    CHECK(v.mant.sign == BIGINT_SIGN_POS_E);
+    bigfloat_to_f64(&v, &out);
+    CHECK(out == -123456789.0);
+    check_invariants("from_bigint_neg", &v);
     /* 大整数（超过 53 位）→ 按 ctx 舍入 */
     bigint_bin_ty big;
     bigint_bin_init(&big);

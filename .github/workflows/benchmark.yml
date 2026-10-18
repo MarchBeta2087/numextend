@@ -8,7 +8,7 @@ on:
       budget:
         description: '时间预算（秒）'
         required: false
-        default: '1200'
+        default: '600'
   schedule:
     - cron: '0 4 * * *'   # 每日 04:00 UTC
 
@@ -17,10 +17,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run benchmark (deep)
-        run: sh scripts/bench.sh docs/performance-ci.md "${{ github.event.inputs.budget || '1200' }}"
-      - name: Upload report
+      - name: Run benchmark (deep, reduced)
+        run: sh scripts/bench.sh docs/performance-ci.md "${{ github.event.inputs.budget || '600' }}"
+      - name: Run math benchmark (CI preset)
+        run: |
+          cmake --build build-bench --target bench_math --parallel
+          ./build-bench/bench_math --preset ci --budget 300             --json bench-math-ci.json | tee bench-math-ci.txt
+      - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
           name: performance-report
-          path: docs/performance-ci.md
+          path: |
+            docs/performance-ci.md
+            bench-math-ci.txt
+            bench-math-ci.json

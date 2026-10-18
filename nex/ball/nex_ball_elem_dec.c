@@ -5,8 +5,11 @@
 #include <stdint.h>
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
+#include "nex/bigint/nex_bigint_conv.h"
 #include "nex/bigfrac/nex_bigfrac.h"
 #include "nex/series/nex_series.h"
+
+#include "nex/ball/nex_ball_internal.h"
 
 /*
  * bigdecimal 球式超越函数与实参规约（镜像 bigfloat 版，设计文档 §15.6）。
@@ -334,9 +337,326 @@ bigdecimal_err_ty bigdecimal_ball_exp(bigdecimal_ball_ty *dst,
 
 static bigdecimal_err_ty sincos_reduced_dec(bigdecimal_ball_ty *sball,
         bigdecimal_ball_ty *cball, const bigdecimal_ball_ty *x,
+        const bigdecimal_ctx_ty *ctx);
+
+/* 2^k 的十进制误差上界指数：2^k ≤ 10^{ceil(k·log10 2)}（L 取下界） */
+static int64_t db_bin_exp_to_dec(int64_t bins_exp) {
+    const int64_t l = INT64_C(3010299);   /* < log10(2)·10^7 */
+    const int64_t d = INT64_C(10000000);
+    const int64_t n = bins_exp * l;
+    int64_t q = n / d;
+    const int64_t r = n % d;
+    if (r != 0 && ((r > 0) == (d > 0))) {
+        q += 1;
+    }
+    return q;
+}
+
+/* out = 5^e（二进制大整数） */
+static bigint_err_ty db_pow5_bin(bigint_bin_ty *out, uint64_t e) {
+    bigint_bin_ty five;
+    bigint_bin_init(&five);
+    bigint_err_ty err = bigint_bin_from_u64(&five, 5U);
+    if (err == BIGINT_OK_E) {
+        err = bigint_bin_pow(out, &five, e);
+    }
+    bigint_bin_free(&five);
+    return err;
+}
+
+/* out = 10^e = 5^e · 2^e（二进制大整数） */
+static bigint_err_ty db_pow10_bin(bigint_bin_ty *out, uint64_t e) {
+    bigint_bin_ty p5;
+    bigint_bin_init(&p5);
+    bigint_err_ty err = db_pow5_bin(&p5, e);
+    if (err == BIGINT_OK_E) {
+        err = bigint_bin_shl(out, &p5, (size_t)e);
+    }
+    bigint_bin_free(&p5);
+    return err;
+}
+
+/* 球 = [−1, 1] */
+static bigdecimal_err_ty db_ball_full_range(bigdecimal_ball_ty *dst,
         const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ty zero;
+    bigdecimal_ty one;
+    bigdecimal_init(&zero);
+    bigdecimal_init(&one);
+    bigdecimal_err_ty err = bigdecimal_from_str(&zero, "0", ctx, NULL);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_from_str(&one, "1", ctx, NULL);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_set(dst, &zero, &one, ctx);
+    }
+    bigdecimal_free(&one);
+    bigdecimal_free(&zero);
+    return err;
+}
+
+/* 输入球半径 ≥ 4 → 区间长度 ≥ 8 > 2π */
+static bigdecimal_err_ty db_ball_covers_period(bool *out,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx) {
+    bigdecimal_ty four;
+    bigdecimal_ty rad;
+    bigdecimal_init(&four);
+    bigdecimal_init(&rad);
+    bigdecimal_err_ty err = bigdecimal_from_str(&four, "4", ctx, NULL);
+    if (err == BIGDECIMAL_OK_E) {
+        err = ed_abs(&rad, &x->rad);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        *out = (bigdecimal_cmp(&rad, &four) >= 0);
+    }
+    bigdecimal_free(&rad);
+    bigdecimal_free(&four);
+    return err;
+}
+
+/* |mid| < 10^{digit_len+exp}；该上界 ≥ 10^19 > 2^63 时转 PH。
+   条件保守（1e18 以上都走 PH），但不会漏掉 [2^63, 1e19) 区间；
+   半径 ≥ 4 的情形已由 db_ball_covers_period 先行处理。 */
+static bigdecimal_err_ty db_ball_exceeds_2p63(bool *out,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx) {
+    (void)ctx;
+    if (x->mid.flag != BIGDECIMAL_POS_E && x->mid.flag != BIGDECIMAL_NEG_E) {
+        *out = false;
+        return BIGDECIMAL_OK_E;
+    }
+    const size_t dlen = bigint_dec_digit_len(&x->mid.mant);
+    const int64_t mag = (int64_t)dlen + x->mid.exp;
+    *out = (mag >= 19);
+    return BIGDECIMAL_OK_E;
+}
+
+static bigdecimal_err_ty db_ball_copy_neg(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *src, bool neg) {
+    bigdecimal_err_ty err = bigdecimal_ball_copy(dst, src);
+    if (err == BIGDECIMAL_OK_E && neg) {
+        err = bigdecimal_neg(&dst->mid);
+    }
+    return err;
+}
+
+/* |x| 过大：二进制 Payne–Hanek 规约 + 精确十进制换算，再按象限还原 */
+static bigdecimal_err_ty db_ball_ph_sincos(bigdecimal_ball_ty *sball,
+        bigdecimal_ball_ty *cball, const bigdecimal_ball_ty *x,
+        const bigdecimal_ctx_ty *ctx) {
+    const int64_t dexp = x->mid.exp;
+    const uint64_t decade_cap = (uint64_t)(NEX_BALL_PH_MAX_PI_BITS / 3U);
+
+    bigint_bin_ty num;
+    bigint_bin_ty den;
+    bigint_bin_ty pow10;
+    bigint_bin_init(&num);
+    bigint_bin_init(&den);
+    bigint_bin_init(&pow10);
+    bigint_err_ty ierr = bigint_bin_from_u64(&den, 1U);
+    if (ierr == BIGINT_OK_E) {
+        ierr = bigint_conv_dec_to_bin(&num, &x->mid.mant);
+    }
+    if (ierr == BIGINT_OK_E && dexp >= 0) {
+        if ((uint64_t)dexp > decade_cap) {
+            ierr = BIGINT_ERR_INVALID_E;
+        } else {
+            ierr = db_pow10_bin(&pow10, (uint64_t)dexp);
+            if (ierr == BIGINT_OK_E) {
+                ierr = bigint_bin_mul(&num, &num, &pow10);
+            }
+        }
+    } else if (ierr == BIGINT_OK_E) {
+        const uint64_t sh = (uint64_t)(-(dexp + 1)) + 1U;
+        if (sh > decade_cap) {
+            ierr = BIGINT_ERR_INVALID_E;
+        } else {
+            ierr = db_pow10_bin(&pow10, sh);
+            if (ierr == BIGINT_OK_E) {
+                ierr = bigint_bin_copy(&den, &pow10);
+            }
+        }
+    }
+
+    /* 工作精度：十进制位数 × log2(10)（上界 3322/1000） */
+    const size_t pbits = ((size_t)ctx->mant_digits * 3322U) / 1000U + 64U;
+    nex_ball_ph_result_ty ph;
+    nex_ball_ph_result_init(&ph);
+    const int sign = (x->mid.flag == BIGDECIMAL_NEG_E) ? -1 : 1;
+    if (ierr == BIGINT_OK_E) {
+        ierr = nex_ball_ph_reduce_internal(&ph, &num, &den, sign, pbits);
+    }
+    bigdecimal_err_ty err;
+    if (ierr == BIGINT_OK_E) {
+        err = BIGDECIMAL_OK_E;
+    } else if (ierr == BIGINT_ERR_OOM_E) {
+        err = BIGDECIMAL_ERR_OOM_E;
+    } else {
+        err = BIGDECIMAL_ERR_INVALID_E;
+    }
+
+    /* R·2^{-K} = (R·5^K)·10^{-K}：精确换算到十进制 */
+    bigint_bin_ty p5;
+    bigint_bin_ty dbin;
+    bigint_dec_ty ddec;
+    bigint_bin_init(&p5);
+    bigint_bin_init(&dbin);
+    bigint_dec_init(&ddec);
+    if (err == BIGDECIMAL_OK_E) {
+        ierr = db_pow5_bin(&p5, (uint64_t)ph.k);
+        if (ierr == BIGINT_OK_E) {
+            ierr = bigint_bin_mul(&dbin, &ph.r, &p5);
+        }
+        if (ierr == BIGINT_OK_E) {
+            ierr = bigint_conv_bin_to_dec(&ddec, &dbin);
+        }
+        if (ierr == BIGINT_ERR_OOM_E) {
+            err = BIGDECIMAL_ERR_OOM_E;
+        } else if (ierr != BIGINT_OK_E) {
+            err = BIGDECIMAL_ERR_INVALID_E;
+        }
+    }
+
+    bigdecimal_ty rmid;
+    bigdecimal_ty rrad;
+    bigdecimal_ty tmp;
+    bigdecimal_init(&rmid);
+    bigdecimal_init(&rrad);
+    bigdecimal_init(&tmp);
+    if (err == BIGDECIMAL_OK_E) {
+        if (bigint_dec_is_zero(&ddec)) {
+            err = bigdecimal_from_str(&rmid, "0", ctx, NULL);
+        } else {
+            err = bigdecimal_compose(&rmid, &ddec, -(int64_t)ph.k,
+                    (ph.neg != 0U) ? BIGDECIMAL_NEG_E : BIGDECIMAL_POS_E,
+                    ctx);
+        }
+    }
+
+    bigdecimal_ctx_ty up;
+    if (err == BIGDECIMAL_OK_E) {
+        err = ed_dir_ctx(&up, ctx, BIGDECIMAL_ROUND_TOWARD_POS_E);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        /* 舍入误差：按 rmid 的 ulp = 10^{d-p+1} 保守估计 */
+        bigint_dec_ty rm;
+        bigint_dec_init(&rm);
+        int64_t rexp = 0;
+        bigdecimal_flag_ty rflag = BIGDECIMAL_POS_ZERO_E;
+        err = bigdecimal_decompose(&rmid, &rm, &rexp, &rflag);
+        if (err == BIGDECIMAL_OK_E) {
+            if (rflag == BIGDECIMAL_POS_E || rflag == BIGDECIMAL_NEG_E) {
+                const size_t dlen = bigint_dec_digit_len(&rm);
+                const int64_t ulp_exp = rexp + (int64_t)dlen
+                        - (int64_t)ctx->mant_digits;
+                bigint_dec_ty one;
+                bigint_dec_init(&one);
+                (void)bigint_dec_from_u64(&one, 1U);
+                err = bigdecimal_compose(&rrad, &one, ulp_exp,
+                        BIGDECIMAL_POS_E, &up);
+                bigint_dec_free(&one);
+            } else {
+                err = bigdecimal_from_str(&rrad, "0", &up, NULL);
+            }
+        }
+        bigint_dec_free(&rm);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        /* 二进制误差上界 2^{err_exp} 换算为十进制上界 */
+        const int64_t dec_exp = db_bin_exp_to_dec(ph.err_exp);
+        bigint_dec_ty one;
+        bigint_dec_init(&one);
+        (void)bigint_dec_from_u64(&one, 1U);
+        err = bigdecimal_compose(&tmp, &one, dec_exp,
+                BIGDECIMAL_POS_E, &up);
+        bigint_dec_free(&one);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&rrad, &rrad, &tmp, &up);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_add(&rrad, &rrad, &x->rad, &up);
+    }
+
+    bigdecimal_ball_ty rr;
+    bigdecimal_ball_ty s;
+    bigdecimal_ball_ty c;
+    bigdecimal_ball_init(&rr);
+    bigdecimal_ball_init(&s);
+    bigdecimal_ball_init(&c);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_set(&rr, &rmid, &rrad, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = sincos_reduced_dec(&s, &c, &rr, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        switch (ph.quad) {
+            case 0U:
+                err = db_ball_copy_neg(sball, &s, false);
+                if (err == BIGDECIMAL_OK_E) {
+                    err = db_ball_copy_neg(cball, &c, false);
+                }
+                break;
+            case 1U:
+                err = db_ball_copy_neg(sball, &c, false);
+                if (err == BIGDECIMAL_OK_E) {
+                    err = db_ball_copy_neg(cball, &s, true);
+                }
+                break;
+            case 2U:
+                err = db_ball_copy_neg(sball, &s, true);
+                if (err == BIGDECIMAL_OK_E) {
+                    err = db_ball_copy_neg(cball, &c, true);
+                }
+                break;
+            default:
+                err = db_ball_copy_neg(sball, &c, true);
+                if (err == BIGDECIMAL_OK_E) {
+                    err = db_ball_copy_neg(cball, &s, false);
+                }
+                break;
+        }
+    }
+
+    bigdecimal_ball_free(&c);
+    bigdecimal_ball_free(&s);
+    bigdecimal_ball_free(&rr);
+    bigdecimal_free(&tmp);
+    bigdecimal_free(&rrad);
+    bigdecimal_free(&rmid);
+    bigint_dec_free(&ddec);
+    bigint_bin_free(&dbin);
+    bigint_bin_free(&p5);
+    nex_ball_ph_result_free(&ph);
+    bigint_bin_free(&pow10);
+    bigint_bin_free(&den);
+    bigint_bin_free(&num);
+    return err;
+}
+
+static bigdecimal_err_ty sincos_reduced_dec(bigdecimal_ball_ty *sball,
+        bigdecimal_ball_ty *cball, const bigdecimal_ball_ty *x,
+        const bigdecimal_ctx_ty *ctx) {
+    bool wide = false;
+    bigdecimal_err_ty err = db_ball_covers_period(&wide, x, ctx);
+    if (err == BIGDECIMAL_OK_E && wide) {
+        err = db_ball_full_range(sball, ctx);
+        if (err == BIGDECIMAL_OK_E) {
+            err = db_ball_full_range(cball, ctx);
+        }
+        return err;
+    }
+    bool huge = false;
+    if (err == BIGDECIMAL_OK_E) {
+        err = db_ball_exceeds_2p63(&huge, x, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E && huge) {
+        return db_ball_ph_sincos(sball, cball, x, ctx);
+    }
     size_t k = 0U;
-    bigdecimal_err_ty err = halvings_dec(&k, x, ctx);
+    if (err == BIGDECIMAL_OK_E) {
+        err = halvings_dec(&k, x, ctx);
+    }
 
     bigdecimal_ty inv2k;
     bigdecimal_ty a_mid;
@@ -698,14 +1018,43 @@ bigdecimal_err_ty bigdecimal_ball_atan(bigdecimal_ball_ty *dst,
 }
 
 /* 迭代平方根规约 + ln1p 级数 + 2^k 球加法回放（十进制） */
-bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
+/* 十进制 ulp：value = mant·10^exp，dlen 为 mant 位数 → ulp = 10^{exp+dlen−p} */
+static bigdecimal_err_ty bd_ulp_correct(bigdecimal_ty *out,
+        const bigdecimal_ty *x, const bigdecimal_ctx_ty *ctx) {
+    bigint_dec_ty mant;
+    bigint_dec_init(&mant);
+    int64_t e = 0;
+    bigdecimal_flag_ty fl = BIGDECIMAL_POS_ZERO_E;
+    bigdecimal_err_ty err = bigdecimal_decompose(x, &mant, &e, &fl);
+    if (err == BIGDECIMAL_OK_E) {
+        if (fl == BIGDECIMAL_POS_E || fl == BIGDECIMAL_NEG_E) {
+            const size_t dlen = bigint_dec_digit_len(&mant);
+            const int64_t ulp_exp = e + (int64_t)dlen
+                    - (int64_t)ctx->mant_digits;
+            bigint_dec_ty one;
+            bigint_dec_init(&one);
+            (void)bigint_dec_from_u64(&one, 1U);
+            err = bigdecimal_compose(out, &one, ulp_exp,
+                    BIGDECIMAL_POS_E, ctx);
+            bigint_dec_free(&one);
+        } else {
+            err = bigdecimal_from_str(out, "0", ctx, NULL);
+        }
+    }
+    bigint_dec_free(&mant);
+    return err;
+}
+
+/* 小实参 log（x ∈ [1,10)，|ln x| < ln 10） */
+static bigdecimal_err_ty bd_ball_log_small(bigdecimal_ball_ty *dst,
         const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx) {
     if (dst == NULL || x == NULL || ctx == NULL || !ed_ball_ok(x)) {
         return BIGDECIMAL_ERR_INVALID_E;
     }
     bigdecimal_ctx_ty dn;
     bigdecimal_ctx_ty up;
-    bigdecimal_err_ty err = ed_dir_ctx(&dn, ctx, BIGDECIMAL_ROUND_TOWARD_NEG_E);
+    bigdecimal_err_ty err = ed_dir_ctx(&dn, ctx,
+            BIGDECIMAL_ROUND_TOWARD_NEG_E);
     if (err == BIGDECIMAL_OK_E) {
         err = ed_dir_ctx(&up, ctx, BIGDECIMAL_ROUND_TOWARD_POS_E);
     }
@@ -727,7 +1076,7 @@ bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
         err = bigdecimal_sub(&lo, &x->mid, &x->rad, &dn);
     }
     if (err == BIGDECIMAL_OK_E && bigdecimal_cmp(&lo, &zero) <= 0) {
-        err = BIGDECIMAL_ERR_INVALID_E;
+        err = BIGDECIMAL_ERR_INVALID_E;   /* log 定义域 x > 0 */
     }
 
     bigdecimal_ball_ty y;
@@ -736,6 +1085,7 @@ bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
         err = bigdecimal_ball_copy(&y, x);
     }
 
+    /* |ln x| < ln 10 ≈ 2.303，k ≤ 6；上限 16 留足余量。 */
     size_t k = 0U;
     while (err == BIGDECIMAL_OK_E) {
         bigdecimal_ty dm;
@@ -751,15 +1101,16 @@ bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
         if (err == BIGDECIMAL_OK_E) {
             err = bigdecimal_add(&M, &am, &y.rad, &up);
         }
-        bool done = (err == BIGDECIMAL_OK_E && bigdecimal_cmp(&M, &thresh) <= 0);
+        bool done = (err == BIGDECIMAL_OK_E
+                     && bigdecimal_cmp(&M, &thresh) <= 0);
         bigdecimal_free(&M);
         bigdecimal_free(&am);
         bigdecimal_free(&dm);
         if (err != BIGDECIMAL_OK_E || done) {
             break;
         }
-        if (k >= 40U) {
-            err = BIGDECIMAL_ERR_INVALID_E;
+        if (k >= 16U) {
+            err = BIGDECIMAL_ERR_INVALID_E;   /* 小实参路径不应到达 */
             break;
         }
         bigdecimal_ball_ty ny;
@@ -781,7 +1132,9 @@ bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
     bigfrac_ty eps;
     bigfrac_init(&eps);
     if (err == BIGDECIMAL_OK_E) {
-        bigfrac_err_ty ferr = ed_frac_pow10_neg(&eps, ctx->mant_digits + 10U);
+        /* ε ≈ 0.8·10^{-p}（十进制位数换算为 2 的幂） */
+        const size_t m = (ctx->mant_digits * 3322U) / 1000U + 24U;
+        bigfrac_err_ty ferr = ed_frac_pow10_neg(&eps, m);
         if (ferr != BIGFRAC_OK_E) {
             err = (ferr == BIGFRAC_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
                                               : BIGDECIMAL_ERR_INVALID_E;
@@ -800,8 +1153,9 @@ bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
         err = make_eval_ball_dec(&c, &P, &eb, NULL, ctx);
     }
     for (size_t i = 0U; i < k && err == BIGDECIMAL_OK_E; i++) {
-        err = bigdecimal_ball_add(&c, &c, &c, ctx);
+        err = bigdecimal_ball_add(&c, &c, &c, ctx);   /* ×2^k */
     }
+    /* 输入半径膨胀：rr = rad/mid，inflate = rr/(1−rr) */
     if (err == BIGDECIMAL_OK_E) {
         bigdecimal_ty rr;
         bigdecimal_ty den;
@@ -839,6 +1193,172 @@ bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
     bigdecimal_free(&zero);
     return err;
 }
+
+/* log(x) = ln(m) + E·ln 10，其中 x = m·10^E、m ∈ [1,10)。 */
+bigdecimal_err_ty bigdecimal_ball_log(bigdecimal_ball_ty *dst,
+        const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !ed_ball_ok(x)) {
+        return BIGDECIMAL_ERR_INVALID_E;
+    }
+    bigdecimal_ctx_ty dn;
+    bigdecimal_err_ty err = ed_dir_ctx(&dn, ctx,
+            BIGDECIMAL_ROUND_TOWARD_NEG_E);
+    bigdecimal_ty zero;
+    bigdecimal_ty lo;
+    bigdecimal_init(&zero);
+    bigdecimal_init(&lo);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_sub(&lo, &x->mid, &x->rad, &dn);
+    }
+    if (err == BIGDECIMAL_OK_E && bigdecimal_cmp(&lo, &zero) <= 0) {
+        err = BIGDECIMAL_ERR_INVALID_E;   /* log 定义域 x > 0 */
+    }
+
+    bigint_dec_ty mant;
+    bigint_dec_init(&mant);
+    int64_t exp = 0;
+    bigdecimal_flag_ty flag = BIGDECIMAL_POS_ZERO_E;
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_decompose(&x->mid, &mant, &exp, &flag);
+    }
+    const size_t pd = bigint_dec_digit_len(&mant);
+    if (err == BIGDECIMAL_OK_E
+            && (flag != BIGDECIMAL_POS_E && flag != BIGDECIMAL_NEG_E)) {
+        err = BIGDECIMAL_ERR_INVALID_E;
+    }
+    if (err == BIGDECIMAL_OK_E
+            && (pd == 0U || pd > (size_t)INT64_MAX
+                || exp > INT64_MAX - (int64_t)(pd - 1U))) {
+        err = BIGDECIMAL_ERR_INVALID_E;
+    }
+
+    bigdecimal_ty m;
+    bigdecimal_ty ten;
+    bigdecimal_ty emid;
+    bigdecimal_ty eulp;
+    bigdecimal_init(&m);
+    bigdecimal_init(&ten);
+    bigdecimal_init(&emid);
+    bigdecimal_init(&eulp);
+    int64_t e10 = 0;
+    if (err == BIGDECIMAL_OK_E) {
+        e10 = exp + (int64_t)(pd - 1U);
+        err = bigdecimal_compose(&m, &mant, -(int64_t)(pd - 1U),
+                BIGDECIMAL_POS_E, ctx);
+        if (err == BIGDECIMAL_OK_E
+                && (m.flag != BIGDECIMAL_POS_E
+                    && m.flag != BIGDECIMAL_NEG_E)) {
+            err = BIGDECIMAL_ERR_INVALID_E;
+        }
+    }
+
+    bigdecimal_ball_ty mb;
+    bigdecimal_ball_ty lnm;
+    bigdecimal_ball_ty ten_b;
+    bigdecimal_ball_ty ln10;
+    bigdecimal_ball_ty eb;
+    bigdecimal_ball_ty prod;
+    bigdecimal_ball_ty res;
+    bigdecimal_ball_init(&mb);
+    bigdecimal_ball_init(&lnm);
+    bigdecimal_ball_init(&ten_b);
+    bigdecimal_ball_init(&ln10);
+    bigdecimal_ball_init(&eb);
+    bigdecimal_ball_init(&prod);
+    bigdecimal_ball_init(&res);
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_set(&mb, &m, &zero, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bd_ball_log_small(&lnm, &mb, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_from_str(&ten, "10", ctx, NULL);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_set(&ten_b, &ten, &zero, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bd_ball_log_small(&ln10, &ten_b, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        bigint_dec_ty ei;
+        bigint_dec_init(&ei);
+        bigint_err_ty ierr = bigint_dec_from_i64(&ei, e10);
+        if (ierr == BIGINT_OK_E) {
+            err = bigdecimal_from_bigint(&emid, &ei, ctx);
+        } else {
+            err = (ierr == BIGINT_ERR_OOM_E) ? BIGDECIMAL_ERR_OOM_E
+                                             : BIGDECIMAL_ERR_INVALID_E;
+        }
+        bigint_dec_free(&ei);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bd_ulp_correct(&eulp, &emid, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_set(&eb, &emid, &eulp, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_mul(&prod, &ln10, &eb, ctx);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_add(&res, &lnm, &prod, ctx);
+    }
+
+    /* 输入半径膨胀：rr = rad/mid，inflate = rr/(1−rr) */
+    if (err == BIGDECIMAL_OK_E) {
+        bigdecimal_ctx_ty up;
+        err = ed_dir_ctx(&up, ctx, BIGDECIMAL_ROUND_TOWARD_POS_E);
+        bigdecimal_ty one;
+        bigdecimal_ty rr;
+        bigdecimal_ty den;
+        bigdecimal_ty infl;
+        bigdecimal_init(&one);
+        bigdecimal_init(&rr);
+        bigdecimal_init(&den);
+        bigdecimal_init(&infl);
+        if (err == BIGDECIMAL_OK_E) {
+            err = bigdecimal_from_str(&one, "1", ctx, NULL);
+        }
+        if (err == BIGDECIMAL_OK_E) {
+            err = bigdecimal_div(&rr, &x->rad, &x->mid, &up);
+        }
+        if (err == BIGDECIMAL_OK_E) {
+            err = bigdecimal_sub(&den, &one, &rr, &up);
+        }
+        if (err == BIGDECIMAL_OK_E && bigdecimal_cmp(&den, &zero) > 0) {
+            err = bigdecimal_div(&infl, &rr, &den, &up);
+            if (err == BIGDECIMAL_OK_E) {
+                err = bigdecimal_add(&res.rad, &res.rad, &infl, &up);
+            }
+        }
+        bigdecimal_free(&infl);
+        bigdecimal_free(&den);
+        bigdecimal_free(&rr);
+        bigdecimal_free(&one);
+    }
+    if (err == BIGDECIMAL_OK_E) {
+        err = bigdecimal_ball_copy(dst, &res);
+    }
+
+    bigdecimal_ball_free(&res);
+    bigdecimal_ball_free(&prod);
+    bigdecimal_ball_free(&eb);
+    bigdecimal_ball_free(&ln10);
+    bigdecimal_ball_free(&ten_b);
+    bigdecimal_ball_free(&lnm);
+    bigdecimal_ball_free(&mb);
+    bigdecimal_free(&eulp);
+    bigdecimal_free(&emid);
+    bigdecimal_free(&ten);
+    bigdecimal_free(&m);
+    bigint_dec_free(&mant);
+    bigdecimal_free(&lo);
+    bigdecimal_free(&zero);
+    return err;
+}
+
 
 bigdecimal_err_ty bigdecimal_ball_tan(bigdecimal_ball_ty *dst,
         const bigdecimal_ball_ty *x, const bigdecimal_ctx_ty *ctx) {

@@ -20,7 +20,7 @@
 | `bigcomplex/float` | `bigcomplex_float_ty` | 复数（实虚部为 bigfloat） | bigfloat |
 | `bigcomplex/decimal` | `bigcomplex_decimal_ty` | 复数（实虚部为 bigdecimal） | bigdecimal |
 | `convert` | `nex_convert_*` | 跨类型转换矩阵（§10） | 全部 |
-| `nex/transcend` | `bigfloat_*` / `bigdecimal_*` / `bigcomplex_*` | 正确舍入超越函数：`atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos` 与复数超越（球式 + Ziv，§16） | bigfloat, bigdecimal, ball |
+| `nex/transcend` | `bigfloat_*` / `bigdecimal_*` / `bigcomplex_*` | 正确舍入超越函数：`atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos` 与复数超越（球式 + Ziv，§16）；超大 `|x|` 的三角经 Payne–Hanek 规约（§16.2） | bigfloat, bigdecimal, ball |
 
 ## 构建与测试
 
@@ -53,7 +53,7 @@ target_link_libraries(app PRIVATE nex::nex)
 
 也可用 pkg-config：`pkg-config --cflags --libs nex`。
 
-测试共 33 项（CTest）：8 组模块单元测试 + vs-double fuzz（bigfloat 与硬件
+测试共 42 项（CTest）：8 组模块单元测试 + vs-double fuzz（bigfloat 与硬件
 double/float 逐位对照）+ tie 舍入边界构造 + OOM 注入（12 运算 × 64 注入点，
 验证强异常安全）+ 8 组 Python 精确参考黄金对拍 + 多种子。
 
@@ -131,9 +131,36 @@ Release（-O2）实测节选（Intel i5-13500H / GCC 15.2.0；完整报告与规
 | `bigfloat` 万位精度 sqrt | 33220 bit | 22 ms |
 | `bigdecimal` 万位精度 sqrt | 10000 位 | 25 ms |
 
-复现：`sh scripts/bench.sh [输出文件] [预算秒]`（Release 构建 + `bench_sweep`
-深度扫描；默认输出 `docs/performance.md`）。绝对耗时依赖机器与编译器；
-CI 另提供每日基准 artifact（`.github/workflows/benchmark.yml`）。
+复现（规模扫描）：`sh scripts/bench.sh [输出文件] [预算秒]`（Release 构建 +
+`bench_sweep` 深度扫描；默认输出 `docs/performance.md`）。
+
+数学专项基准（`bench_math`，分段可选）：
+
+```sh
+sh scripts/bench-math.sh full all 7200     # 全量，预算 2 小时
+sh scripts/bench-math.sh quick trans 600   # 只测超越函数，10 分钟
+sh scripts/bench-math.sh ci all 300        # CI 缩减档
+```
+
+部分：`trans`（所有公开超越函数 × 多种精度）、`const`（π/e/ζ(3)/γ 的多种
+表达式 × 多种精度）、`throughput`（各规模运算的 ops/s）。`--json` 输出供
+夜间趋势收集。完整结果见 [`docs/bench-math.md`](docs/bench-math.md)。
+
+本机 full 档实测（WSL2 / Ubuntu 24.04 / GCC 13.3.0 / i5-13500H，-O2；
+预算 7200 s，实际 5791.8 s ≈ 96.5 min）：
+
+| 运算 | 精度 | 耗时 |
+|------|------|------|
+| `bigfloat_exp` | 1024 / 4096 / 16384 bit | 2.2 / 57 / 1289 ms |
+| `bigfloat_log` | 1024 / 4096 / 16384 bit | 10.3 / 298 / 7599 ms |
+| `bigfloat_sin` | 1024 / 4096 / 16384 bit | 3.0 / 81 / 1660 ms |
+| π（`4·atan(1)`）/ Machin | 4096 bit | 189 / 131 ms |
+| e（`exp(1)`）/ 指数级数 | 4096 bit | 75 / 45 ms |
+| ζ(3)（Apéry）/ γ（Brent–McMillan） | 4096 bit | 89 / 510 ms |
+| `bigfloat_log` | 65536 bit | 221 s |
+
+绝对耗时依赖机器与编译器；CI 另提供每日基准 artifact
+（`.github/workflows/benchmark.yml`）。
 
 ## 演示（`demo/`）
 

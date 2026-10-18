@@ -7,6 +7,66 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [1.6.0] - 2026-10-18
+
+### 新增
+
+- **Payne–Hanek 实参规约（TODO §J，design §16.2）**：`sin`/`cos`/`tan` 在
+  `|x| > 2⁶³` 时不再返回 `INVALID`，改用固定点 `2/π` 规约到
+  `r ∈ [−π/4, π/4]` 并按象限还原。
+  - 新增内部单元 `nex/ball/nex_ball_pi.c`：Chudnovsky 公式 + 整数二分拆分
+    计算 `floor(π·2^p)`（每项约 47 bit，96 bit 保护位），定点位数上限
+    `NEX_PH_MAX_PI_BITS = 2²⁰`。
+  - float 与 decimal 两套接入：decimal 用 `R·2^{-K} = (R·5^K)·10^{-K}`
+    精确换算，避免有损中间转换；半径由 `2/π` 截断、`π/2` 截断与商截断的
+    误差上界合成。
+  - 输入球半径 ≥ 4（区间长度 > 2π）时 `sin`/`cos` 直接返回 `[−1,1]`。
+- **`log` 指数拆分（TODO §J7）**：`x = m·2^E`（decimal 为 `m·10^E`），
+  `ln x = ln m + E·ln 2`（或 `E·ln 10`），小实参仍用迭代平方根 + `ln1p`
+  级数。解除原 40 次开方上限，覆盖全部可表示输入；同时避免巨大指数下
+  `ball_sqrt` 端点精确对齐的开销/内存爆炸。
+- **路线 A 高精度加速（TODO §J8）**：`nex_series_*_eval_*` 的部分和与阶估计
+  改为扩展精度浮点递推（`p + 48 + log2 n` 工作位，尾界向上舍入；decimal
+  经 `|z|` 向上转 bigfloat 复用 float 阶估计），不再构造精确有理公共分母。
+  实测（-O2）：`exp` 4096 bit 10.2 s → 63 ms，`ln1p` 1.64 s → 180 ms，
+  `log(3)` 512 bit 11.0 s → 4.6 ms。精确 `*_order` 公共 API 保留。
+- **复数 Smith 稳定除法（TODO §J9）**：`bigcomplex_float_div` /
+  `bigcomplex_decimal_div` 对有限输入采用 Smith 缩放，避免 `c²+d²`
+  溢出/下溢；含 ±∞ 分量时回退共轭法。新增极大/极小分量单元测试，黄金参考
+  同步为 Smith 语义。
+- **数学专项基准（TODO §J10）**：新增 `bench/bench_math.c` 与
+  `scripts/bench-math.sh`，分三段可选：
+  - `trans`：所有公开超越函数（float/decimal/复数，含 `atan2`/`arg`）× 多种精度；
+  - `const`：π / e / ζ(3) / γ 的多种表达式 × 多种精度（含 Apéry、Euler 变换、
+    Brent–McMillan、Chudnovsky），首次运行自检；
+  - `throughput`：各规模整数/浮点/十进制运算的 ops/s。
+  预设 full/quick/ci（默认预算 7200/600/300 s），支持 `--sections` 与 `--json`；
+  CI 每日运行缩减档并上传 artifact。`bench_sweep` 同时新增“超越函数 / 级数 /
+  复数除法”精度扫描。完整全量结果见 `docs/bench-math.md`。
+- 测试：`test_transcend` 增加 2¹⁰⁰（float）与 1e30/1e100（decimal）用例；
+  `test_ball` 覆盖 PH 路径、宽区间与十进制 1e30；`golden_series.py` 新增
+  2¹⁰⁰/2²⁰⁰/1e30/1e100/1e1000 的 mpmath 对拍，并按实参量级自动提高参考精度。
+
+### 修复
+
+- **`bigfloat_from_bigint` 负输入**：`nex_bf_round_pack` 未对带符号尾数取幅值，
+  负整数构造会破坏「尾数为正」不变式（影响 `log` 的指数项等）；已与 decimal
+  版对齐，先取幅值再舍入。
+- 球式 `exp`/`sin`/`cos` 头注释中的过时上限（`k > 20` → 64），与实现一致。
+
+### 文档
+
+- `docs/design.md`：§16.2 改写为已落地的 Payne–Hanek 设计（算法、误差界、
+  float/decimal 路径、上限），新增 §16.3 后续；同步 §13 #8、§14、修订记录。
+- `README.md`：测试数 33 → 42，模块说明补充 PH。
+- `TODO.md`：新增 §J（v1.6 进展），D3 收口，优先级表与测试数同步；
+  J7（log）、J8（路线 A）、J9（Smith）收口，J10 记录性能测试待定方案。
+- `docs/design.md`：§9.2 Smith 除法、§13 #7、§15.6 路线 A 加速、
+  §16 `log` 指数拆分与范围、§16.3 后续、修订记录同步。
+- 公开头注释（`nex_series.h`、`bigcomplex_{float,decimal}.h`）同步。
+
+---
+
 ## [1.5.0] - 2026-10-15
 
 ### 新增
@@ -215,6 +275,7 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
+[1.6.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.6.0
 [1.5.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.5.0
 [1.4.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.4.0
 [1.3.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.3.0

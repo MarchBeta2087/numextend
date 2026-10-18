@@ -15,6 +15,10 @@
 #include "nex/bigint/nex_bigint_conv.h"
 #include "nex/bigfloat/nex_bigfloat.h"
 #include "nex/bigdecimal/nex_bigdecimal.h"
+#include "nex/bigcomplex/float/nex_bigcomplex_float.h"
+#include "nex/bigfrac/nex_bigfrac.h"
+#include "nex/series/nex_series.h"
+#include "nex/transcend/nex_transcend.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,9 +46,10 @@ static double g_sec_start_ms = 0.0;
 static double g_sec_budget_s = 0.0;
 static uint64_t g_seed = 0x20260814ULL;
 
-/* 各扫描占总预算的权重：mul div gcd conv str isqrt bigfloat bigdecimal dec_div */
-static const int g_sec_weights[9] = {3, 2, 2, 1, 1, 2, 1, 1, 2};
-#define SEC_WEIGHT_TOTAL 15
+/* 各扫描占总预算的权重：
+   mul div gcd conv str isqrt bigfloat bigdecimal dec_div math */
+static const int g_sec_weights[10] = {3, 2, 2, 1, 1, 2, 1, 1, 2, 3};
+#define SEC_WEIGHT_TOTAL 18
 
 /* 开始一个扫描段：按权重分配该段的时间预算（保证各段都有测量） */
 static void begin_section(int idx) {
@@ -576,6 +581,117 @@ static void sweep_bigdecimal(void) {
     printf("\n");
 }
 
+
+/* ---------------- 数学函数 / 级数精度扫描 ---------------- */
+
+typedef struct {
+    bigfloat_ctx_ty ctx;
+    bigfloat_ty x;
+    bigfloat_ty z;
+    bigfloat_ty out;
+    bigfloat_ty err;
+    bigfrac_ty eps;
+    bigcomplex_float_ty a;
+    bigcomplex_float_ty b;
+    bigcomplex_float_ty c;
+    int op; /* 0 exp, 1 log, 2 sin, 3 series exp, 4 series ln1p, 5 cdiv */
+} math_ctx;
+
+static void run_math(void *p) {
+    math_ctx *c = (math_ctx *)p;
+    switch (c->op) {
+        case 0:
+            (void)bigfloat_exp(&c->out, &c->z, &c->ctx);
+            break;
+        case 1:
+            (void)bigfloat_log(&c->out, &c->x, &c->ctx);
+            break;
+        case 2:
+            (void)bigfloat_sin(&c->out, &c->x, &c->ctx);
+            break;
+        case 3:
+            (void)nex_series_exp_eval_float(&c->out, &c->err, &c->z,
+                    &c->eps, &c->ctx);
+            break;
+        case 4:
+            (void)nex_series_ln1p_eval_float(&c->out, &c->err, &c->z,
+                    &c->eps, &c->ctx);
+            break;
+        default:
+            (void)bigcomplex_float_div(&c->c, &c->a, &c->b, &c->ctx);
+            break;
+    }
+}
+
+static void sweep_math(void) {
+    static const uint32_t precs[] = {256U, 512U, 1024U, 2048U, 4096U};
+    const size_t nprecs = sizeof(precs) / sizeof(precs[0]);
+    printf("== 超越函数 / 级数 / 复数除法精度扫描（p = 尾数位数 bit）==\n");
+    printf("%8s %10s %10s %10s %10s %10s %10s\n", "p", "exp", "log", "sin",
+           "series_exp", "series_ln1p", "cdiv");
+    const size_t pmax = mode_max(512U, 2048U, 4096U);
+    begin_section(9);
+    for (size_t pi = 0U; pi < nprecs; pi++) {
+        const uint32_t p = precs[pi];
+        if ((size_t)p > pmax) {
+            continue;
+        }
+        if (budget_hit()) {
+            break;
+        }
+        math_ctx mc;
+        memset(&mc, 0, sizeof(mc));
+        (void)bigfloat_ctx_make(&mc.ctx, p, 20U,
+                BIGFLOAT_ROUND_NEAREST_EVEN_E);
+        bigfloat_init(&mc.x);
+        bigfloat_init(&mc.z);
+        bigfloat_init(&mc.out);
+        bigfloat_init(&mc.err);
+        bigfrac_init(&mc.eps);
+        bigcomplex_float_init(&mc.a);
+        bigcomplex_float_init(&mc.b);
+        bigcomplex_float_init(&mc.c);
+        (void)bigfloat_from_str(&mc.x, "3", &mc.ctx, NULL);
+        (void)bigfloat_from_str(&mc.z, "0.125", &mc.ctx, NULL);
+        bigint_bin_ty one;
+        bigint_bin_ty den;
+        bigint_bin_init(&one);
+        bigint_bin_init(&den);
+        (void)bigint_bin_from_u64(&one, 1U);
+        (void)bigint_bin_shl(&den, &one, (size_t)p + 20U);
+        (void)bigfrac_from_ints(&mc.eps, &one, &den);
+        bigint_bin_free(&den);
+        bigint_bin_free(&one);
+        (void)bigcomplex_float_from_str(&mc.a, "1.5+2.5i", &mc.ctx, NULL);
+        (void)bigcomplex_float_from_str(&mc.b, "0.75-1.25i", &mc.ctx, NULL);
+
+        mc.op = 0;
+        const double te = time_op(run_math, &mc);
+        mc.op = 1;
+        const double tl = time_op(run_math, &mc);
+        mc.op = 2;
+        const double ts = time_op(run_math, &mc);
+        mc.op = 3;
+        const double tse = time_op(run_math, &mc);
+        mc.op = 4;
+        const double tsl = time_op(run_math, &mc);
+        mc.op = 5;
+        const double tc = time_op(run_math, &mc);
+        printf("%8u %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f\n", p, te, tl,
+               ts, tse, tsl, tc);
+
+        bigcomplex_float_free(&mc.c);
+        bigcomplex_float_free(&mc.b);
+        bigcomplex_float_free(&mc.a);
+        bigfrac_free(&mc.eps);
+        bigfloat_free(&mc.err);
+        bigfloat_free(&mc.out);
+        bigfloat_free(&mc.z);
+        bigfloat_free(&mc.x);
+    }
+    printf("\n");
+}
+
 int main(int argc, char **argv) {
     int budget_set = 0;
     for (int i = 1; i < argc; i++) {
@@ -615,6 +731,7 @@ int main(int argc, char **argv) {
     sweep_isqrt();
     sweep_bigfloat();
     sweep_bigdecimal();
+    sweep_math();
     printf("扫描完成（总耗时 %.0f s）\n", (now_ms() - g_start_ms) / 1000.0);
     return 0;
 }

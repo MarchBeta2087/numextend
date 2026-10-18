@@ -503,6 +503,117 @@ cleanup:
     return map_bf_err(berr);
 }
 
+/* 幅值比较（Smith 选支用）：返回 |a| 与 |b| 的三路比较 */
+static int bf_abs_cmp(const bigfloat_ty *a, const bigfloat_ty *b)
+{
+    bigfloat_ty aa;
+    bigfloat_ty bb;
+    bigfloat_init(&aa);
+    bigfloat_init(&bb);
+    if (bigfloat_copy(&aa, a) != BIGFLOAT_OK_E
+            || bigfloat_copy(&bb, b) != BIGFLOAT_OK_E) {
+        bigfloat_free(&bb);
+        bigfloat_free(&aa);
+        return 0;
+    }
+    if (aa.flag == BIGFLOAT_NEG_E) {
+        (void)bigfloat_neg(&aa);
+    }
+    if (bb.flag == BIGFLOAT_NEG_E) {
+        (void)bigfloat_neg(&bb);
+    }
+    const int cmp = bigfloat_cmp(&aa, &bb);
+    bigfloat_free(&bb);
+    bigfloat_free(&aa);
+    return cmp;
+}
+
+/* Smith 稳定除法：避免 c²+d² 上溢/下溢（各步仍按 ctx 正确舍入） */
+static bigcomplex_float_err_ty div_smith(bigcomplex_float_ty *dst,
+        const bigcomplex_float_ty *lhs, const bigcomplex_float_ty *rhs,
+        const bigfloat_ctx_ty *ctx)
+{
+    bigfloat_ty r;
+    bigfloat_ty t1;
+    bigfloat_ty t2;
+    bigfloat_ty den;
+    bigfloat_ty re;
+    bigfloat_ty im;
+    bigfloat_init(&r);
+    bigfloat_init(&t1);
+    bigfloat_init(&t2);
+    bigfloat_init(&den);
+    bigfloat_init(&re);
+    bigfloat_init(&im);
+    bigfloat_err_ty berr = BIGFLOAT_OK_E;
+    if (bf_abs_cmp(&rhs->re, &rhs->im) >= 0) {
+        /* |c| ≥ |d|：r = d/c，den = c + d·r，
+           re = (a + b·r)/den，im = (b − a·r)/den */
+        berr = bigfloat_div(&r, &rhs->im, &rhs->re, ctx);
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_mul(&t1, &rhs->im, &r, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_add(&den, &rhs->re, &t1, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_mul(&t1, &lhs->im, &r, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_add(&t1, &lhs->re, &t1, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_mul(&t2, &lhs->re, &r, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_sub(&t2, &lhs->im, &t2, ctx);
+        }
+    } else {
+        /* |c| < |d|：r = c/d，den = d + c·r，
+           re = (a·r + b)/den，im = (b·r − a)/den */
+        berr = bigfloat_div(&r, &rhs->re, &rhs->im, ctx);
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_mul(&t1, &rhs->re, &r, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_add(&den, &rhs->im, &t1, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_mul(&t1, &lhs->re, &r, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_add(&t1, &t1, &lhs->im, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_mul(&t2, &lhs->im, &r, ctx);
+        }
+        if (berr == BIGFLOAT_OK_E) {
+            berr = bigfloat_sub(&t2, &t2, &lhs->re, ctx);
+        }
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_div(&re, &t1, &den, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        berr = bigfloat_div(&im, &t2, &den, ctx);
+    }
+    if (berr == BIGFLOAT_OK_E) {
+        bigfloat_free(&dst->re);
+        bigfloat_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+        bigfloat_init(&re);
+        bigfloat_init(&im);
+    }
+    bigfloat_free(&im);
+    bigfloat_free(&re);
+    bigfloat_free(&den);
+    bigfloat_free(&t2);
+    bigfloat_free(&t1);
+    bigfloat_free(&r);
+    return map_bf_err(berr);
+}
+
 bigcomplex_float_err_ty bigcomplex_float_div(bigcomplex_float_ty *dst,
         const bigcomplex_float_ty *lhs, const bigcomplex_float_ty *rhs,
         const bigfloat_ctx_ty *ctx)
@@ -513,6 +624,11 @@ bigcomplex_float_err_ty bigcomplex_float_div(bigcomplex_float_ty *dst,
     if (any_nan(lhs) || any_nan(rhs)) {
         set_nan_components(dst);
         return BIGCOMPLEX_FLOAT_OK_E;
+    }
+    /* 有限输入走 Smith 稳定除法；含 ±∞ 时保留共轭法以维持原有特殊值语义 */
+    if (!bigfloat_is_inf(&lhs->re) && !bigfloat_is_inf(&lhs->im)
+            && !bigfloat_is_inf(&rhs->re) && !bigfloat_is_inf(&rhs->im)) {
+        return div_smith(dst, lhs, rhs, ctx);
     }
     // 共轭法：(a+bi)/(c+di) = [(a+bi)(c−di)] / (c²+d²)
     //   re_num = ac + bd；im_num = bc − ad；den = c² + d²

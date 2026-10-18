@@ -134,8 +134,12 @@ git push -u origin hotfix/<name>
 - **默认优化级别**：`CMakeLists.txt` 在未指定 `CMAKE_BUILD_TYPE` 时默认
   `RelWithDebInfo`（`-O2 -g`）。历史/手工构建目录若显式配成空 build type 会是
   `-O0`（性能差数倍）。
-- **基准纪律**：任何性能对比（`bench_sweep`）都必须与对比基线**同优化级别**；
-  否则会得出相反结论（例：`-O0` 下 8-bit FFT 看似胜 Toom-3，`-O2` 下全程落败）。
+- **基准纪律**：任何性能对比（`bench_sweep` / `bench_math`）都必须与对比基线
+  **同优化级别**；否则会得出相反结论（例：`-O0` 下 8-bit FFT 看似胜 Toom-3，
+  `-O2` 下全程落败）。
+- **数学专项基准**：`sh scripts/bench-math.sh full all 7200`（本地全量，目标
+  约 2 小时）；`trans`/`const`/`throughput` 可单独选择；CI 用 `ci` 预设
+  （`--budget 300`）并上传 JSON 供趋势比较。
 - **测试/黄金对拍**：`ctest --test-dir build`（含 Python/mpmath 黄金对拍）；
   大数黄金对拍脚本运行前设 `sys.set_int_max_str_digits(...)`。
 - **工具链**：以环境变量 `CC`/`CXX` 或 `-DCMAKE_C_COMPILER` 指定；Windows 下

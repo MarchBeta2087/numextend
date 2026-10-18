@@ -443,6 +443,57 @@ static void test_transcend(void) {
     bigcomplex_float_free(&z);
 }
 
+static void test_div_stable(void) {
+    /* Smith 除法：|c|=|d| 极大/极小时 c²+d² 会溢出/下溢，结果仍可表示 */
+    bigfloat_ctx_ty ctx;
+    CHECK(bigfloat_ctx_make(&ctx, 64U, 61U,
+            BIGFLOAT_ROUND_NEAREST_EVEN_E) == BIGFLOAT_OK_E);
+    bigint_bin_ty m;
+    bigint_bin_init(&m);
+    (void)bigint_bin_from_u64(&m, UINT64_C(1) << 63);
+
+    bigcomplex_float_ty a;
+    bigcomplex_float_ty b;
+    bigcomplex_float_ty o;
+    bigfloat_ty big;
+    bigfloat_ty t;
+    bigcomplex_float_init(&a);
+    bigcomplex_float_init(&b);
+    bigcomplex_float_init(&o);
+    bigfloat_init(&big);
+    bigfloat_init(&t);
+
+    /* 上溢方向：X = 2^(2^59)，(1+i)/(X+Xi) = 1/X */
+    CHECK(bigfloat_compose(&big, &m, (INT64_C(1) << 59) - 63,
+            BIGFLOAT_POS_E, &ctx) == BIGFLOAT_OK_E);
+    (void)bigfloat_from_f64(&a.re, 1.0);
+    (void)bigfloat_from_f64(&a.im, 1.0);
+    CHECK(bigfloat_copy(&b.re, &big) == BIGFLOAT_OK_E);
+    CHECK(bigfloat_copy(&b.im, &big) == BIGFLOAT_OK_E);
+    CHECK(bigcomplex_float_div(&o, &a, &b, &ctx) == BIGCOMPLEX_FLOAT_OK_E);
+    CHECK(bigfloat_mul(&t, &o.re, &big, &ctx) == BIGFLOAT_OK_E);
+    double d = 0.0;
+    CHECK(bigfloat_to_f64(&t, &d) == BIGFLOAT_OK_E && fabs(d - 1.0) < 1e-12);
+    CHECK(bigfloat_is_zero(&o.im));
+
+    /* 下溢方向：X = 2^(−2^59)，结果 X⁻¹ 仍可表示 */
+    CHECK(bigfloat_compose(&big, &m, -(INT64_C(1) << 59),
+            BIGFLOAT_POS_E, &ctx) == BIGFLOAT_OK_E);
+    CHECK(bigfloat_copy(&b.re, &big) == BIGFLOAT_OK_E);
+    CHECK(bigfloat_copy(&b.im, &big) == BIGFLOAT_OK_E);
+    CHECK(bigcomplex_float_div(&o, &a, &b, &ctx) == BIGCOMPLEX_FLOAT_OK_E);
+    CHECK(bigfloat_mul(&t, &o.re, &big, &ctx) == BIGFLOAT_OK_E);
+    CHECK(bigfloat_to_f64(&t, &d) == BIGFLOAT_OK_E && fabs(d - 1.0) < 1e-12);
+    CHECK(bigfloat_is_zero(&o.im));
+
+    bigfloat_free(&t);
+    bigfloat_free(&big);
+    bigcomplex_float_free(&o);
+    bigcomplex_float_free(&b);
+    bigcomplex_float_free(&a);
+    bigint_bin_free(&m);
+}
+
 int main(void) {
 #ifdef _MSC_VER
     /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
@@ -457,6 +508,7 @@ int main(void) {
     test_parse_str();
     test_to_str();
     test_arith();
+    test_div_stable();
     test_abs_conj();
     test_arg();
     test_transcend();
