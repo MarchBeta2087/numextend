@@ -330,6 +330,7 @@ static void test_pade(void) {
     bigfrac_series_free(&s);
 }
 
+
 int main(void) {
     test_binom_model_order();
     test_fact_orders();

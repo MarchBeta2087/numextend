@@ -3,6 +3,7 @@
 #ifdef _MSC_VER
 #include <crtdbg.h>
 #endif
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -441,6 +442,64 @@ static void test_transcend(void) {
     bigcomplex_decimal_free(&z);
 }
 
+static void test_div_stable(void) {
+    /* Smith 除法：十进制指数极大/极小时 c²+d² 越过指数范围 */
+    bigdecimal_ctx_ty ctx;
+    CHECK(bigdecimal_ctx_make(&ctx, 16U, 12U,
+            BIGDECIMAL_ROUND_NEAREST_EVEN_E) == BIGDECIMAL_OK_E);
+    bigint_dec_ty one;
+    bigint_dec_init(&one);
+    (void)bigint_dec_from_u64(&one, 1U);
+
+    bigcomplex_decimal_ty a;
+    bigcomplex_decimal_ty b;
+    bigcomplex_decimal_ty o;
+    bigdecimal_ty big;
+    bigdecimal_ty t;
+    bigcomplex_decimal_init(&a);
+    bigcomplex_decimal_init(&b);
+    bigcomplex_decimal_init(&o);
+    bigdecimal_init(&big);
+    bigdecimal_init(&t);
+    (void)bigdecimal_from_str(&a.re, "1", &ctx, NULL);
+    (void)bigdecimal_from_str(&a.im, "1", &ctx, NULL);
+
+    /* 上溢方向：X = 10^(6e11)，(1+i)/(X+Xi) = 1/X */
+    CHECK(bigdecimal_compose(&big, &one, INT64_C(600000000000),
+            BIGDECIMAL_POS_E, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(bigdecimal_copy(&b.re, &big) == BIGDECIMAL_OK_E);
+    CHECK(bigdecimal_copy(&b.im, &big) == BIGDECIMAL_OK_E);
+    CHECK(bigcomplex_decimal_div(&o, &a, &b, &ctx)
+            == BIGCOMPLEX_DECIMAL_OK_E);
+    CHECK(bigdecimal_mul(&t, &o.re, &big, &ctx) == BIGDECIMAL_OK_E);
+    char buf[64];
+    size_t need = 0U;
+    CHECK(bigdecimal_to_str(&t, BIGDECIMAL_FMT_FIXED_E, buf, sizeof(buf),
+            &need) == BIGDECIMAL_OK_E);
+    CHECK(fabs(strtod(buf, NULL) - 1.0) < 1e-12);
+    CHECK(bigdecimal_is_zero(&o.im));
+
+    /* 下溢方向：X = 10^(−6e11) */
+    CHECK(bigdecimal_compose(&big, &one, -INT64_C(600000000000),
+            BIGDECIMAL_POS_E, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(bigdecimal_copy(&b.re, &big) == BIGDECIMAL_OK_E);
+    CHECK(bigdecimal_copy(&b.im, &big) == BIGDECIMAL_OK_E);
+    CHECK(bigcomplex_decimal_div(&o, &a, &b, &ctx)
+            == BIGCOMPLEX_DECIMAL_OK_E);
+    CHECK(bigdecimal_mul(&t, &o.re, &big, &ctx) == BIGDECIMAL_OK_E);
+    CHECK(bigdecimal_to_str(&t, BIGDECIMAL_FMT_FIXED_E, buf, sizeof(buf),
+            &need) == BIGDECIMAL_OK_E);
+    CHECK(fabs(strtod(buf, NULL) - 1.0) < 1e-12);
+    CHECK(bigdecimal_is_zero(&o.im));
+
+    bigdecimal_free(&t);
+    bigdecimal_free(&big);
+    bigcomplex_decimal_free(&o);
+    bigcomplex_decimal_free(&b);
+    bigcomplex_decimal_free(&a);
+    bigint_dec_free(&one);
+}
+
 int main(void) {
 #ifdef _MSC_VER
     /* CRT 调试堆：逐次分配完整性检查 + 退出时泄漏报告 */
@@ -455,6 +514,7 @@ int main(void) {
     test_parse_str();
     test_to_str();
     test_arith();
+    test_div_stable();
     test_abs_conj();
     test_arg();
     test_transcend();

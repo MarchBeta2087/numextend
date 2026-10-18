@@ -2,7 +2,9 @@
  * test_transcend.c：超越函数单元测试（TODO §D）——正确舍入的 atan。
  */
 
+#include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "nex/bigfloat/nex_bigfloat.h"
 #include "nex/bigdecimal/nex_bigdecimal.h"
@@ -300,6 +302,25 @@ int main(void) {
     check_trig_dec("tan", "1", "1.557407724654902", bigdecimal_tan, &dctx);
     check_trig_dec("tan", "0.5", "0.5463024898437905", bigdecimal_tan, &dctx);
 
+    /* 超大实参：Payne–Hanek 规约（§16.2）
+       float 侧用 2^100（可被 binary64 精确表示），decimal 侧用 1e30/1e100 */
+    check_trig("sin", "1267650600228229401496703205376",
+            "-0.8721836054182673", bigfloat_sin, &ctx);
+    check_trig("cos", "1267650600228229401496703205376",
+            "0.48917865697472146", bigfloat_cos, &ctx);
+    check_trig("sin", "-1267650600228229401496703205376",
+            "0.8721836054182673", bigfloat_sin, &ctx);
+    check_trig("tan", "1267650600228229401496703205376",
+            "-1.782955149376719", bigfloat_tan, &ctx);
+    check_trig_dec("sin", "1e30", "-0.09011690191213806", bigdecimal_sin,
+            &dctx);
+    check_trig_dec("cos", "1e30", "-0.9959311944053957", bigdecimal_cos,
+            &dctx);
+    check_trig_dec("sin", "1e100", "-0.3723761236612767", bigdecimal_sin,
+            &dctx);
+    check_trig_dec("cos", "1e100", "-0.9280819050746553", bigdecimal_cos,
+            &dctx);
+
     /* asin / acos：正确舍入（binary64 / decimal64） */
     check_trig("asin", "0", "0", bigfloat_asin, &ctx);
     check_trig("asin", "0.5", "0.5235987755982989", bigfloat_asin, &ctx);
@@ -327,6 +348,63 @@ int main(void) {
         (void)bigfloat_from_str(&nx, "-1", &ctx, NULL);
         CHECK(bigfloat_log(&nx, &nx, &ctx) == BIGFLOAT_ERR_INVALID_E);
         bigfloat_free(&nx);
+    }
+
+    /* log 超大实参：旧 40 次开方上限会 INVALID，v1.6 放宽到 128 */
+    {
+        bigfloat_ctx_ty lctx;
+        CHECK(bigfloat_ctx_make(&lctx, 64U, 61U,
+                BIGFLOAT_ROUND_NEAREST_EVEN_E) == BIGFLOAT_OK_E);
+        bigint_bin_ty m;
+        bigint_bin_init(&m);
+        (void)bigint_bin_from_u64(&m, UINT64_C(1) << 63);
+        bigfloat_ty lx;
+        bigfloat_ty lo;
+        bigfloat_init(&lx);
+        bigfloat_init(&lo);
+
+        /* x = 2^(2^40)，ln x = 2^40·ln2 ≈ 7.62e11（需 k ≈ 43） */
+        CHECK(bigfloat_compose(&lx, &m, (INT64_C(1) << 40) - 63,
+                BIGFLOAT_POS_E, &lctx) == BIGFLOAT_OK_E);
+        CHECK(bigfloat_log(&lo, &lx, &lctx) == BIGFLOAT_OK_E);
+        double got = 0.0;
+        CHECK(bigfloat_to_f64(&lo, &got) == BIGFLOAT_OK_E);
+        CHECK(fabs(got / 762123384785.81045030 - 1.0) < 1e-14);
+
+        /* x = 2^(2^56)，ln x ≈ 4.99e16（需 k ≈ 59） */
+        CHECK(bigfloat_compose(&lx, &m, (INT64_C(1) << 56) - 63,
+                BIGFLOAT_POS_E, &lctx) == BIGFLOAT_OK_E);
+        CHECK(bigfloat_log(&lo, &lx, &lctx) == BIGFLOAT_OK_E);
+        CHECK(bigfloat_to_f64(&lo, &got) == BIGFLOAT_OK_E);
+        CHECK(fabs(got / 49946518145322873.671 - 1.0) < 1e-14);
+
+        bigfloat_free(&lo);
+        bigfloat_free(&lx);
+        bigint_bin_free(&m);
+    }
+    {
+        bigdecimal_ctx_ty lctx;
+        CHECK(bigdecimal_ctx_make(&lctx, 16U, 12U,
+                BIGDECIMAL_ROUND_NEAREST_EVEN_E) == BIGDECIMAL_OK_E);
+        bigint_dec_ty one_d;
+        bigint_dec_init(&one_d);
+        (void)bigint_dec_from_u64(&one_d, 1U);
+        bigdecimal_ty dx;
+        bigdecimal_ty lo;
+        bigdecimal_init(&dx);
+        bigdecimal_init(&lo);
+        /* x = 10^(6e10)，ln x = 6e10·ln10 ≈ 1.38e11（需 k ≈ 41） */
+        CHECK(bigdecimal_compose(&dx, &one_d, INT64_C(60000000000),
+                BIGDECIMAL_POS_E, &lctx) == BIGDECIMAL_OK_E);
+        CHECK(bigdecimal_log(&lo, &dx, &lctx) == BIGDECIMAL_OK_E);
+        char buf[128];
+        size_t need = 0U;
+        CHECK(bigdecimal_to_str(&lo, BIGDECIMAL_FMT_FIXED_E, buf,
+                sizeof(buf), &need) == BIGDECIMAL_OK_E);
+        CHECK(fabs(strtod(buf, NULL) / 138155105579.642741 - 1.0) < 1e-14);
+        bigdecimal_free(&lo);
+        bigdecimal_free(&dx);
+        bigint_dec_free(&one_d);
     }
 
     /* 非法参数（十进制） */

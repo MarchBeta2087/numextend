@@ -3,10 +3,13 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/bigfrac/nex_bigfrac.h"
 #include "nex/series/nex_series.h"
+
+#include "nex/ball/nex_ball_internal.h"
 
 /*
  * 球式超越函数与实参规约（路线 B 第二阶段，设计文档 §15.6）。
@@ -16,7 +19,8 @@
  *   sin/cos：同样折半后由级数得初始球 → k 次 half-angle 倍角
  *           （cos2θ = 2cos²θ − 1，sin2θ = 2 sinθ cosθ）。
  * 半径全程由球运算严格传播；初始球半径含路线 A 尾界与舍入余量，并按输入
- * 半径用 Lipschitz/相对界膨胀。|x| 过大（k > 20）返回 INVALID。
+ * 半径用 Lipschitz/相对界膨胀。|x| 超过 2^63 时 sin/cos 转入 Payne–Hanek
+ * 规约（nex_ball_pi.c）；exp 折半上限 64。
  */
 
 static const size_t NEX_BALL_HALVE_CAP = 64U;
@@ -311,9 +315,246 @@ bigfloat_err_ty bigfloat_ball_exp(bigfloat_ball_ty *dst,
 /* 折半 + half-angle 倍角，同时得 sin/cos 球 */
 static bigfloat_err_ty sincos_reduced(bigfloat_ball_ty *sball,
         bigfloat_ball_ty *cball, const bigfloat_ball_ty *x,
+        const bigfloat_ctx_ty *ctx);
+
+/* 球 = [−1, 1]（输入区间已含完整周期时使用） */
+static bigfloat_err_ty bf_ball_full_range(bigfloat_ball_ty *dst,
         const bigfloat_ctx_ty *ctx) {
+    bigfloat_ty zero;
+    bigfloat_ty one;
+    bigfloat_init(&zero);
+    bigfloat_init(&one);
+    bigfloat_err_ty err = bigfloat_from_f64(&zero, 0.0);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_from_f64(&one, 1.0);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_set(dst, &zero, &one, ctx);
+    }
+    bigfloat_free(&one);
+    bigfloat_free(&zero);
+    return err;
+}
+
+/* 输入球半径 ≥ 4 → 区间长度 ≥ 8 > 2π，sin/cos 覆盖 [−1,1] */
+static bigfloat_err_ty bf_ball_covers_period(bool *out,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx) {
+    (void)ctx;   /* 4 在二进制下精确，无需 ctx */
+    bigfloat_ty four;
+    bigfloat_ty rad;
+    bigfloat_init(&four);
+    bigfloat_init(&rad);
+    bigfloat_err_ty err = bigfloat_from_f64(&four, 4.0);
+    if (err == BIGFLOAT_OK_E) {
+        err = e_abs(&rad, &x->rad);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        *out = (bigfloat_cmp(&rad, &four) >= 0);
+    }
+    bigfloat_free(&rad);
+    bigfloat_free(&four);
+    return err;
+}
+
+/* M = |mid| + rad 是否 ≥ 2^63（halvings 的 64 次折半将不够）。
+   用指数 + 尾数位长判断，避免在窄指数范围 ctx 下 2^63 上溢。 */
+static bigfloat_err_ty bf_ball_exceeds_2p63(bool *out,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx) {
+    bigfloat_ctx_ty up;
+    bigfloat_err_ty err = e_dir_ctx(&up, ctx, BIGFLOAT_ROUND_TOWARD_POS_E);
+    bigfloat_ty am;
+    bigfloat_ty bound;
+    bigint_bin_ty mant;
+    bigfloat_init(&am);
+    bigfloat_init(&bound);
+    bigint_bin_init(&mant);
+    if (err == BIGFLOAT_OK_E) {
+        err = e_abs(&am, &x->mid);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_add(&bound, &am, &x->rad, &up);
+    }
+    int64_t exp = 0;
+    bigfloat_flag_ty flag = BIGFLOAT_POS_ZERO_E;
+    if (err == BIGFLOAT_OK_E) {
+        /* 值 < 2^{exp + bit_len(mant)}；> 63 即可安全转入 PH */
+        err = bigfloat_decompose(&bound, &mant, &exp, &flag);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        if (flag == BIGFLOAT_POS_E || flag == BIGFLOAT_NEG_E) {
+            const int64_t mag = exp + (int64_t)bigint_bin_bit_len(&mant);
+            *out = (mag > 63);
+        } else {
+            *out = false;
+        }
+    }
+    bigint_bin_free(&mant);
+    bigfloat_free(&bound);
+    bigfloat_free(&am);
+    return err;
+}
+
+/* r 球拷贝，neg 为真时取负（半径不变） */
+static bigfloat_err_ty bf_ball_copy_neg(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *src, bool neg) {
+    bigfloat_err_ty err = bigfloat_ball_copy(dst, src);
+    if (err == BIGFLOAT_OK_E && neg) {
+        err = bigfloat_neg(&dst->mid);
+    }
+    return err;
+}
+
+/* |x| 过大：Payne–Hanek 规约到 r ∈ [−π/4, π/4]，再按象限还原 sin/cos */
+static bigfloat_err_ty bf_ball_ph_sincos(bigfloat_ball_ty *sball,
+        bigfloat_ball_ty *cball, const bigfloat_ball_ty *x,
+        const bigfloat_ctx_ty *ctx) {
+    bigint_bin_ty num;
+    bigint_bin_ty den;
+    bigint_bin_init(&num);
+    bigint_bin_init(&den);
+    bigint_err_ty ierr = bigint_bin_from_u64(&den, 1U);
+    if (ierr == BIGINT_OK_E) {
+        ierr = bigint_bin_copy(&num, &x->mid.mant);
+    }
+    if (ierr == BIGINT_OK_E && x->mid.exp >= 0) {
+        if ((uint64_t)x->mid.exp > (uint64_t)NEX_BALL_PH_MAX_PI_BITS) {
+            ierr = BIGINT_ERR_INVALID_E;
+        } else {
+            ierr = bigint_bin_shl(&num, &num, (size_t)x->mid.exp);
+        }
+    } else if (ierr == BIGINT_OK_E) {
+        const uint64_t sh = (uint64_t)(-(x->mid.exp + 1)) + 1U;
+        if (sh > (uint64_t)NEX_BALL_PH_MAX_PI_BITS) {
+            ierr = BIGINT_ERR_INVALID_E;
+        } else {
+            ierr = bigint_bin_shl(&den, &den, (size_t)sh);
+        }
+    }
+
+    nex_ball_ph_result_ty ph;
+    nex_ball_ph_result_init(&ph);
+    const int sign = (x->mid.flag == BIGFLOAT_NEG_E) ? -1 : 1;
+    if (ierr == BIGINT_OK_E) {
+        ierr = nex_ball_ph_reduce_internal(&ph, &num, &den, sign,
+                ctx->mant_bits);
+    }
+    bigfloat_err_ty err;
+    if (ierr == BIGINT_OK_E) {
+        err = BIGFLOAT_OK_E;
+    } else if (ierr == BIGINT_ERR_OOM_E) {
+        err = BIGFLOAT_ERR_OOM_E;
+    } else {
+        err = BIGFLOAT_ERR_INVALID_E;
+    }
+
+    bigfloat_ty rmid;
+    bigfloat_ty rrad;
+    bigfloat_ty tmp;
+    bigfloat_init(&rmid);
+    bigfloat_init(&rrad);
+    bigfloat_init(&tmp);
+    if (err == BIGFLOAT_OK_E) {
+        if (bigint_bin_is_zero(&ph.r)) {
+            err = bigfloat_from_f64(&rmid, 0.0);
+        } else {
+            err = bigfloat_compose(&rmid, &ph.r, -(int64_t)ph.k,
+                    (ph.neg != 0U) ? BIGFLOAT_NEG_E : BIGFLOAT_POS_E, ctx);
+        }
+    }
+    bigfloat_ctx_ty up;
+    if (err == BIGFLOAT_OK_E) {
+        err = e_dir_ctx(&up, ctx, BIGFLOAT_ROUND_TOWARD_POS_E);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = e_ulp(&rrad, &rmid, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bf_pow2(&tmp, ph.err_exp, &up);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_add(&rrad, &rrad, &tmp, &up);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_add(&rrad, &rrad, &x->rad, &up);
+    }
+
+    bigfloat_ball_ty rr;
+    bigfloat_ball_ty s;
+    bigfloat_ball_ty c;
+    bigfloat_ball_init(&rr);
+    bigfloat_ball_init(&s);
+    bigfloat_ball_init(&c);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_set(&rr, &rmid, &rrad, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = sincos_reduced(&s, &c, &rr, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        switch (ph.quad) {
+            case 0U:
+                err = bf_ball_copy_neg(sball, &s, false);
+                if (err == BIGFLOAT_OK_E) {
+                    err = bf_ball_copy_neg(cball, &c, false);
+                }
+                break;
+            case 1U:
+                err = bf_ball_copy_neg(sball, &c, false);
+                if (err == BIGFLOAT_OK_E) {
+                    err = bf_ball_copy_neg(cball, &s, true);
+                }
+                break;
+            case 2U:
+                err = bf_ball_copy_neg(sball, &s, true);
+                if (err == BIGFLOAT_OK_E) {
+                    err = bf_ball_copy_neg(cball, &c, true);
+                }
+                break;
+            default:
+                err = bf_ball_copy_neg(sball, &c, true);
+                if (err == BIGFLOAT_OK_E) {
+                    err = bf_ball_copy_neg(cball, &s, false);
+                }
+                break;
+        }
+    }
+
+    bigfloat_ball_free(&c);
+    bigfloat_ball_free(&s);
+    bigfloat_ball_free(&rr);
+    bigfloat_free(&tmp);
+    bigfloat_free(&rrad);
+    bigfloat_free(&rmid);
+    nex_ball_ph_result_free(&ph);
+    bigint_bin_free(&den);
+    bigint_bin_free(&num);
+    return err;
+}
+
+/* 折半 + half-angle 倍角，同时得 sin/cos 球 */
+static bigfloat_err_ty sincos_reduced(bigfloat_ball_ty *sball,
+        bigfloat_ball_ty *cball, const bigfloat_ball_ty *x,
+        const bigfloat_ctx_ty *ctx) {
+    bool wide = false;
+    bigfloat_err_ty err = bf_ball_covers_period(&wide, x, ctx);
+    if (err == BIGFLOAT_OK_E && wide) {
+        err = bf_ball_full_range(sball, ctx);
+        if (err == BIGFLOAT_OK_E) {
+            err = bf_ball_full_range(cball, ctx);
+        }
+        return err;
+    }
+    bool huge = false;
+    if (err == BIGFLOAT_OK_E) {
+        err = bf_ball_exceeds_2p63(&huge, x, ctx);
+    }
+    if (err == BIGFLOAT_OK_E && huge) {
+        return bf_ball_ph_sincos(sball, cball, x, ctx);
+    }
     size_t k = 0U;
-    bigfloat_err_ty err = halvings(&k, x, ctx);
+    if (err == BIGFLOAT_OK_E) {
+        err = halvings(&k, x, ctx);
+    }
 
     bigfloat_ty inv2k;
     bigfloat_ty a_mid;
@@ -684,7 +925,9 @@ bigfloat_err_ty bigfloat_ball_atan(bigfloat_ball_ty *dst,
 }
 
 /* 迭代平方根规约 + ln1p 级数 + 2^k 球加法回放 */
-bigfloat_err_ty bigfloat_ball_log(bigfloat_ball_ty *dst,
+/* 小实参 log：|ln x| 有界（如 x ∈ [1,2)）时用迭代平方根规约。
+   x 的指数很小，sqrt 不会触发球加减的指数对齐膨胀。 */
+static bigfloat_err_ty bf_ball_log_small(bigfloat_ball_ty *dst,
         const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx) {
     if (dst == NULL || x == NULL || ctx == NULL || !e_ball_ok(x)) {
         return BIGFLOAT_ERR_INVALID_E;
@@ -722,6 +965,7 @@ bigfloat_err_ty bigfloat_ball_log(bigfloat_ball_ty *dst,
         err = bigfloat_ball_copy(&y, x);
     }
 
+    /* 小实参下 |ln x| < 1，k ≤ 4；上限 16 留足余量。 */
     size_t k = 0U;
     while (err == BIGFLOAT_OK_E) {
         bigfloat_ty dm;
@@ -744,8 +988,8 @@ bigfloat_err_ty bigfloat_ball_log(bigfloat_ball_ty *dst,
         if (err != BIGFLOAT_OK_E || done) {
             break;
         }
-        if (k >= 40U) {
-            err = BIGFLOAT_ERR_INVALID_E;   /* 超出规约上限 */
+        if (k >= 16U) {
+            err = BIGFLOAT_ERR_INVALID_E;   /* 小实参路径不应到达 */
             break;
         }
         bigfloat_ball_ty ny;
@@ -823,6 +1067,169 @@ bigfloat_err_ty bigfloat_ball_log(bigfloat_ball_ty *dst,
     bigfloat_free(&thresh);
     bigfloat_free(&lo);
     bigfloat_free(&one);
+    bigfloat_free(&zero);
+    return err;
+}
+
+/* log(x) = ln(m) + E·ln 2，其中 x = m·2^E、m ∈ [1,2)。
+   指数拆分把巨大的 |x| 从 sqrt 规约中移出，避免球加减在巨大指数差下的
+   精确对齐（这是原 40 次开方上限之外的真实瓶颈）。 */
+bigfloat_err_ty bigfloat_ball_log(bigfloat_ball_ty *dst,
+        const bigfloat_ball_ty *x, const bigfloat_ctx_ty *ctx) {
+    if (dst == NULL || x == NULL || ctx == NULL || !e_ball_ok(x)) {
+        return BIGFLOAT_ERR_INVALID_E;
+    }
+    bigfloat_ctx_ty dn;
+    bigfloat_err_ty err = e_dir_ctx(&dn, ctx, BIGFLOAT_ROUND_TOWARD_NEG_E);
+    bigfloat_ty zero;
+    bigfloat_ty lo;
+    bigfloat_init(&zero);
+    bigfloat_init(&lo);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_sub(&lo, &x->mid, &x->rad, &dn);
+    }
+    if (err == BIGFLOAT_OK_E && bigfloat_cmp(&lo, &zero) <= 0) {
+        err = BIGFLOAT_ERR_INVALID_E;   /* log 定义域 x > 0 */
+    }
+
+    bigint_bin_ty mant;
+    bigint_bin_init(&mant);
+    int64_t exp = 0;
+    bigfloat_flag_ty flag = BIGFLOAT_POS_ZERO_E;
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_decompose(&x->mid, &mant, &exp, &flag);
+    }
+    const size_t pbits = bigint_bin_bit_len(&mant);
+    if (err == BIGFLOAT_OK_E
+            && (flag != BIGFLOAT_POS_E && flag != BIGFLOAT_NEG_E)) {
+        err = BIGFLOAT_ERR_INVALID_E;
+    }
+    if (err == BIGFLOAT_OK_E
+            && (pbits == 0U || pbits > (size_t)INT64_MAX
+                || exp > INT64_MAX - (int64_t)(pbits - 1U))) {
+        err = BIGFLOAT_ERR_INVALID_E;
+    }
+
+    bigfloat_ty m;
+    bigfloat_ty two;
+    bigfloat_ty emid;
+    bigfloat_ty eulp;
+    bigfloat_init(&m);
+    bigfloat_init(&two);
+    bigfloat_init(&emid);
+    bigfloat_init(&eulp);
+    int64_t e10 = 0;
+    if (err == BIGFLOAT_OK_E) {
+        e10 = exp + (int64_t)(pbits - 1U);
+        /* m = mant·2^{−(p−1)} ∈ [1,2)；指数范围过窄的 ctx 无法表示 m */
+        err = bigfloat_compose(&m, &mant, -(int64_t)(pbits - 1U),
+                BIGFLOAT_POS_E, ctx);
+        if (err == BIGFLOAT_OK_E
+                && (m.flag != BIGFLOAT_POS_E && m.flag != BIGFLOAT_NEG_E)) {
+            err = BIGFLOAT_ERR_INVALID_E;
+        }
+    }
+
+    bigfloat_ball_ty mb;
+    bigfloat_ball_ty lnm;
+    bigfloat_ball_ty two_b;
+    bigfloat_ball_ty ln2;
+    bigfloat_ball_ty eb;
+    bigfloat_ball_ty prod;
+    bigfloat_ball_ty res;
+    bigfloat_ball_init(&mb);
+    bigfloat_ball_init(&lnm);
+    bigfloat_ball_init(&two_b);
+    bigfloat_ball_init(&ln2);
+    bigfloat_ball_init(&eb);
+    bigfloat_ball_init(&prod);
+    bigfloat_ball_init(&res);
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_set(&mb, &m, &zero, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bf_ball_log_small(&lnm, &mb, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_from_f64(&two, 2.0);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_set(&two_b, &two, &zero, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bf_ball_log_small(&ln2, &two_b, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        bigint_bin_ty ei;
+        bigint_bin_init(&ei);
+        bigint_err_ty ierr = bigint_bin_from_i64(&ei, e10);
+        if (ierr == BIGINT_OK_E) {
+            err = bigfloat_from_bigint(&emid, &ei, ctx);
+        } else {
+            err = (ierr == BIGINT_ERR_OOM_E) ? BIGFLOAT_ERR_OOM_E
+                                             : BIGFLOAT_ERR_INVALID_E;
+        }
+        bigint_bin_free(&ei);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = e_ulp(&eulp, &emid, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_set(&eb, &emid, &eulp, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_mul(&prod, &ln2, &eb, ctx);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_add(&res, &lnm, &prod, ctx);
+    }
+    /* 输入半径膨胀：rr = rad/mid，inflate = rr/(1−rr) */
+    if (err == BIGFLOAT_OK_E) {
+        bigfloat_ctx_ty up;
+        err = e_dir_ctx(&up, ctx, BIGFLOAT_ROUND_TOWARD_POS_E);
+        bigfloat_ty one;
+        bigfloat_ty rr;
+        bigfloat_ty den;
+        bigfloat_ty infl;
+        bigfloat_init(&one);
+        bigfloat_init(&rr);
+        bigfloat_init(&den);
+        bigfloat_init(&infl);
+        if (err == BIGFLOAT_OK_E) {
+            (void)bigfloat_from_f64(&one, 1.0);
+            err = bigfloat_div(&rr, &x->rad, &x->mid, &up);
+        }
+        if (err == BIGFLOAT_OK_E) {
+            err = bigfloat_sub(&den, &one, &rr, &up);
+        }
+        if (err == BIGFLOAT_OK_E && bigfloat_cmp(&den, &zero) > 0) {
+            err = bigfloat_div(&infl, &rr, &den, &up);
+            if (err == BIGFLOAT_OK_E) {
+                err = bigfloat_add(&res.rad, &res.rad, &infl, &up);
+            }
+        }
+        bigfloat_free(&infl);
+        bigfloat_free(&den);
+        bigfloat_free(&rr);
+        bigfloat_free(&one);
+    }
+    if (err == BIGFLOAT_OK_E) {
+        err = bigfloat_ball_copy(dst, &res);
+    }
+
+    bigfloat_ball_free(&res);
+    bigfloat_ball_free(&prod);
+    bigfloat_ball_free(&eb);
+    bigfloat_ball_free(&ln2);
+    bigfloat_ball_free(&two_b);
+    bigfloat_ball_free(&lnm);
+    bigfloat_ball_free(&mb);
+    bigfloat_free(&eulp);
+    bigfloat_free(&emid);
+    bigfloat_free(&two);
+    bigfloat_free(&m);
+    bigint_bin_free(&mant);
+    bigfloat_free(&lo);
     bigfloat_free(&zero);
     return err;
 }

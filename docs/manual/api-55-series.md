@@ -1,10 +1,11 @@
 # series —— 幂级数求值（精确系数 + 全局尾界）
 
 
-nex_series：幂级数求值的「精确系数 + 全局尾界」路线 A（设计文档 §15.6）。
+nex_series：幂级数求值的「严格尾界 + 扩展精度求值」路线 A（§15.6）。
 
-以精确有理解的截断级数在数值点求值：系数为 `bigfrac`（精确），仅截断与
-最终舍入引入误差。截断尾由尾界界定：
+在数值点求值时，部分和与阶估计均以 `p + 48 + log2 n` 工作精度递推（尾界
+用向上舍入，保证上界），最终一次舍入到目标 `ctx`；不再构造精确有理公共
+分母，高精度（≳256 bit）下快 1–2 个数量级。截断尾仍由尾界界定：
 - 几何型 `A·q^n/(1−q)`（q = B·r）：有界系数（如二项式 `α ≥ −1`）；
 - 比值型 `t_n/(1−q_n)`：阶乘型系数（exp / sin / cos）。
 求值返回结果，并可经可选 `err` 输出收到**该截断的严格上界**。
@@ -109,7 +110,7 @@ bigfloat_err_ty nex_series_exp_eval_float(bigfloat_ty *out, bigfloat_ty *err_out
 
 **返回**：成功返回 BIGFLOAT_OK_E；参数非法或 z 非有限返回 BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E（out 不变）
 
-**备注**：未做实参规约，建议 |z| ≲ 1；总误差 ≤ eps + 终值一次舍入
+**备注**：未做实参规约，建议 |z| ≲ 1；总误差 ≤ eps + 终值一次舍入 （工作精度保护位远高于目标 ulp）
 
 ### `nex_series_cos_eval_float`
 
@@ -187,7 +188,7 @@ bigfloat_err_ty nex_series_ln1p_eval_float(bigfloat_ty *out, bigfloat_ty *err_ou
 
 **返回**：成功返回 BIGFLOAT_OK_E；参数非法、z 非有限或 |z| ≥ 1 返回 BIGFLOAT_ERR_INVALID_E；内存不足返回 BIGFLOAT_ERR_OOM_E（out 不变）
 
-**备注**：未做实参规约，建议 |z| ≲ 1/2；总误差 ≤ eps + 终值一次舍入
+**备注**：未做实参规约，建议 |z| ≲ 1/2；总误差 ≤ eps + 终值一次舍入 （工作精度保护位远高于目标 ulp）
 
 ### `nex_series_ln1p_eval_decimal`
 

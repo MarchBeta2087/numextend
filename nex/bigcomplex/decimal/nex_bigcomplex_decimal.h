@@ -187,8 +187,8 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_mul(bigcomplex_decimal_ty *dst,
 
 /*
  * brief: 除法 dst = lhs / rhs
- * note: 共轭法 (a+bi)/(c+di) = (a+bi)(c−di)/(c²+d²)；中间量可能过早溢出/
- *       下溢，Smith 缩放算法列为后续方向（§9.2）
+ * note: 有限输入用 Smith 稳定缩放，避免 c²+d² 越过指数范围；任一分量为
+ *       ±∞ 时回退共轭法；各步按 ctx 正确舍入（§9.2）
  */
 bigcomplex_decimal_err_ty bigcomplex_decimal_div(bigcomplex_decimal_ty *dst,
         const bigcomplex_decimal_ty *lhs, const bigcomplex_decimal_ty *rhs,

@@ -500,6 +500,113 @@ cleanup:
     return map_bd_err(berr);
 }
 
+/* 幅值比较（Smith 选支用）：返回 |a| 与 |b| 的三路比较 */
+static int bd_abs_cmp(const bigdecimal_ty *a, const bigdecimal_ty *b)
+{
+    bigdecimal_ty aa;
+    bigdecimal_ty bb;
+    bigdecimal_init(&aa);
+    bigdecimal_init(&bb);
+    if (bigdecimal_copy(&aa, a) != BIGDECIMAL_OK_E
+            || bigdecimal_copy(&bb, b) != BIGDECIMAL_OK_E) {
+        bigdecimal_free(&bb);
+        bigdecimal_free(&aa);
+        return 0;
+    }
+    if (aa.flag == BIGDECIMAL_NEG_E) {
+        (void)bigdecimal_neg(&aa);
+    }
+    if (bb.flag == BIGDECIMAL_NEG_E) {
+        (void)bigdecimal_neg(&bb);
+    }
+    const int cmp = bigdecimal_cmp(&aa, &bb);
+    bigdecimal_free(&bb);
+    bigdecimal_free(&aa);
+    return cmp;
+}
+
+/* Smith 稳定除法（decimal 版；避免 c²+d² 超出指数范围） */
+static bigcomplex_decimal_err_ty div_smith(bigcomplex_decimal_ty *dst,
+        const bigcomplex_decimal_ty *lhs,
+        const bigcomplex_decimal_ty *rhs, const bigdecimal_ctx_ty *ctx)
+{
+    bigdecimal_ty r;
+    bigdecimal_ty t1;
+    bigdecimal_ty t2;
+    bigdecimal_ty den;
+    bigdecimal_ty re;
+    bigdecimal_ty im;
+    bigdecimal_init(&r);
+    bigdecimal_init(&t1);
+    bigdecimal_init(&t2);
+    bigdecimal_init(&den);
+    bigdecimal_init(&re);
+    bigdecimal_init(&im);
+    bigdecimal_err_ty berr = BIGDECIMAL_OK_E;
+    if (bd_abs_cmp(&rhs->re, &rhs->im) >= 0) {
+        berr = bigdecimal_div(&r, &rhs->im, &rhs->re, ctx);
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_mul(&t1, &rhs->im, &r, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_add(&den, &rhs->re, &t1, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_mul(&t1, &lhs->im, &r, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_add(&t1, &lhs->re, &t1, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_mul(&t2, &lhs->re, &r, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_sub(&t2, &lhs->im, &t2, ctx);
+        }
+    } else {
+        berr = bigdecimal_div(&r, &rhs->re, &rhs->im, ctx);
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_mul(&t1, &rhs->re, &r, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_add(&den, &rhs->im, &t1, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_mul(&t1, &lhs->re, &r, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_add(&t1, &t1, &lhs->im, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_mul(&t2, &lhs->im, &r, ctx);
+        }
+        if (berr == BIGDECIMAL_OK_E) {
+            berr = bigdecimal_sub(&t2, &t2, &lhs->re, ctx);
+        }
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_div(&re, &t1, &den, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        berr = bigdecimal_div(&im, &t2, &den, ctx);
+    }
+    if (berr == BIGDECIMAL_OK_E) {
+        bigdecimal_free(&dst->re);
+        bigdecimal_free(&dst->im);
+        dst->re = re;
+        dst->im = im;
+        bigdecimal_init(&re);
+        bigdecimal_init(&im);
+    }
+    bigdecimal_free(&im);
+    bigdecimal_free(&re);
+    bigdecimal_free(&den);
+    bigdecimal_free(&t2);
+    bigdecimal_free(&t1);
+    bigdecimal_free(&r);
+    return map_bd_err(berr);
+}
+
 bigcomplex_decimal_err_ty bigcomplex_decimal_div(bigcomplex_decimal_ty *dst,
         const bigcomplex_decimal_ty *lhs, const bigcomplex_decimal_ty *rhs,
         const bigdecimal_ctx_ty *ctx)
@@ -510,6 +617,11 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_div(bigcomplex_decimal_ty *dst,
     if (any_nan(lhs) || any_nan(rhs)) {
         set_nan_components(dst);
         return BIGCOMPLEX_DECIMAL_OK_E;
+    }
+    /* 有限输入走 Smith 稳定除法；含 ±∞ 时保留共轭法 */
+    if (!bigdecimal_is_inf(&lhs->re) && !bigdecimal_is_inf(&lhs->im)
+            && !bigdecimal_is_inf(&rhs->re) && !bigdecimal_is_inf(&rhs->im)) {
+        return div_smith(dst, lhs, rhs, ctx);
     }
     // 共轭法：(a+bi)/(c+di) = [(a+bi)(c−di)] / (c²+d²)
     //   re_num = ac + bd；im_num = bc − ad；den = c² + d²
