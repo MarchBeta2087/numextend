@@ -322,6 +322,9 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
       结果与解读见 `docs/bench-math.md`。v1.7 起 `throughput` 的 full 档
       新增 **32768 bit**（实测该段 31 → 109 s，约 +1.3 min；full 总耗时仍
       在 2 h 预算内），32768 bit 下 `log` 仍最慢（约 55.5 s/次）。
+      夜间趋势基线：`bench/baseline/` + `scripts/bench-math-compare.py`
+      （advisory ±20%，低噪声 <10 µs；`--fail-over` 预留门禁；更新流程
+      见 `bench/baseline/README.md`）。
 
 ---
 

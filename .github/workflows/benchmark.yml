@@ -23,6 +23,16 @@ jobs:
         run: |
           cmake --build build-bench --target bench_math --parallel
           ./build-bench/bench_math --preset ci --budget 300             --json bench-math-ci.json | tee bench-math-ci.txt
+      - name: Compare math benchmark to baseline (advisory)
+        run: |
+          python3 scripts/bench-math-compare.py \
+            --current bench-math-ci.json \
+            --baseline bench/baseline/bench-math-ci.json \
+            --out bench-math-compare.md
+          cat bench-math-compare.md >> "$GITHUB_STEP_SUMMARY"
+          if [ ! -f bench/baseline/bench-math-ci.json ]; then
+            echo "::notice::No committed baseline; download bench-math-ci.json from this run and commit it to bench/baseline/."
+          fi
       - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
@@ -31,3 +41,4 @@ jobs:
             docs/performance-ci.md
             bench-math-ci.txt
             bench-math-ci.json
+            bench-math-compare.md
