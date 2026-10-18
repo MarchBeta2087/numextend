@@ -1,0 +1,256 @@
+/*
+ * nex_parallel_ntt.c：contrib 层并行多模数 CRT NTT 乘法（TODO §F 实验）。
+ *
+ * 纯调用方实现：不修改核心；复用 nex_ntt 的公开 API 与 bigint_bin 类型。
+ * 与核心 mul_ntt 的编排一致（双模数、16-bit 分节、Garner CRT + base-2^16
+ * 进位）。并行粒度在 nex_parallel_ntt_par.c：每次 forward/inverse 内部按
+ * stage 的蝶形单元均分给线程池；两个模数与 a/b 的变换顺序执行，避免同一
+ * 池上的嵌套 run。
+ */
+
+#include "nex_parallel_ntt.h"
+#include "nex_parallel_ntt_par.h"
+#include "nex/ntt/nex_ntt.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+/* 与核心 NEX_MUL_NTT_MAX_SUM 一致：len(lhs)+len(rhs) ≤ 2^26 */
+#define PAR_NTT_MAX_SUM (1U << 26U)
+
+static void par_normalize(bigint_bin_ty *v)
+{
+    while ((v->len > 0U) && (v->limbs[v->len - 1U] == 0U)) {
+        v->len--;
+    }
+    if (v->len == 0U) {
+        v->sign = BIGINT_SIGN_ZERO_E;
+    }
+}
+
+static bigint_err_ty par_pick_mods(uint32_t log2n,
+        const ntt_mod_ty *mods[2])
+{
+    size_t found = 0U;
+    const size_t count = ntt_mod_count();
+    for (size_t i = 0U; i < count; i++) {
+        const ntt_mod_ty *mod = ntt_mod_get(i);
+        if (mod->c >= log2n) {
+            mods[found] = mod;
+            found++;
+            if (found == 2U) {
+                return BIGINT_OK_E;
+            }
+        }
+    }
+    return BIGINT_ERR_UNSUPPORTED_E;
+}
+
+/* 幅值拆 16-bit 节并零填充至长度 n（2 节/肢） */
+static void par_pack(uint32_t *out, size_t n, const bigint_bin_ty *v)
+{
+    memset(out, 0, n * sizeof(uint32_t));
+    for (size_t i = 0U; i < v->len; i++) {
+        const uint32_t limb = v->limbs[i];
+        out[2U * i] = limb & 0xFFFFU;
+        out[2U * i + 1U] = limb >> 16U;
+    }
+}
+
+/* 小变换长度（n < 131072）用“跨模数/跨 a,b 的 4 路核心 NTT”并行：
+ * 每次调用核心 ntt_forward 不占额外线程，避免 stage 级屏障开销。 */
+#define PAR_STAGE_MIN_N 262144U
+
+typedef struct {
+    uint32_t *buf;
+    uint32_t log2n;
+    const ntt_mod_ty *mod;
+    ntt_err_ty err;
+} core_fwd_job_ty;
+
+static void core_fwd_fn(void *ctx, size_t index)
+{
+    core_fwd_job_ty *j = &((core_fwd_job_ty *)ctx)[index];
+    j->err = ntt_forward(j->buf, j->log2n, j->mod);
+}
+
+typedef struct {
+    uint32_t *dst;
+    const uint32_t *lhs;
+    const uint32_t *rhs;
+    size_t len;
+    const ntt_mod_ty *mod;
+    ntt_err_ty err;
+} core_pw_job_ty;
+
+static void core_pw_fn(void *ctx, size_t index)
+{
+    core_pw_job_ty *j = &((core_pw_job_ty *)ctx)[index];
+    j->err = ntt_pointwise_mul(j->dst, j->lhs, j->rhs, j->len, j->mod);
+}
+
+typedef struct {
+    uint32_t *buf;
+    uint32_t log2n;
+    const ntt_mod_ty *mod;
+    ntt_err_ty err;
+} core_inv_job_ty;
+
+static void core_inv_fn(void *ctx, size_t index)
+{
+    core_inv_job_ty *j = &((core_inv_job_ty *)ctx)[index];
+    j->err = ntt_inverse(j->buf, j->log2n, j->mod);
+}
+
+bigint_err_ty nex_parallel_bin_mul_ntt(bigint_bin_ty *dst,
+        const bigint_bin_ty *lhs, const bigint_bin_ty *rhs,
+        nex_thread_pool_ty *pool)
+{
+    if ((dst == NULL) || (lhs == NULL) || (rhs == NULL)) {
+        return BIGINT_ERR_INVALID_E;
+    }
+    if ((lhs->len == 0U) || (rhs->len == 0U)) {
+        return bigint_bin_from_u64(dst, 0U);
+    }
+    const size_t s = lhs->len + rhs->len;
+    if (s > PAR_NTT_MAX_SUM) {
+        return BIGINT_ERR_UNSUPPORTED_E;
+    }
+    const size_t max_len = (lhs->len > rhs->len) ? lhs->len : rhs->len;
+    const size_t chunks_side = 2U * max_len;
+    const size_t need = (2U * s - 1U > chunks_side)
+            ? (2U * s - 1U) : chunks_side;
+    uint32_t log2n = 0U;
+    while ((log2n < 31U) && (((size_t)1U << log2n) < need)) {
+        log2n++;
+    }
+    const uint32_t n = 1U << log2n;
+
+    const ntt_mod_ty *mods[2];
+    if (par_pick_mods(log2n, mods) != BIGINT_OK_E) {
+        return BIGINT_ERR_UNSUPPORTED_E;
+    }
+
+    uint32_t *a0 = (uint32_t *)malloc((size_t)n * sizeof(uint32_t));
+    uint32_t *b0 = (uint32_t *)malloc((size_t)n * sizeof(uint32_t));
+    uint32_t *a1 = (uint32_t *)malloc((size_t)n * sizeof(uint32_t));
+    uint32_t *b1 = (uint32_t *)malloc((size_t)n * sizeof(uint32_t));
+    if ((a0 == NULL) || (b0 == NULL) || (a1 == NULL) || (b1 == NULL)) {
+        free(a1);
+        free(b1);
+        free(a0);
+        free(b0);
+        return BIGINT_ERR_OOM_E;
+    }
+
+    bigint_bin_ty out;
+    bigint_err_ty err = bigint_bin_init_cap(&out, s);
+    if (err != BIGINT_OK_E) {
+        free(a1);
+        free(b1);
+        free(a0);
+        free(b0);
+        return err;
+    }
+
+    /* 两个模数共享同一组 16-bit 节；变换会就地改写，故各持一份 */
+    par_pack(a0, n, lhs);
+    par_pack(b0, n, rhs);
+    memcpy(a1, a0, (size_t)n * sizeof(uint32_t));
+    memcpy(b1, b0, (size_t)n * sizeof(uint32_t));
+
+    if (n < PAR_STAGE_MIN_N) {
+        /* 4 路：forward(a0/b0/a1/b1) → 点乘 → 逆变换 */
+        core_fwd_job_ty fj[4] = {
+            { a0, log2n, mods[0], NTT_OK_E },
+            { b0, log2n, mods[0], NTT_OK_E },
+            { a1, log2n, mods[1], NTT_OK_E },
+            { b1, log2n, mods[1], NTT_OK_E }
+        };
+        nex_thread_pool_run(pool, 4U, core_fwd_fn, fj);
+        for (size_t i = 0U; i < 4U; i++) {
+            if (fj[i].err != NTT_OK_E) {
+                err = BIGINT_ERR_INVALID_E;
+                goto cleanup;
+            }
+        }
+        core_pw_job_ty pj[2] = {
+            { a0, a0, b0, n, mods[0], NTT_OK_E },
+            { a1, a1, b1, n, mods[1], NTT_OK_E }
+        };
+        nex_thread_pool_run(pool, 2U, core_pw_fn, pj);
+        for (size_t i = 0U; i < 2U; i++) {
+            if (pj[i].err != NTT_OK_E) {
+                err = BIGINT_ERR_INVALID_E;
+                goto cleanup;
+            }
+        }
+        core_inv_job_ty ij[2] = {
+            { a0, log2n, mods[0], NTT_OK_E },
+            { a1, log2n, mods[1], NTT_OK_E }
+        };
+        nex_thread_pool_run(pool, 2U, core_inv_fn, ij);
+        for (size_t i = 0U; i < 2U; i++) {
+            if (ij[i].err != NTT_OK_E) {
+                err = BIGINT_ERR_INVALID_E;
+                goto cleanup;
+            }
+        }
+    } else {
+        /* 大变换：每次 forward/inverse 内部按 stage 并行（顺序执行各变换） */
+        nex_par_ntt_forward(a0, log2n, mods[0], pool);
+        nex_par_ntt_forward(b0, log2n, mods[0], pool);
+        nex_par_ntt_forward(a1, log2n, mods[1], pool);
+        nex_par_ntt_forward(b1, log2n, mods[1], pool);
+        nex_par_ntt_pointwise(a0, a0, b0, n, mods[0], pool);
+        nex_par_ntt_pointwise(a1, a1, b1, n, mods[1], pool);
+        nex_par_ntt_inverse(a0, log2n, mods[0], pool);
+        nex_par_ntt_inverse(a1, log2n, mods[1], pool);
+    }
+
+    /* Garner CRT + base-2^16 进位（串行；与核心 mul_ntt 相同） */
+    {
+        const uint32_t p2 = mods[1]->p;
+        const uint32_t p1_inv = ntt_mod_inv(
+                (uint32_t)((uint64_t)mods[0]->p % p2), mods[1]);
+        uint64_t carry = 0U;
+        for (size_t k = 0U; k < 2U * s; k++) {
+            uint64_t coeff;
+            if (k + 1U < 2U * s) {
+                const uint32_t r1 = a0[k];
+                const uint32_t r2 = a1[k];
+                const uint32_t r1_mod = (uint32_t)((uint64_t)r1 % p2);
+                const uint32_t diff = (r2 >= r1_mod)
+                        ? (r2 - r1_mod) : (r2 + p2 - r1_mod);
+                const uint32_t t2 = ntt_mod_mul(diff, p1_inv, mods[1]);
+                coeff = (uint64_t)r1 + (uint64_t)mods[0]->p * t2;
+            } else {
+                coeff = 0U;
+            }
+            const uint64_t acc = coeff + carry;
+            const uint32_t digit = (uint32_t)(acc & 0xFFFFU);
+            carry = acc >> 16U;
+            if ((k & 1U) == 0U) {
+                out.limbs[k >> 1U] = digit;
+            } else {
+                out.limbs[k >> 1U] |= digit << 16U;
+            }
+        }
+        out.len = s;
+        par_normalize(&out);
+        if (out.len > 0U) {
+            const bool neg = (lhs->sign == BIGINT_SIGN_NEG_E)
+                    != (rhs->sign == BIGINT_SIGN_NEG_E);
+            out.sign = neg ? BIGINT_SIGN_NEG_E : BIGINT_SIGN_POS_E;
+        }
+        bigint_bin_move(dst, &out);
+    }
+
+cleanup:
+    bigint_bin_free(&out);
+    free(a1);
+    free(b1);
+    free(a0);
+    free(b0);
+    return err;
+}
