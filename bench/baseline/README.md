@@ -3,8 +3,9 @@
 本目录存放 nightly `bench_math --preset ci` 的趋势基线：
 
 - 文件名：`bench-math-ci.json`（JSON Lines，与 workflow artifact 同名）；
-- 生成环境：GitHub Actions `ubuntu-latest` 上的
+- 生成环境：GitHub Actions **`ubuntu-24.04`（固定）** 上的
   `.github/workflows/benchmark.yml`（默认分支，当前为 `main`）；
+  `ubuntu-latest` 正在向 Ubuntu 26 迁移，固定镜像避免基线漂移；
 - **不要用本地/其他机器的结果充当基线**——绝对耗时不可跨环境比较。
 
 ## 更新流程
@@ -37,4 +38,6 @@ python3 scripts/bench-math-compare.py \
   --out bench-math-compare.md
 ```
 
-首次没有基线时，脚本会提示把当前运行结果作为候选基线。
+当前基线：2026-10-19 的 `workflow_dispatch`（run `39184434034`，dev），
+耗时 71.9 s、172 条记录；runner 为 4 核 AMD EPYC 7763 / GCC 13.3.0 /
+Ubuntu 24.04。
