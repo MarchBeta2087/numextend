@@ -186,8 +186,6 @@ if(NEX_ENABLE_SSA)
         add_subdirectory(contrib/nex_ssa)
     endif()
 endif()
-    endif()
-endif()
 
 # 数学库：Linux/macOS 需显式 -lm（库内 floor/sqrt 等；Windows/mingw 的 libm 在 libc 内）
 if(NOT WIN32)
