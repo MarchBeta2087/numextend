@@ -43,7 +43,7 @@
  * 取 512 留余量（-O2） */
 #define NEX_MUL_TOOM_CUTOFF 512U
 /* 长度和上限：保证 log2n ≤ 27（内置模数最大 c）；系数上界亦自动满足（见 mul_ntt） */
-#define NEX_MUL_NTT_MAX_SUM (1U << 26U)
+#define NEX_MUL_NTT_MAX_SUM (1U << 27U)
 
 /* ------------------------------------------------------------------ */
 /* 内部辅助：容量与规范化（算法文件自包含，不依赖 bin.c 的 static 函数）      */

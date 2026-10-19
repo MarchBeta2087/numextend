@@ -162,6 +162,18 @@ if(NEX_ENABLE_THREAD)
     endif()
 endif()
 
+# contrib 大数分块 NTT 实验（P1，issue #98）：默认 OFF。
+option(NEX_ENABLE_BIGNUM "构建 contrib/nex_bigint_block 分块 NTT 实验" OFF)
+if(NEX_ENABLE_BIGNUM)
+    if(NOT NEX_MODULES STREQUAL "all")
+        message(STATUS "NEX_ENABLE_BIGNUM: 仅完整构建支持，已忽略")
+    elseif(NEX_AMALGAM)
+        message(STATUS "NEX_ENABLE_BIGNUM: amalgam 构建不支持 contrib，已忽略")
+    else()
+        add_subdirectory(contrib/nex_bigint_block)
+    endif()
+endif()
+
 # 数学库：Linux/macOS 需显式 -lm（库内 floor/sqrt 等；Windows/mingw 的 libm 在 libc 内）
 if(NOT WIN32)
     target_link_libraries(nex PUBLIC m)
