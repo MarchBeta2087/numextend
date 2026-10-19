@@ -69,7 +69,8 @@ sh scripts/coverage.sh                # 不低于 CI 门槛 80%（约 89%，见 
   `main`）运行 `bench_math --preset ci`，产物为 `performance-report`
   artifact（含 `bench-math-ci.json`）。
 - 基线文件：`bench/baseline/bench-math-ci.json`，必须来自同一 runner
-  （`ubuntu-latest`）；**不要**用本地/其他机器的结果。
+  （固定 `ubuntu-24.04`，避免 `ubuntu-latest` 迁移漂移）；**不要**用
+  本地/其他机器的结果。
 - 对比：`scripts/bench-math-compare.py` 默认 **advisory**（退出 0）：
   ±20% 阈值，绝对值 < 10 µs 的项视为低噪声；报告写入 Step Summary
   并随 artifact 上传。连续 3 次同方向超阈值再排查。

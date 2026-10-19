@@ -37,7 +37,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `bench_math --preset ci` 与同 runner 基线比较，输出 Markdown 报告到
   Step Summary / artifact；默认 **advisory**（±20%，<10 µs 低噪声），
   连续 3 次同方向异常再排查；`--fail-over` 预留后续门禁。基线更新
-  流程见 `bench/baseline/README.md`，维护手册 §3.1 同步。
+  流程见 `bench/baseline/README.md`，维护手册 §3.1 同步。首个基线已从
+  2026-10-19 的 dev `workflow_dispatch`（run `39184434034`，71.9 s，
+  172 条）播种；benchmark workflow 固定 `ubuntu-24.04` 以防
+  `ubuntu-latest` 迁移导致基线漂移。
 
 ### 性能
 
