@@ -2,7 +2,7 @@
 
 > **活文档**：v1.0.0 – v1.4.0 已发布，本文件记录 **v1.4 之后的规划**。只收录已评估、
 > 可执行的方向；未决/否定的候选集中列在文末。优先级见 §0。
-> 最后更新：2026-10-18（v1.6.0 已发布：Payne–Hanek、路线 A 加速、Smith、bench_math）
+> 最后更新：2026-10-20（v1.8.0 进行中：超大位宽乘法 §K 已立项跟踪）
 
 ---
 
@@ -17,8 +17,13 @@
 | **P3.5** | 超大实参三角（Payne–Hanek） | v1.6 ✅ | §16.2 唯一遗留正确性缺口；已落地 |
 | **P4** | 无穷列表（重新设计后决策） | 探索 | C99 无生成器，惰性抽象与本库句柄式 API 不契合 |
 | **X** | 跨平台多线程封装 | 隔离评估 | §14 明确「内部多线程」为非目标；建议独立模块/仓库 |
+| **Y** | 超大位宽乘法（SSA / out-of-core） | 10⁹–10¹⁰ 位 | issue [#98](https://github.com/MarchBeta2087/numextend/issues/98) / [#102](https://github.com/MarchBeta2087/numextend/issues/102) / [#104](https://github.com/MarchBeta2087/numextend/issues/104)；实验均在 `contrib/`，不进核心 AUTO |
 
 依赖关系：`P0 → P1`（子集/合并需先固定公开面与兼容性）；`P2 → P3`（超越函数复用求值与级数工具）。
+
+> **命名注意**：本文件的 `P0–P4` 是**库自身路线图**编号（标准兼容 / 子集 / Padé /
+> 超越函数 / 无穷列表）。issue #98 另有一套 `P0–P4`（P0 可行性、P1 大数乘法、
+> P2 Lean 4 形式化、P3 OpenCL、P4 提升），两者**同名不同义**；后者统一记在 §K。
 
 ---
 
@@ -260,12 +265,16 @@
 Montgomery 模幂（v0.16）· Newton 整数除法（v0.16）· NTT 三模数（v0.9）·
 十进制 FFT 每肢 4 节 × 256 方案（v0.7）。
 
-**非目标（除非 §F 明确独立化）：**
+**非目标（除非 §F / §K 明确独立化）：**
 
 SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发布 ·
 次正规浮点（§7.3）· 公开惰性无穷列表抽象（§E）· `NEX_MINIMAL` 预设
 （依赖环使“最小”不成立）· 单头 STB `NEX_IMPLEMENTATION` 风格
 （二文件 amalgam 已覆盖；如有需求再做）。
+
+> GPU/OpenCL 的例外：issue #98 P3 只允许作为**独立可选目标**
+> `contrib/nex_opencl` 存在（默认 OFF，不进 `libnex` / `nex_modules.txt` /
+> 子集闭包 / amalgam，不开核心规范特例，见 §K）；核心仍无 SIMD/GPU 代码。
 
 ---
 
@@ -328,6 +337,52 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
       （advisory ±20%，低噪声 <10 µs；`--fail-over` 预留门禁；更新流程
       见 `bench/baseline/README.md`）。首个基线已从 dev dispatch
       `39184434034` 播种（Ubuntu 24.04 / 4 核 EPYC / GCC 13.3.0）。
+
+---
+
+## K. Y 超大位宽乘法（SSA / out-of-core，issue #98–#104）
+
+目标：在单机上推到 10⁹–10¹⁰ 位十进制乘法。**当前全部是 `contrib/` 实验**，
+默认 OFF，不进入核心 `bigint_bin` 的 AUTO 分派、amalgam 与子集闭包。
+跟踪以 Issue 为准（[#98](https://github.com/MarchBeta2087/numextend/issues/98)
+父项、[#102](https://github.com/MarchBeta2087/numextend/issues/102) SSA、
+[#104](https://github.com/MarchBeta2087/numextend/issues/104) out-of-core）。
+
+### K1 已完成（v1.8.0 进行中）
+
+- [x] **Y1 P0 可行性与基准**（#98 / PR #99）：`scripts/bigint-feasibility.py`、
+      `bench/bench_huge.c`；10⁶/10⁷/10⁸ 位直接 NTT = 0.29/7.5/195.8 s、
+      Peak RSS 12.6/75.5/930 MB；原上限 `sum(limbs) ≤ 2^26`、`log2n ≤ 27`
+      （约 3.2×10⁸ 位）。
+- [x] **Y2 P1a 分块 NTT**（#98 / PR #100）：`nex/ntt` 内置模数扩展 c=28/30，
+      直接上限 `sum(limbs) ≤ 2^27`、`log2n ≤ 28`；`contrib/nex_bigint_block`
+      三分块（三个半积），10⁹ 位 **2403 s（40.1 min）/ 6.24 GB**。
+- [x] **Y3 P1b 递归多级分块**（PR #101）：单块 `max_len ≤ 2^26` 递归折半；
+      2×10⁹ 位 × 小乘数通过；10¹⁰ 位结构可行（~4 层、81 个基础积），
+      但 34 GB 机器在合并阶段 OOM（模型 ~64 GB）。
+- [x] **Y4 P1b-SSA M1 原型**（#102 / PR #103）：`contrib/nex_ssa`，
+      1e6–1e8 位跑通；1e8 位 **1142–1318 s / 1.66 GB**，≤3×10⁶ 肢与 NTT
+      逐位对拍通过。结论：10¹⁰ 位双环峰值仍 ~100 GB（标准模型 111.5 GB）。
+
+### K2 未开始
+
+- [ ] **Y5 SSA M2 递归环变换**（#102）：1e8–1e9 位，峰值 RSS 目标 <16 GB，
+      时间不劣于分块 NTT 的 2403 s。
+- [ ] **Y6 SSA M3 10¹⁰ 位**（#102）：34 GB 目标；若不够则记录实际门槛或转 Y7。
+- [ ] **Y7 OOC M1**（#104）：`contrib/nex_ooc` 骨架（块切分、临时文件/mmap、
+      块对调度、进位），2–4 GB 内存限制下跑 1e9 位并与内存算法逐位对拍。
+- [ ] **Y8 OOC M2**（#104）：10¹⁰ 位完整乘法，峰值 RSS <34 GB，结果用模若干
+      随机素数校验 `a·b mod p` + 肢数检查；记录时间与磁盘读写量。
+- [ ] **Y9 OOC M3（可选）**（#104）：块级 FFT/Karatsuba 减少块对、并行块对
+      （可复用 `contrib/nex_thread`）、进位前缀并行。
+- [ ] **Y10 待决策**（#98）：硬件门槛（≥128–256 GB 单机 vs out-of-core）、
+      Lean 4 验证边界与工具链、OpenCL 最低版本/设备范围、GPU CI、时间盒。
+
+### K3 门槛与约束
+
+- 10¹²（万亿）位不在本路线承诺内（单操作数 ~415 GB，属 out-of-core/分布式研究）。
+- 任何时候不改变「零依赖 / C99 / 单文件组合 / 库内不加锁」契约。
+- 只有满足 ≥2× 且逐位一致、可复现、CI 可维护，才讨论进入正式支持面（#98 P4）。
 
 ---
 

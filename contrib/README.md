@@ -1,6 +1,27 @@
-# contrib：线程池与并行 NTT 实验
+# contrib：实验目录索引
 
-本目录是 **TODO §F 的隔离实验**：跨平台线程池 + 两个消费方，用于回答
+本目录收录**默认不构建**的隔离实验。所有实验都**不进入**核心 `libnex`、
+`nex_modules.txt`、子集闭包与 amalgam，也**不为它们开核心规范特例**
+（design §14）。各自用显式 CMake 选项启用。
+
+## 索引
+
+| 目录 | 内容 | 跟踪 | 开关 | 状态 |
+|---|---|---|---|---|
+| `nex_thread` | 跨平台最小线程池（pthread / Win32 `CONDITION_VARIABLE`） | TODO §F | `-DNEX_ENABLE_THREAD=ON` | 可用，未接 CI/TSan |
+| `nex_parallel` | 线程池的两个消费方：并行 NTT 乘法（A）与批量 `a*b+c`（B） | TODO §F | 同上 | 可用，收益已量化 |
+| `nex_bigint_block` | 分块 NTT 乘法：三分块（P1a）→ 递归多级分块（P1b），突破直接 NTT 上限 | issue #98 | `-DNEX_ENABLE_BIGNUM=ON` | 1e9 位 2403 s / 6.24 GB；2e9 位递归验证；1e10 位 OOM |
+| `nex_ssa` | Schönhage–Strassen 原型（`2^L+1` / `2^(L/2)+1` 双环 + CRT） | issue #102 | `-DNEX_ENABLE_BIGNUM=ON` | M1 完成：1e6–1e8 位，1e8 位 1142–1318 s / 1.66 GB |
+| `nex_ooc`（待建） | out-of-core 分块乘法，目标 1e10 位 / 34 GB | issue #104 | `-DNEX_ENABLE_BIGNUM=ON` | 未开始（M1 骨架） |
+
+各目录另有自己的 `README.md`（算法、参数模型、实测表）。规划状态见
+`TODO.md` §K，里程碑与验收标准以 Issue 为准。
+
+---
+
+# 线程池与并行 NTT 实验（`nex_thread` / `nex_parallel`）
+
+本部分是 **TODO §F 的隔离实验**：跨平台线程池 + 两个消费方，用于回答
 “线程是否值得进入产品”。它**不进入**核心 `libnex`、`nex_modules.txt`、
 子集闭包或 amalgam；默认不构建。
 
