@@ -8,17 +8,16 @@ extern "C" {
 #endif
 
 /*
- * nex_bigint_block：contrib 层分块/二分 NTT 乘法（P1，issue #98）。
+ * nex_bigint_block：contrib 层递归分块 NTT 乘法（P1b，issue #98）。
  *
- * 把输入按肢数折半：
+ * 递归折半直到单块 max_len ≤ 2^26（直接 NTT 的 s ≤ 2^27）：
  *   a = a0 + a1·B^L, b = b0 + b1·B^L
  *   a·b = c0 + (sa·sb − c0 − c2)·B^L + c2·B^(2L)
- * 其中 c0=a0·b0、c2=a1·b1、sa=a0+a1、sb=b0+b1；三个子积均走核心
- * 多模数 CRT NTT。用于突破单次 NTT 的 2^27 肢和上限：半积 s≈len/2，
- * 使 10^9 位（约 1.04e8 肢）可在 2^27 上限内完成。
+ * 其中 c0=a0·b0、c2=a1·b1、sa=a0+a1、sb=b0+b1；三个子积递归。
+ * 10^9 位约一层；10^10 位约四层（81 个基础积）。
  *
- * 限制：半积 s = 2·ceil(max_len/2) 必须 ≤ NEX_MUL_NTT_MAX_SUM（2^27）；
- * 更大规模（10^10 位）需要多级分块/SSA，不在本实验范围。
+ * 限制：10^10 位的分块/SSA 内存模型约 64–114 GB；34 GB 机器会在
+ * 递归合并阶段 OOM（本实验实测）。更大规模需要 ≥256 GB 或 out-of-core。
  */
 bigint_err_ty nex_block_bin_mul(bigint_bin_ty *dst,
         const bigint_bin_ty *lhs, const bigint_bin_ty *rhs);

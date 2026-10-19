@@ -37,6 +37,38 @@ static void make_operand(bigint_bin_ty *v, size_t limbs)
     v->sign = BIGINT_SIGN_POS_E;
 }
 
+/* 大数 × 小乘数：直接 schoolbook O(n) 可作独立参考，用于验证深递归 */
+static void check_large_small(double digits, uint64_t mul)
+{
+    const size_t limbs = (size_t)ceil(digits * log2(10.0) / 32.0);
+    bigint_bin_ty a;
+    bigint_bin_ty b;
+    bigint_bin_ty direct;
+    bigint_bin_ty block;
+    (void)bigint_bin_init(&a);
+    (void)bigint_bin_init(&b);
+    (void)bigint_bin_init(&direct);
+    (void)bigint_bin_init(&block);
+    make_operand(&a, limbs);
+    CHECK(bigint_bin_from_u64(&b, mul) == BIGINT_OK_E);
+
+    CHECK(bigint_bin_mul(&direct, &a, &b) == BIGINT_OK_E);
+    CHECK(nex_block_bin_mul(&block, &a, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp(&direct, &block) == 0);
+
+    a.sign = BIGINT_SIGN_NEG_E;
+    CHECK(bigint_bin_mul(&direct, &a, &b) == BIGINT_OK_E);
+    CHECK(nex_block_bin_mul(&block, &a, &b) == BIGINT_OK_E);
+    CHECK(bigint_bin_cmp(&direct, &block) == 0);
+
+    printf("digits≈%.6g limbs=%zu × %llu: %s\n", digits, limbs,
+            (unsigned long long)mul, (g_fail == 0) ? "ok" : "FAIL");
+    bigint_bin_free(&block);
+    bigint_bin_free(&direct);
+    bigint_bin_free(&b);
+    bigint_bin_free(&a);
+}
+
 static void check_size(double digits)
 {
     const size_t limbs = (size_t)ceil(digits * log2(10.0) / 32.0);
@@ -48,6 +80,14 @@ static void check_size(double digits)
     (void)bigint_bin_init(&b);
     (void)bigint_bin_init(&direct);
     (void)bigint_bin_init(&block);
+    if (limbs > (size_t)1U << 26U) {
+        bigint_bin_free(&block);
+        bigint_bin_free(&direct);
+        bigint_bin_free(&b);
+        bigint_bin_free(&a);
+        check_large_small(digits, 123456789ULL);
+        return;
+    }
     make_operand(&a, limbs);
     make_operand(&b, limbs);
 
