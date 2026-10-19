@@ -129,6 +129,45 @@ static void crt_job_fn(void *ctx, size_t index)
     }
 }
 
+/* 分块进位：4 个 base-2^16 系数为一个块，块内用 (hi,lo) 128 位归约，
+ * 块间前缀串行；块归约本身并行。 */
+typedef struct {
+    const uint64_t *coeff;
+    uint64_t *low;
+    uint64_t *high;
+    size_t b0;
+    size_t b1;
+} blk_job_ty;
+
+static void blk_reduce(const uint64_t *coeff, size_t b, uint64_t *low,
+        uint64_t *high)
+{
+    uint64_t hi = 0U;
+    uint64_t lo = 0U;
+    for (int j = 3; j >= 0; j--) {
+        /* (hi,lo) *= 2^16 */
+        hi = (hi << 16U) | (lo >> 48U);
+        lo <<= 16U;
+        /* += coeff[4b+j]（< 2^60，低字相加最多进位 1） */
+        const uint64_t c = coeff[4U * b + (size_t)j];
+        const uint64_t old = lo;
+        lo = old + c;
+        if (lo < old) {
+            hi++;
+        }
+    }
+    *low = lo;
+    *high = hi;
+}
+
+static void blk_job_fn(void *ctx, size_t index)
+{
+    const blk_job_ty *j = &((const blk_job_ty *)ctx)[index];
+    for (size_t b = j->b0; b < j->b1; b++) {
+        blk_reduce(j->coeff, b, &j->low[b], &j->high[b]);
+    }
+}
+
 bigint_err_ty nex_parallel_bin_mul_ntt(bigint_bin_ty *dst,
         const bigint_bin_ty *lhs, const bigint_bin_ty *rhs,
         nex_thread_pool_ty *pool)
@@ -244,10 +283,13 @@ bigint_err_ty nex_parallel_bin_mul_ntt(bigint_bin_ty *dst,
         nex_par_ntt_inverse_multi(inv, 2U, log2n, pool);
     }
 
-    /* Garner CRT：系数重构按 k 并行，进位串行（O(n) 小头） */
+    /* Garner CRT：系数重构按 k 并行；进位按 4 系数一块并行归约 +
+     * 块间前缀串行（串行迭代数降为 K/4）。 */
     {
-        const size_t ncoeff = 2U * s - 1U;
-        uint64_t *coeff = (uint64_t *)calloc(2U * s, sizeof(uint64_t));
+        const size_t kcoeff = 2U * s;
+        const size_t crt_len = (kcoeff + 3U) & ~(size_t)3U;
+        const size_t ncoeff = kcoeff - 1U;
+        uint64_t *coeff = (uint64_t *)calloc(crt_len, sizeof(uint64_t));
         if (coeff == NULL) {
             err = BIGINT_ERR_OOM_E;
             goto cleanup;
@@ -278,17 +320,54 @@ bigint_err_ty nex_parallel_bin_mul_ntt(bigint_bin_ty *dst,
         }
         nex_thread_pool_run(pool, nt, crt_job_fn, jobs);
 
+        const size_t nblocks = crt_len / 4U;
+        uint64_t *lh = (uint64_t *)malloc(2U * nblocks * sizeof(uint64_t));
+        if (lh == NULL) {
+            free(coeff);
+            err = BIGINT_ERR_OOM_E;
+            goto cleanup;
+        }
+        uint64_t *low = lh;
+        uint64_t *high = lh + nblocks;
+        nt = (pool != NULL) ? nex_thread_pool_count(pool) : 1U;
+        if (nt == 0U) {
+            nt = 1U;
+        }
+        if (nt > 64U) {
+            nt = 64U;
+        }
+        if ((size_t)nt > nblocks) {
+            nt = (unsigned)nblocks;
+        }
+        blk_job_ty bj[64];
+        for (unsigned t = 0U; t < nt; t++) {
+            bj[t].coeff = coeff;
+            bj[t].low = low;
+            bj[t].high = high;
+            bj[t].b0 = nblocks * (size_t)t / (size_t)nt;
+            bj[t].b1 = nblocks * (size_t)(t + 1U) / (size_t)nt;
+        }
+        nex_thread_pool_run(pool, nt, blk_job_fn, bj);
+
         uint64_t carry = 0U;
-        for (size_t k = 0U; k < 2U * s; k++) {
-            const uint64_t acc = coeff[k] + carry;
-            const uint32_t digit = (uint32_t)(acc & 0xFFFFU);
-            carry = acc >> 16U;
-            if ((k & 1U) == 0U) {
-                out.limbs[k >> 1U] = digit;
-            } else {
-                out.limbs[k >> 1U] |= digit << 16U;
+        for (size_t b = 0U; b < nblocks; b++) {
+            const uint64_t sum = low[b] + carry;
+            const uint64_t cbit = (sum < low[b]) ? 1U : 0U;
+            carry = high[b] + cbit;
+            for (unsigned j = 0U; j < 4U; j++) {
+                const size_t k = 4U * b + j;
+                if (k < kcoeff) {
+                    const uint32_t digit = (uint32_t)((sum >> (16U * j))
+                            & 0xFFFFU);
+                    if ((k & 1U) == 0U) {
+                        out.limbs[k >> 1U] = digit;
+                    } else {
+                        out.limbs[k >> 1U] |= digit << 16U;
+                    }
+                }
             }
         }
+        free(lh);
         free(coeff);
         out.len = s;
         par_normalize(&out);
