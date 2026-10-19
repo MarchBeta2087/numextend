@@ -2,13 +2,18 @@
  * nex_ooc_bench：out-of-core 分块乘法基准（P1b-OOC M1/M2，issue #104）。
  *
  * 用法：
- *   nex_ooc_bench <digits> [block_bits] [--small <k>] [--scratch DIR] [--keep]
+ *   nex_ooc_bench <digits> [block_bits] [--small <k>] [--verify-direct]
+ *                 [--verify-mod] [--scratch DIR] [--keep]
  *
- *   digits      操作数 a 的十进制位数（支持 1e9 / 1e10 写法）
- *   block_bits  块长 = 2^block_bits 肢；0 表示默认（2^23）
- *   --small k   令 b = k（单肢），并按 schoolbook 逐块校验结果（M1 验收）
- *   --scratch   临时文件目录
- *   --keep      保留临时文件
+ *   digits          操作数 a 的十进制位数（支持 1e9 / 1e10 写法）
+ *   block_bits      块长 = 2^block_bits 肢；0 表示默认（2^23）
+ *   --small k       令 b = k（单肢），按分块 schoolbook 逐块校验结果
+ *   --verify-direct 内存内完整乘一遍再逐块比对（需容纳完整乘积；
+ *                   受直接 NTT 上限 s ≤ 2^27 限制，1e9 位不可用）
+ *   --verify-mod    流式对 5 个素数检查 (a mod p)(b mod p) ≡ (a·b) mod p
+ *                   （内存 O(chunk)，任意规模可用；M2 的校验手段）
+ *   --scratch       临时文件目录
+ *   --keep          保留临时文件
  *
  * 输出：块数、块对数、耗时、峰值 RSS、磁盘读/写量、结果肢数。
  * 操作数直接流式写盘，不在内存中持有完整操作数。
@@ -431,6 +436,92 @@ out:
     return bad;
 }
 
+/* 流式 a mod p：r = (r·2^32 + limb) mod p */
+static int file_mod_u32(const char *path, uint32_t p, uint32_t *out)
+{
+    FILE *fp = fopen(path, "rb");
+    uint32_t *buf = NULL;
+    const uint64_t base = (uint64_t)0x100000000ULL % (uint64_t)p;
+    uint64_t acc = 0U;
+    uint64_t pw = 1U;
+    const int swap = !host_is_little_endian();
+    int bad = 0;
+
+    if (fp == NULL) {
+        return -1;
+    }
+    buf = (uint32_t *)malloc(GEN_CHUNK_LIMBS * sizeof(uint32_t));
+    if (buf == NULL) {
+        (void)fclose(fp);
+        return -1;
+    }
+    for (;;) {
+        const size_t n = fread(buf, sizeof(uint32_t), GEN_CHUNK_LIMBS, fp);
+        size_t i;
+        if (n == 0U) {
+            break;
+        }
+        if (swap) {
+            bswap32_inplace(buf, n);
+        }
+        for (i = 0U; i < n; i++) {
+            /* acc = Σ limb_i·B^i mod p（文件为小端肢序，必须按幂累加） */
+            acc = (acc + ((uint64_t)buf[i] % (uint64_t)p) * pw)
+                    % (uint64_t)p;
+            pw = (pw * base) % (uint64_t)p;
+        }
+        if (n < (size_t)GEN_CHUNK_LIMBS) {
+            break;
+        }
+    }
+    if (ferror(fp) != 0) {
+        bad = 1;
+    }
+    free(buf);
+    buf = NULL;
+    (void)fclose(fp);
+    *out = (uint32_t)acc;
+    return bad;
+}
+
+/* 独立校验：对若干素数检查 (a mod p)·(b mod p) ≡ (a·b) mod p */
+static int verify_mod(const char *a_path, const char *b_path,
+        const char *res_path)
+{
+    static const uint32_t primes[] = {
+        2147483647U, 2147483629U, 2147483587U, 1000000007U, 998244353U
+    };
+    size_t k;
+    int bad = 0;
+
+    for (k = 0U; k < (sizeof(primes) / sizeof(primes[0])); k++) {
+        const uint32_t p = primes[k];
+        uint32_t ra = 0U;
+        uint32_t rb = 0U;
+        uint32_t rr = 0U;
+        uint32_t want;
+        if ((file_mod_u32(a_path, p, &ra) != 0)
+                || (file_mod_u32(b_path, p, &rb) != 0)
+                || (file_mod_u32(res_path, p, &rr) != 0)) {
+            printf("  mod check: i/o error\n");
+            return -1;
+        }
+        want = (uint32_t)(((uint64_t)ra * (uint64_t)rb) % (uint64_t)p);
+        if (want != rr) {
+            printf("  mod check FAILED at p=%u: (%u*%u)%%p=%u, result%%p=%u\n",
+                    (unsigned)p, (unsigned)ra, (unsigned)rb,
+                    (unsigned)want, (unsigned)rr);
+            bad = 1;
+            break;
+        }
+    }
+    if (bad == 0) {
+        printf("  mod checks passed: %zu primes\n",
+                sizeof(primes) / sizeof(primes[0]));
+    }
+    return bad;
+}
+
 int main(int argc, char **argv)
 {
     double digits;
@@ -439,6 +530,7 @@ int main(int argc, char **argv)
     uint32_t small = 0U;
     int use_small = 0;
     int use_direct = 0;
+    int use_mod = 0;
     int keep = 0;
     const char *scratch = NULL;
     char a_path[PATH_BUF];
@@ -454,7 +546,7 @@ int main(int argc, char **argv)
 
     if (argc < 2) {
         fprintf(stderr, "usage: %s <digits> [block_bits] [--small k] "
-                "[--verify-direct] [--scratch DIR] [--keep]\n", argv[0]);
+                "[--verify-direct] [--verify-mod] [--scratch DIR] [--keep]\n", argv[0]);
         return 2;
     }
     digits = strtod(argv[1], NULL);
@@ -480,6 +572,8 @@ int main(int argc, char **argv)
             keep = 1;
         } else if (strcmp(argv[i], "--verify-direct") == 0) {
             use_direct = 1;
+        } else if (strcmp(argv[i], "--verify-mod") == 0) {
+            use_mod = 1;
         } else {
             const int bits = (int)strtol(argv[i], NULL, 10);
             if ((bits < 0) || (bits > 26)) {
@@ -599,6 +693,21 @@ int main(int argc, char **argv)
                 stats.result_limbs);
         printf("verify a×b (in-memory AUTO/NTT): %s  %.1f s\n",
                 (bad == 0) ? "bit-identical" : "MISMATCH", now_sec() - tv0);
+        if (bad != 0) {
+            if (!keep) {
+                (void)remove(r_path);
+                (void)remove(b_path);
+                (void)remove(a_path);
+            }
+            return 1;
+        }
+    }
+
+    if (use_mod != 0) {
+        const double tv0 = now_sec();
+        const int bad = verify_mod(a_path, b_path, r_path);
+        printf("verify a·b mod p (5 primes, streaming): %s  %.1f s\n",
+                (bad == 0) ? "passed" : "MISMATCH", now_sec() - tv0);
         if (bad != 0) {
             if (!keep) {
                 (void)remove(r_path);
