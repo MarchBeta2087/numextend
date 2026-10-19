@@ -7,6 +7,17 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [Unreleased]
+
+### 基准
+
+- **P0 大整数可行性工具（issue #98）**：新增
+  `scripts/bigint-feasibility.py`（十进制位 → bit/肢/变换长度/内存/相对
+  工作量）与 `bench/bench_huge.c`（强制多模数 CRT NTT，报告耗时与 Peak
+  RSS）。实测 10⁶/10⁷/10⁸ 位：0.29 s / 7.5 s / 195.8 s，峰值 RSS
+  12.6 / 75.5 / 930 MB；CRT 代理约 0.15%。当前 NTT 上限约 3.2×10⁸
+  位（`sum(limbs) ≤ 2^26`、`log2n ≤ 27`），10⁹ 位需更大模数或 SSA。
+
 ## [1.7.0] - 2026-10-19
 
 ### 新增
