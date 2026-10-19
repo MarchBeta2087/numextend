@@ -5,7 +5,7 @@
  *
  * 以约 <digits> 位十进制（limbs = ceil(digits·log2(10)/32)）的随机操作数，
  * 强制走核心多模数 CRT NTT，输出单次耗时、Peak RSS、结果肢数。
- * 当前核心 NTT 上限为 sum(limbs) ≤ 2^26、log2n ≤ 27；超出会返回
+ * 当前核心直接 NTT 上限为 sum(limbs) ≤ 2^27、log2n ≤ 28；超出会返回
  * UNSUPPORTED，请先用 scripts/bigint-feasibility.py 估算。
  *
  * 峰值内存：POSIX 用 getrusage(RU_MAXRSS)，Windows 用
@@ -108,8 +108,8 @@ int main(int argc, char **argv)
 
     const double bits = digits * log2(10.0);
     const size_t limbs = (size_t)ceil(bits / 32.0);
-    if ((limbs == 0U) || (limbs > (size_t)1U << 25U)) {
-        fprintf(stderr, "limbs=%zu 超出当前 NTT 上限（等长约 2^25 肢）\n",
+    if ((limbs == 0U) || (limbs > (size_t)1U << 26U)) {
+        fprintf(stderr, "limbs=%zu 超出当前直接 NTT 上限（等长约 2^26 肢）\n",
                 limbs);
         return 2;
     }

@@ -21,7 +21,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* 内置模数表：设计文档 §4.3，c 覆盖 21..27，全部经 ntt_mod_validate 校验 */
+/* 内置模数表：设计文档 §4.3，c 覆盖 21..30，全部经 ntt_mod_validate 校验 */
 static const ntt_mod_ty ntt_builtin_mods[] = {
     { 1004535809U, 479U, 21U, 702606812U },
     { 985661441U, 235U, 22U, 79986183U },
@@ -34,6 +34,8 @@ static const ntt_mod_ty ntt_builtin_mods[] = {
     { 1811939329U, 27U, 26U, 72705542U },
     { 2013265921U, 15U, 27U, 440564289U },
     { 2281701377U, 17U, 27U, 129140163U },
+    { 3489660929U, 13U, 28U, 1594323U },
+    { 3221225473U, 3U, 30U, 125U },
 };
 
 #define NTT_BUILTIN_MOD_COUNT \
