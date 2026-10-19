@@ -224,7 +224,7 @@ bigcomplex_float_err_ty bigcomplex_float_mul(bigcomplex_float_ty *dst, const big
 
 **说明**：乘法 dst = lhs × rhs
 
-**备注**：(a+bi)(c+di) = (ac−bd) + (bc+ad)i；v1 朴素四乘二加 （Karatsuba 三乘式列为后续，§9.2）
+**备注**：(a+bi)(c+di) = (ac−bd) + (bc+ad)i；默认朴素四乘二加； 可选 Karatsuba 三乘式（`NEX_COMPLEX_KARATSUBA`，默认关闭，§9.2）
 
 ### `bigcomplex_float_div`
 

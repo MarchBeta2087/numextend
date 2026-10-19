@@ -390,7 +390,7 @@ typedef struct {
 - 规范化：最高有效肢 `limbs[len-1] != 0`；零的唯一表示为 `len == 0` 且
   `sign == BIGINT_SIGN_ZERO_E`（此时 `limbs` 可为 NULL 或保留容量）；
 - 选择 32 位肢而非 64 位肢：肢乘积累加放入 `uint64_t` 即可，无需 `__int128`
-  等非 C99 扩展（规范 §1.1）。64 位肢列为后续性能方向（§13）。
+  等非 C99 扩展（规范 §1.1）。64 位肢已作为后续方向落地（§13 #3）。
 
 ### 4.2 对外 API
 
@@ -828,8 +828,9 @@ const bigint_bin_ty *bigfrac_den(const bigfrac_ty *frac);
 
 ### 6.3 内部算法
 
-- **自动约分**：每次算术输出前执行 gcd 约分，保证不变式；gcd 使用二进制 GCD
-  （仅需移位与减法，避免昂贵的十进制基除法），Lehmer 加速列为后续；
+- **自动约分**：每次算术输出前执行 gcd 约分，保证不变式；gcd 使用
+  Lehmer 矩阵约减 + 二进制 GCD 收尾（v0.14；仅需移位与减法，避免昂贵的
+  十进制基除法）；
 - **交叉约分**：乘法 `a/b × c/d` 先约 `gcd(a, d)` 与 `gcd(c, b)` 再相乘，
   除法同理，显著抑制中间结果的肢数膨胀；
 - **加减法**：`a/b ± c/d = (a·d ± c·b) / (b·d)`，先约 `g = gcd(b, d)`，
@@ -1320,7 +1321,7 @@ CI 每日基准见 `.github/workflows/benchmark.yml`（产物为 artifact，仅�
 |------|------|--------------|
 | 超越函数 exp/log/sin/cos | 已实现 | `atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos`、复数超越与 `arg` 已全部落地（float + decimal，§16）；超大 `|x|` 的 Payne–Hanek 已落地（§16.2） |
 | 次正规（subnormal）浮点 | 非目标 | 需放松“最高位恒 1”不变式，影响面大（§7.3） |
-| SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3）；跨平台线程封装列为**独立可选目标**（`contrib/nex_thread`，不进核心/amalgam，TODO §F）。v1.7 实验（`contrib/README.md`）：单次 16k–64k 肢 NTT 乘法 16 线程 2.5–2.8×；批量独立 `bigfloat` 运算 6.5–7.7×；保持隔离，不开核心特例 |
+| SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3）；跨平台线程封装列为**独立可选目标**（`contrib/nex_thread`，不进核心/amalgam，TODO §F）。v1.7 实验（`contrib/README.md`）：单次 16k/32k/64k/131k 肢 NTT 乘法 16 线程 2.50/3.11/3.58/4.92×（4M bit 达 4.9×）；批量独立 `bigfloat` 运算 6.5–7.7×；保持隔离，不开核心特例 |
 | 函数级子集 | 非目标（1.x 暂缓） | 成本高、收益低；替代见 §2.4 / §13 #11 |
 | 自定义分配器钩子 | 后续 | 现为内部统一分配器 `nex_alloc`（§13 #6） |
 | 十进制侧亚二次除法 | 已实现 | `bigint_dec` 大输入走 Burnikel-Ziegler（除数 ≥ 64 肢分派）；基 10⁹ 以 Knuth-D 归一化因子 + 肢移位规约（§13 #1） |
