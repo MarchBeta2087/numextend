@@ -12,7 +12,12 @@
  * GetProcessMemoryInfo(PeakWorkingSetSize)。每个进程只应测一个规模。
  */
 
-#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#if defined(__APPLE__)
+/* macOS：ru_maxrss 是 BSD 扩展，_POSIX_C_SOURCE 会把它藏起来 */
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE 1
+#endif
+#elif !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 #include "nex/bigint/bin/nex_bigint_bin.h"
