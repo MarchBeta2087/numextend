@@ -162,8 +162,8 @@ if(NEX_ENABLE_THREAD)
     endif()
 endif()
 
-# contrib 大数分块 NTT 实验（P1，issue #98）：默认 OFF。
-option(NEX_ENABLE_BIGNUM "构建 contrib/nex_bigint_block 分块 NTT 实验" OFF)
+# contrib 大数分块 NTT / out-of-core 实验（P1，issue #98 / #104）：默认 OFF。
+option(NEX_ENABLE_BIGNUM "构建 contrib/nex_bigint_block 与 contrib/nex_ooc 实验" OFF)
 if(NEX_ENABLE_BIGNUM)
     if(NOT NEX_MODULES STREQUAL "all")
         message(STATUS "NEX_ENABLE_BIGNUM: 仅完整构建支持，已忽略")
@@ -171,6 +171,7 @@ if(NEX_ENABLE_BIGNUM)
         message(STATUS "NEX_ENABLE_BIGNUM: amalgam 构建不支持 contrib，已忽略")
     else()
         add_subdirectory(contrib/nex_bigint_block)
+        add_subdirectory(contrib/nex_ooc)
     endif()
 endif()
 
