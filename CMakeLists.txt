@@ -130,6 +130,14 @@ if(NEX_MODULES STREQUAL "all")
     add_executable(bench_math bench/bench_math.c)
     target_link_libraries(bench_math PRIVATE nex)
     target_include_directories(bench_math PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    # 大整数 P0 可行性基准（issue #98）
+    add_executable(bench_huge bench/bench_huge.c)
+    target_link_libraries(bench_huge PRIVATE nex)
+    target_include_directories(bench_huge PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(WIN32)
+        target_link_libraries(bench_huge PRIVATE psapi)
+    endif()
 elseif("bigint_bin" IN_LIST NEX_RESOLVED_MODULES)
     # 子集构建：最小冒烟测试（仅依赖 bigint_bin 闭包）。
     add_executable(subset_smoke tests/subset_smoke.c)
