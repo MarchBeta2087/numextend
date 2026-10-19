@@ -98,7 +98,7 @@ static double time_par(const bigint_bin_ty *a, const bigint_bin_ty *b,
 
 int main(void)
 {
-    static const size_t sizes[] = { 16384U, 32768U, 65536U };
+    static const size_t sizes[] = { 16384U, 32768U, 65536U, 131072U };
     static const unsigned thread_counts[] = { 1U, 2U, 4U, 8U, 16U };
 
     printf("parallel NTT multiplication benchmark\n");
@@ -116,7 +116,7 @@ int main(void)
         make_rand(&a, n);
         make_rand(&b, n);
 
-        const int reps = (n <= 16384U) ? 3 : ((n <= 32768U) ? 2 : 1);
+        const int reps = (n <= 16384U) ? 3 : ((n <= 65536U) ? 2 : 1);
         const double core_ms = time_core(&a, &b, reps);
         (void)bigint_bin_mul(&ref, &a, &b);
 
