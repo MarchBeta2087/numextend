@@ -2856,8 +2856,9 @@ im</p>
 <h3 id="bigcomplex_float_mul"><code>bigcomplex_float_mul</code></h3>
 <div class="sourceCode" id="cb230"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb230-1"><a href="#cb230-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_mul<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：乘法 dst = lhs × rhs</p>
-<p><strong>备注</strong>：(a+bi)(c+di) = (ac−bd) + (bc+ad)i；v1
-朴素四乘二加 （Karatsuba 三乘式列为后续，§9.2）</p>
+<p><strong>备注</strong>：(a+bi)(c+di) = (ac−bd) +
+(bc+ad)i；默认朴素四乘二加； 可选 Karatsuba
+三乘式（<code>NEX_COMPLEX_KARATSUBA</code>，默认关闭，§9.2）</p>
 <h3 id="bigcomplex_float_div"><code>bigcomplex_float_div</code></h3>
 <div class="sourceCode" id="cb231"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb231-1"><a href="#cb231-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_float_err_ty bigcomplex_float_div<span class="op">(</span>bigcomplex_float_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_float_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigfloat_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：除法 dst = lhs / rhs</p>
@@ -3000,7 +3001,8 @@ im（十进制版）</p>
 <p><strong>说明</strong>：减法 dst = lhs − rhs（分量减法）</p>
 <h3 id="bigcomplex_decimal_mul"><code>bigcomplex_decimal_mul</code></h3>
 <div class="sourceCode" id="cb252"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb252-1"><a href="#cb252-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_mul<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
-<p><strong>说明</strong>：乘法 dst = lhs × rhs（分量四乘二加，§9.2）</p>
+<p><strong>说明</strong>：乘法 dst = lhs × rhs（默认四乘二加；可选
+Karatsuba 三乘，§9.2）</p>
 <h3 id="bigcomplex_decimal_div"><code>bigcomplex_decimal_div</code></h3>
 <div class="sourceCode" id="cb253"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb253-1"><a href="#cb253-1" aria-hidden="true" tabindex="-1"></a>bigcomplex_decimal_err_ty bigcomplex_decimal_div<span class="op">(</span>bigcomplex_decimal_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigcomplex_decimal_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> bigdecimal_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
 <p><strong>说明</strong>：除法 dst = lhs / rhs</p>

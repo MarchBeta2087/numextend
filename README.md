@@ -149,7 +149,7 @@ sh scripts/bench-math.sh ci all 300        # CI 缩减档
 夜间趋势收集。完整结果见 [`docs/bench-math.md`](docs/bench-math.md)。
 
 本机 full 档实测（WSL2 / Ubuntu 24.04 / GCC 13.3.0 / i5-13500H，-O2；
-预算 7200 s，实际 5791.8 s ≈ 96.5 min）：
+预算 7200 s；v1.7 加入 32768 bit 吞吐档后约 98 min，此前为 96.5 min）：
 
 | 运算 | 精度 | 耗时 |
 |------|------|------|
