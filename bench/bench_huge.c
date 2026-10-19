@@ -12,6 +12,9 @@
  * GetProcessMemoryInfo(PeakWorkingSetSize)。每个进程只应测一个规模。
  */
 
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "nex/bigint/bin/nex_bigint_bin.h"
 
 #include <math.h>
@@ -38,9 +41,6 @@ static size_t peak_rss_bytes(void)
     return 0U;
 }
 #else
-#if !defined(_POSIX_C_SOURCE)
-#define _POSIX_C_SOURCE 200809L
-#endif
 #include <sys/resource.h>
 #include <time.h>
 static double now_ms(void)
