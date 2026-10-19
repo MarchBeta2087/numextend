@@ -7,6 +7,104 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [1.7.0] - 2026-10-19
+
+### 新增
+
+- **`bigint_bin64` 原生除法、字符串 I/O 与互转（issue #82，v1.7）**：
+  - `bigint_bin64_div_rem` 改为原生 64 位肢 Knuth Algorithm D，不再对所有
+    输入经 32 位肢 bin 转换。128/64 试商在 GCC/Clang 用 `__int128`，
+    其他编译器（含 MSVC）走以 2^32 为基的专用 4 字 ÷ 2 字 Knuth D
+    （`nex_u128_divmod`，可用 `NEX_BIN64_FORCE_PORTABLE` 强制）。
+  - 超大输入（除数 ≥ 1024 肢且被除数 ≥ 2×除数）自动回退 32 位肢 bin 的
+    Burnikel-Ziegler，避免 O(n²) 在大位宽下反超。
+  - 实测（-O2，MinGW x86-64，被除数 2n / 除数 n 肢）：n = 16/64/256/512
+    时较原转换包装快 **2.15× / 2.28× / 2.06× / 1.65×**；n ≥ 1024 回退 BZ。
+  - 新增 `bigint_bin64_from_str` / `bigint_bin64_to_str`（进制 2..36，
+    可选 `-` 符号，16/2 进制前缀；2 的幂进制按位切片 O(n)，其余按
+    uint64 分块；语义与 `bigint_bin` 一致）。
+  - 新增 `bigint_conv_bin64_to_bin` / `bigint_conv_bin_to_bin64` /
+    `bigint_conv_bin64_to_dec` / `bigint_conv_dec_to_bin64`
+    （bin64 ↔ dec 经 bin 中转，复用分治基数转换）。
+  - 测试：除法与 bin 交叉验证、对抗模式（全 1 除数、2 的幂、精确倍数、
+    超过 BZ 阈值的大输入）、字符串全进制往返与错误语义、互转往返；
+    ASan 与 `NEX_BIN64_FORCE_PORTABLE` 两套构建均通过。
+
+### 基准
+
+- **夜间趋势基线与对比策略（J10 剩余项）**：新增
+  `scripts/bench-math-compare.py` 与 `bench/baseline/`。nightly
+  `bench_math --preset ci` 与同 runner 基线比较，输出 Markdown 报告到
+  Step Summary / artifact；默认 **advisory**（±20%，<10 µs 低噪声），
+  连续 3 次同方向异常再排查；`--fail-over` 预留后续门禁。基线更新
+  流程见 `bench/baseline/README.md`，维护手册 §3.1 同步。首个基线已从
+  2026-10-19 的 dev `workflow_dispatch`（run `39184434034`，71.9 s，
+  172 条）播种；benchmark workflow 固定 `ubuntu-24.04` 以防
+  `ubuntu-latest` 迁移导致基线漂移。
+
+### 性能
+
+- **`bench_math` full 吞吐量新增 32768 bit 档（issue #82）**：评估加入
+  该档后的预算占用——`throughput` 段 31 → 109 s（约 +1.3 min），full
+  总耗时约 96.5 → 98 min，仍低于 7200 s 预算；32768 bit 下 `log` 约
+  55.5 s/次，仍是最慢项。`docs/bench-math.md` 注明该报告为加入前快照。
+- **`bigfloat_to_str` 最短往返输出加速（issue #82，Ryū 式目标）**：
+  往返性质对有效位数 n 单调（n 位成功 ⇒ n+1 位必成功），改为先试
+  上界再**单调二分**最小 n，每次候选仍经 `nex_bf_dec_round` 生成、
+  按同一 ctx 解析回并 `bigfloat_cmp` 精确比较（保持原正确性契约）。
+  代价由 O(n) 次“除法 + 解析”降为 O(log n) 次：8192 bit
+  **1180 → 11.8 ms（100×）**，4096 bit 197 → 3.7 ms，1024 bit
+  9.1 → 0.46 ms。黄金/单元测试全部通过；未引入 64/128 位定点表
+  （其前提是固定精度）。
+- **放宽 Burnikel-Ziegler 分派（issue #82）**：原条件为“被除数 ≥ 2×除数”
+  （商肢数 m ≥ 除数肢数 n），导致 m ∈ [n/32, n) 的商仍走 O(m·n) 的
+  Knuth D，而 BZ 的 O(M(n)) 已可摊薄。新条件（除数 ≥ 64 肢）：
+  `m ≥ 96 且 m ≥ n/32`。Release 交错实测（4096 肢除数）：
+  m=n/4 时 5.6→1.9 ms，m=n/2 时 11.3→3.0 ms；m ≥ n 原已走 BZ。
+  `m < 96` 仍走 Knuth D，避免小商时 BZ 的常数开销。阈值可由
+  `NEX_DIV_BZ_MIN_QUOT` / `NEX_DIV_BZ_QUOT_DIV` 覆盖用于对照。
+  测试新增 m≈n/4 的 BZ 分派区间用例。
+
+### 评估与决策
+
+- **contrib 线程池与并行 NTT（TODO §F 消费者实验，默认不构建）**：
+  新增 `-DNEX_ENABLE_THREAD=ON` 实验目标：最小线程池（pthread / Win32
+  `CONDITION_VARIABLE`）+ 并行双模数 CRT NTT 乘法 + 批量
+  `a[i]*b[i]+c[i]` 示例。结果与串行逐位一致。16 硬件线程实测：
+  - 单次 NTT 乘法（16k/32k/64k 肢）：**2.5× / 2.45× / 2.8×**；
+  - 批量运算（256 bit×100k / 1024 bit×30k / 4096 bit×8k）：
+    **6.55× / 7.02× / 7.73×**。
+  结论：保持 `contrib/` 隔离（不进核心/amalgam/子集），**不开核心规范
+  特例**；单次乘法收益有限，批量场景才是线程池主场。TSan/CI 尚未接入。
+  后续优化：扁平任务图（每 stage 一次 barrier，4 个缓冲区一起调度）+
+  并行 Garner 系数重构 + 分块进位（4 系数/块，128-bit 块归约），单次
+  16k/32k/64k/131k 肢提升到 **2.50× / 3.11× / 3.58× / 4.92×**
+  （此前 2.53/2.37/2.80×；4M bit 达 4.9×）。详见 `contrib/README.md`。
+
+- **Newton 迭代除法（issue #82）**：将 `NEX_DIV_NEWTON_PATH` 的旧实现
+  （每轮在全精度上迭代）重写为**精度倍增倒数**（p → 2p，总代价
+  O(M(P))）+ 商修正，并修正便携 128/64 试商。实测（-O2）：
+  - 商 1 肢（4096 肢除数）：Newton 0.039 ms，Knuth D 0.012 ms
+    ——Knuth 为 O(m·n)，商小时已是线性；
+  - 商 ≈ 2n：Newton 31.6 ms，BZ 5.7 ms；
+  - `bigfloat_div` 262144 bit：Newton 19.3 ms，默认路径 16.7 ms。
+  各规模均不占优，**默认关闭**（保留 `NEX_DIV_NEWTON_PATH` 供后续
+  实验；启用后全部 42 项测试与除法不变量 fuzz 通过）。
+- **半 GCD（issue #82）**：新增矩阵递归原型（`NEX_GCD_HGCD_PATH`）：
+  高位半段递归 + 矩阵应用 + 一次精确除法 + 二次递归，基例阈值
+  512 bit，高位矩阵无效时回退精确欧几里得。单元测试与三组黄金对拍
+  （含 3000 位十进制随机 gcd）均通过，但 bigint 矩阵的分配与乘法
+  常数过大：64 肢 0.97 ms vs Lehmer 0.066 ms（约 15×慢），8192 肢
+  2.15 s vs 0.29 s（约 7×慢）。**默认关闭**，保留供低层（无分配）
+  矩阵实现时复用；Lehmer 仍是默认路径。
+- **复数 Karatsuba 三乘式（issue #82）**：float/decimal 复数乘法新增
+  三乘路径（`k1=(a+b)(c+d)`、`k2=ac`、`k3=bd`），仅用于有限非零
+  分量；零/±∞ 仍走四乘以保持特殊值语义。正确性由黄金对拍（三乘参考）
+  与单元测试验证。性能中性：4096 bit 10.86→10.50 µs（~3%），
+  16384/32768 bit 反而慢 1–2%——多出的 3 次加法/分配抵消了省下的一次
+  乘法。**默认关闭**（`NEX_COMPLEX_KARATSUBA`）；启用后舍入路径与四乘
+  不同（可差 ~1 ulp），黄金参考需同步。
+
 ## [1.6.0] - 2026-10-18
 
 ### 新增
@@ -275,6 +373,7 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
+[1.7.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.7.0
 [1.6.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.6.0
 [1.5.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.5.0
 [1.4.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.4.0

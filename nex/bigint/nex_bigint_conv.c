@@ -426,3 +426,103 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst,
     bigint_bin_move(dst, &tmp);
     return BIGINT_OK_E;
 }
+
+/* ------------------------------------------------------------------ */
+/* bigint_bin64 互转                                                    */
+/* ------------------------------------------------------------------ */
+
+bigint_err_ty bigint_conv_bin64_to_bin(bigint_bin_ty *dst,
+        const bigint_bin64_ty *src)
+{
+    if ((dst == NULL) || (src == NULL)) {
+        return BIGINT_ERR_INVALID_E;
+    }
+    if (src->len > SIZE_MAX / 2U) {
+        return BIGINT_ERR_OOM_E;
+    }
+
+    bigint_bin_ty tmp;
+    (void)bigint_bin_init(&tmp);
+    if (src->len > 0U) {
+        const size_t limbs32 = src->len * 2U;
+        const bigint_err_ty err = bigint_bin_init_cap(&tmp, limbs32);
+        if (err != BIGINT_OK_E) {
+            return err;
+        }
+        for (size_t i = 0U; i < src->len; i++) {
+            tmp.limbs[2U * i] = (uint32_t)src->limbs[i];
+            tmp.limbs[2U * i + 1U] = (uint32_t)(src->limbs[i] >> 32U);
+        }
+        tmp.len = limbs32;
+        while ((tmp.len > 0U) && (tmp.limbs[tmp.len - 1U] == 0U)) {
+            tmp.len--;
+        }
+    }
+    tmp.sign = (tmp.len > 0U) ? src->sign : BIGINT_SIGN_ZERO_E;
+    bigint_bin_move(dst, &tmp);
+    return BIGINT_OK_E;
+}
+
+bigint_err_ty bigint_conv_bin_to_bin64(bigint_bin64_ty *dst,
+        const bigint_bin_ty *src)
+{
+    if ((dst == NULL) || (src == NULL)) {
+        return BIGINT_ERR_INVALID_E;
+    }
+    const size_t limbs64 = (src->len + 1U) / 2U;
+
+    bigint_bin64_ty tmp;
+    (void)bigint_bin64_init(&tmp);
+    if (limbs64 > 0U) {
+        const bigint_err_ty err = bigint_bin64_init_cap(&tmp, limbs64);
+        if (err != BIGINT_OK_E) {
+            return err;
+        }
+        for (size_t i = 0U; i < limbs64; i++) {
+            const uint64_t lo = (2U * i < src->len)
+                    ? (uint64_t)src->limbs[2U * i] : 0U;
+            const uint64_t hi = (2U * i + 1U < src->len)
+                    ? (uint64_t)src->limbs[2U * i + 1U] : 0U;
+            tmp.limbs[i] = lo | (hi << 32U);
+        }
+        tmp.len = limbs64;
+        while ((tmp.len > 0U) && (tmp.limbs[tmp.len - 1U] == 0U)) {
+            tmp.len--;
+        }
+    }
+    tmp.sign = (tmp.len > 0U) ? src->sign : BIGINT_SIGN_ZERO_E;
+    bigint_bin64_move(dst, &tmp);
+    return BIGINT_OK_E;
+}
+
+bigint_err_ty bigint_conv_bin64_to_dec(bigint_dec_ty *dst,
+        const bigint_bin64_ty *src)
+{
+    if ((dst == NULL) || (src == NULL)) {
+        return BIGINT_ERR_INVALID_E;
+    }
+    bigint_bin_ty mid;
+    (void)bigint_bin_init(&mid);
+    bigint_err_ty err = bigint_conv_bin64_to_bin(&mid, src);
+    if (err == BIGINT_OK_E) {
+        err = bigint_conv_bin_to_dec(dst, &mid);
+    }
+    bigint_bin_free(&mid);
+    return err;
+}
+
+bigint_err_ty bigint_conv_dec_to_bin64(bigint_bin64_ty *dst,
+        const bigint_dec_ty *src)
+{
+    if ((dst == NULL) || (src == NULL)) {
+        return BIGINT_ERR_INVALID_E;
+    }
+    bigint_bin_ty mid;
+    (void)bigint_bin_init(&mid);
+    bigint_err_ty err = bigint_conv_dec_to_bin(&mid, src);
+    if (err == BIGINT_OK_E) {
+        err = bigint_conv_bin_to_bin64(dst, &mid);
+    }
+    bigint_bin_free(&mid);
+    return err;
+}

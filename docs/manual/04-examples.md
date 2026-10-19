@@ -82,7 +82,7 @@ bigcomplex_float_ty e;
 bigcomplex_float_exp(&e, &z, &ctx);           /* exp(z) */
 ```
 
-`bigdecimal` 与 `bigcomplex_decimal` 接口对称；三角/反三角支持 `|x| ≲ 2⁶³`。
+`bigdecimal` 与 `bigcomplex_decimal` 接口对称；`sin`/`cos`/`tan` 对超大 `|x|` 经 Payne–Hanek 规约（§16.2），反三角定义域见头文件。
 
 ## 4.7 跨类型转换
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(numextend VERSION 1.6.0 LANGUAGES C)
+project(numextend VERSION 1.7.0 LANGUAGES C)
 
 # 默认构建类型：未显式指定且非多配置生成器时取 RelWithDebInfo（-O2 -g）。
 # 否则 CMake 会以空 CMAKE_BUILD_TYPE 生成 -O0 构建：既严重拖慢性能，
@@ -135,6 +135,23 @@ elseif("bigint_bin" IN_LIST NEX_RESOLVED_MODULES)
     add_executable(subset_smoke tests/subset_smoke.c)
     target_link_libraries(subset_smoke PRIVATE nex)
     target_include_directories(subset_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
+# contrib 线程池与并行 NTT 实验（TODO §F）：默认 OFF，不进核心/amalgam/子集。
+option(NEX_ENABLE_THREAD "构建 contrib/nex_thread 与并行 NTT 实验" OFF)
+if(NEX_ENABLE_THREAD)
+    if(NOT NEX_MODULES STREQUAL "all")
+        message(STATUS "NEX_ENABLE_THREAD: 仅完整构建支持，已忽略")
+    elseif(NEX_AMALGAM)
+        message(STATUS "NEX_ENABLE_THREAD: amalgam 构建不支持 contrib，已忽略")
+    else()
+        find_package(Threads REQUIRED)
+        add_subdirectory(contrib/nex_thread)
+        add_subdirectory(contrib/nex_parallel)
+
+        add_executable(parallel_vector examples/parallel_vector/parallel_vector.c)
+        target_link_libraries(parallel_vector PRIVATE nex nex_thread)
+    endif()
 endif()
 
 # 数学库：Linux/macOS 需显式 -lm（库内 floor/sqrt 等；Windows/mingw 的 libm 在 libc 内）

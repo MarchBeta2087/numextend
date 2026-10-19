@@ -214,12 +214,18 @@
     启用）；这样不触动 `scripts/modules.py` 的「`nex/**` 全部登记」校验。
   - 若坚持置于 `nex/`：需扩展 modules.py/cmake 支持「optional 模块类」并从
     默认构建、子集与 amalgam 排除（否则 `modules.py check` 会失败）。
-- [ ] **F2 若实现**：`pthread` + Win32 双后端（不依赖 C11 `<threads.h>`：
-  MSVC 支持不全、MinGW 视 winpthreads）；调用方驱动（parallel-for / 任务队列）
-  + 确定性归约原语（固定分块、固定合并顺序）。
+- [x] **F2 实验实现**：`contrib/nex_thread` 最小线程池（pthread + Win32
+  `CONDITION_VARIABLE`，不依赖 C11 `<threads.h>`）；调用方驱动 `run` +
+  唯一 index，固定分块由调用方给出；无全局状态/无内部锁。
 - [ ] **F3 CI**：独立 job + TSan（与 ASan job 分开；MSVC 无 TSan），不并入
-  现有平台矩阵的默认构建。
-- [ ] **F4 确定性**：并行归约须可复现；收益先量化（NTT 仅 ≥ 16384 肢启用）。
+  现有平台矩阵的默认构建。（尚未接入）
+- [x] **F4 确定性与收益量化**：两个消费方均与串行结果逐位一致；单次
+  16384/32768/65536/131072 肢 NTT 乘法 16 线程 **2.50× / 3.11× / 3.58× /
+  4.92×**（扁平任务图 + 并行 Garner + 分块进位；4M bit 达 4.9×）；
+  批量 `a*b+c`（256–4096 bit，8k–100k 元素）6.5–7.7×。详见
+  `contrib/README.md`。
+  结论：保持 contrib 隔离，不开核心特例；单次乘法收益有限，批量场景
+  才是线程池主场。
 
 ---
 
@@ -315,7 +321,13 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
       分段可选（`--sections`），预设 full/quick/ci（默认预算 7200/600/300 s）；
       `--json` 输出 JSON Lines。CI 每日运行 `--preset ci --budget 300` 并上传
       artifact。全量本地预算 2 小时；本机实测 5791.8 s（约 96.5 min），
-      结果与解读见 `docs/bench-math.md`。
+      结果与解读见 `docs/bench-math.md`。v1.7 起 `throughput` 的 full 档
+      新增 **32768 bit**（实测该段 31 → 109 s，约 +1.3 min；full 总耗时仍
+      在 2 h 预算内），32768 bit 下 `log` 仍最慢（约 55.5 s/次）。
+      夜间趋势基线：`bench/baseline/` + `scripts/bench-math-compare.py`
+      （advisory ±20%，低噪声 <10 µs；`--fail-over` 预留门禁；更新流程
+      见 `bench/baseline/README.md`）。首个基线已从 dev dispatch
+      `39184434034` 播种（Ubuntu 24.04 / 4 核 EPYC / GCC 13.3.0）。
 
 ---
 

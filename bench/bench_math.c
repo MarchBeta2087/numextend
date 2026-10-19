@@ -196,7 +196,7 @@ static const unsigned *dec_precs(size_t *count) {
 static const size_t g_full_limbs[] = {32U, 128U, 512U, 2048U, 8192U};
 static const size_t g_quick_limbs[] = {32U, 128U, 512U};
 static const size_t g_ci_limbs[] = {32U, 128U};
-static const unsigned g_full_bits[] = {256U, 1024U, 4096U, 16384U};
+static const unsigned g_full_bits[] = {256U, 1024U, 4096U, 16384U, 32768U};
 static const unsigned g_quick_bits[] = {256U, 1024U};
 static const unsigned g_ci_bits[] = {256U, 1024U};
 static const unsigned g_full_digits[] = {50U, 200U, 1000U};

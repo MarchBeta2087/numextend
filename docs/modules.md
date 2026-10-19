@@ -137,26 +137,18 @@
   - `bigint_dec_to_str`
   - `bigint_dec_to_u64`
 
-### `bigint_conv`
-
-- 直接依赖：`bigint_common`, `bigint_bin`, `bigint_dec`, `nex_alloc`
-- 源文件：`nex/bigint/nex_bigint_conv.c`
-- 公开头：`nex/bigint/nex_bigint_conv.h`
-- 公开函数（2）：
-  - `bigint_conv_bin_to_dec`
-  - `bigint_conv_dec_to_bin`
-
 ### `bigint_bin64`
 
 - 直接依赖：`bigint_common`, `bigint_bin`, `nex_alloc`
-- 源文件：`nex/bigint/bin64/nex_bigint_bin64.c`
+- 源文件：`nex/bigint/bin64/nex_bigint_bin64.c`, `nex/bigint/bin64/nex_bigint_bin64_div.c`, `nex/bigint/bin64/nex_bigint_bin64_str.c`
 - 公开头：`nex/bigint/bin64/nex_bigint_bin64.h`
-- 公开函数（15）：
+- 公开函数（18）：
   - `bigint_bin64_add`
   - `bigint_bin64_cmp`
   - `bigint_bin64_copy`
   - `bigint_bin64_div_rem`
   - `bigint_bin64_free`
+  - `bigint_bin64_from_str`
   - `bigint_bin64_from_u64`
   - `bigint_bin64_init`
   - `bigint_bin64_init_cap`
@@ -165,8 +157,23 @@
   - `bigint_bin64_mul`
   - `bigint_bin64_shrink`
   - `bigint_bin64_sub`
+  - `bigint_bin64_to_str`
   - `bigint_bin64_to_u64`
+  - `nex_u128_divmod`
   - `nex_u128_mul`
+
+### `bigint_conv`
+
+- 直接依赖：`bigint_common`, `bigint_bin`, `bigint_bin64`, `bigint_dec`, `nex_alloc`
+- 源文件：`nex/bigint/nex_bigint_conv.c`
+- 公开头：`nex/bigint/nex_bigint_conv.h`
+- 公开函数（6）：
+  - `bigint_conv_bin64_to_bin`
+  - `bigint_conv_bin64_to_dec`
+  - `bigint_conv_bin_to_bin64`
+  - `bigint_conv_bin_to_dec`
+  - `bigint_conv_dec_to_bin`
+  - `bigint_conv_dec_to_bin64`
 
 ### `bigfrac`
 

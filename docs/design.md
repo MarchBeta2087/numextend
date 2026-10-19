@@ -109,8 +109,7 @@ Numextend（库前缀 `nex`）是一个纯 C99 编写的任意精度数值库，
 
 - 汇编级优化、SIMD、平台特化代码；
 - GPU offload 与内部多线程并行（跨平台线程封装为独立可选目标，不进核心，§14）；
-- 次正规（subnormal）浮点数（见 §7.3 的取舍说明）；
-- 超大 `|x|`（> 2⁶³）三角函数的 Payne–Hanek 规约（§16.2）。
+- 次正规（subnormal）浮点数（见 §7.3 的取舍说明）。
 
 ### 1.4 API/ABI 稳定性政策
 
@@ -151,9 +150,10 @@ v1.0 前对全部公开头文件做机械 + 人工审计；脚本 `scripts/api_a
 - **命名**：所有公开函数以模块前缀（`bigint_bin_`、`bigfloat_` …）开头。
 - **文档**：每个公开函数在头文件内均有 `brief/param/return/note` 注释；语义、
   错误码、别名规则、OOM 与线程安全分别见 §3、§4–§10、§3.2/§3.3。
-- **有意缺口**（非疏漏）：`bigint_dec` 无公开 `gcd`/`sqrt`；`bigint_bin64` 仅核心
-  运算；次正规、自定义分配器、超大 `|x|` 的 Payne–Hanek 为 v1 非目标（§13）；
-  超越函数（含复数）已全部落地（§16）。
+- **有意缺口**（非疏漏）：`bigint_dec` 无公开 `gcd`/`sqrt`；`bigint_bin64`
+  已提供加/减/乘/除、字符串 I/O 与 bin/dec 互转（v1.7），但仍无位运算/幂/
+  gcd 等 bin 专有操作；次正规、自定义分配器为 v1 非目标（§13）；超越函数
+  （含复数）与超大 `|x|` 的 Payne–Hanek 已落地（§16）。
 - **覆盖率**：完整 CTest 下库行覆盖率约 **89%**；CI 门槛 80%（见 §12）。
 
 ---
@@ -200,7 +200,7 @@ nex/
 │   ├── bin/
 │   │   └── nex_bigint_bin.h / .c    # 可拆分为多个 .c（见下）
 │   ├── bin64/
-│   │   └── nex_bigint_bin64.h / .c  # 64 位肢变体（§13 #3，v0.13）
+│   │   └── nex_bigint_bin64.h / .c  # 64 位肢变体（§13 #3；_div.c / _str.c）
 │   └── dec/
 │       └── nex_bigint_dec.h / .c
 ├── fft/
@@ -390,7 +390,7 @@ typedef struct {
 - 规范化：最高有效肢 `limbs[len-1] != 0`；零的唯一表示为 `len == 0` 且
   `sign == BIGINT_SIGN_ZERO_E`（此时 `limbs` 可为 NULL 或保留容量）；
 - 选择 32 位肢而非 64 位肢：肢乘积累加放入 `uint64_t` 即可，无需 `__int128`
-  等非 C99 扩展（规范 §1.1）。64 位肢列为后续性能方向（§13）。
+  等非 C99 扩展（规范 §1.1）。64 位肢已作为后续方向落地（§13 #3）。
 
 ### 4.2 对外 API
 
@@ -550,14 +550,26 @@ size_t        bigint_bin_popcount(const bigint_bin_ty *val);  // 幅值中 1 的
 负数位运算语义：按**二进制补码的无限符号扩展**解释（与 Python 一致），
 例如 `-1 & x == x`。该约定写入头文件注释，避免实现歧义。
 
-#### 4.2.6 与 bigint_dec 互转
+#### 4.2.6 与 bigint_dec / bigint_bin64 互转
 
-定义于 `nex/bigint/nex_bigint_conv.h`（唯一同时包含两个模块头文件的单元）：
+定义于 `nex/bigint/nex_bigint_conv.h`（唯一同时包含 bin / bin64 / dec
+头文件的单元）：
 
 ```c99
 bigint_err_ty bigint_conv_bin_to_dec(bigint_dec_ty *dst, const bigint_bin_ty *src);
 bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *src);
+bigint_err_ty bigint_conv_bin64_to_bin(bigint_bin_ty *dst,
+        const bigint_bin64_ty *src);
+bigint_err_ty bigint_conv_bin_to_bin64(bigint_bin64_ty *dst,
+        const bigint_bin_ty *src);
+bigint_err_ty bigint_conv_bin64_to_dec(bigint_dec_ty *dst,
+        const bigint_bin64_ty *src);
+bigint_err_ty bigint_conv_dec_to_bin64(bigint_bin64_ty *dst,
+        const bigint_dec_ty *src);
 ```
+
+bin64 ↔ dec 经 bin 中转（分治基数转换复用，额外开销线性）；bin64 ↔ bin
+为按 32 位半字拆分 / 合并的线性转换。
 
 ### 4.3 内部算法
 
@@ -565,12 +577,14 @@ bigint_err_ty bigint_conv_dec_to_bin(bigint_bin_ty *dst, const bigint_dec_ty *sr
 |------|---------|--------|----------|
 | 加 / 减 | 逐肢带进位扫描 | O(n) | — |
 | 乘法 | schoolbook；肢数 ≥ 32 切换 Karatsuba；≥ 512 切换 Toom-3；≥ 16384 切换多模数 CRT NTT；`mul_ex` 可强制选择各算法（FFT 已实现但不参与 AUTO，见 §4.3） | O(n²) / O(n^1.585) / O(n log n) | FFT 的 SIMD 化与 AUTO 启用再评估、分治基数转换（见 §13） |
-| 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正）；大输入（除数 ≥ 64 肢且被除数 ≥ 2×）则 Burnikel-Ziegler 递归除法 | O(n·m) / 亚二次 | — |
+| 除法 | Knuth《TAOCP》卷 2 Algorithm D（规范化 + 试商修正）；商肢数 m ≥ 96 且 m ≥ n/32（n 为除数肢数，n ≥ 64）时切 Burnikel-Ziegler 递归除法 | O(n·m) / 亚二次 | Newton 倒数已评估（各规模不占优，默认关闭） |
+| bin64 除法 | 原生 64 位肢 Knuth D（128/64 试商，__int128 或 32 位字便携路径）；除数 ≥ 1024 肢且被除数 ≥ 2× 转 bin 走 BZ | O(n·m) / 亚二次 | 64 位肢 BZ 移植 |
+| bin64 ↔ bin / dec | 半字拆分 / 合并；dec 经 bin 分治转换中转 | O(n) / O(n^1.585) | 原生 64 位肢十进制转换 |
 | 平方 | 专用 schoolbook 平方（利用对称性减半乘累加） | O(n²/2) | 随乘法升级 |
 | 模幂 | 平方-乘，滑动窗口列为后续 | O(log e 次模乘） | Montgomery 约减 |
 | bin→dec | 分治（2 的幂切半 + 平方链表），小规模回退反复除 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
 | dec→bin | 分治（对称），小规模回退逐肢乘 10^9 | O(n^1.585) | decimal 快速乘法（转 bin → NTT → 转回） |
-| gcd（供 bigfrac 使用，公开 API `bigint_bin_gcd`） | 大输入 Lehmer 矩阵约减 + 二进制 GCD 收尾；小输入纯二进制 GCD | O(n²)/32 常数改善，实测 4-6.5× | 半 GCD |
+| gcd（供 bigfrac 使用，公开 API `bigint_bin_gcd`） | 大输入 Lehmer 矩阵约减 + 二进制 GCD 收尾；小输入纯二进制 GCD | O(n²)/32 常数改善，实测 4-6.5× | 半 GCD 原型已评估（常数过大，默认关闭） |
 
 实现要点：
 
@@ -814,8 +828,9 @@ const bigint_bin_ty *bigfrac_den(const bigfrac_ty *frac);
 
 ### 6.3 内部算法
 
-- **自动约分**：每次算术输出前执行 gcd 约分，保证不变式；gcd 使用二进制 GCD
-  （仅需移位与减法，避免昂贵的十进制基除法），Lehmer 加速列为后续；
+- **自动约分**：每次算术输出前执行 gcd 约分，保证不变式；gcd 使用
+  Lehmer 矩阵约减 + 二进制 GCD 收尾（v0.14；仅需移位与减法，避免昂贵的
+  十进制基除法）；
 - **交叉约分**：乘法 `a/b × c/d` 先约 `gcd(a, d)` 与 `gcd(c, b)` 再相乘，
   除法同理，显著抑制中间结果的肢数膨胀；
 - **加减法**：`a/b ± c/d = (a·d ± c·b) / (b·d)`，先约 `g = gcd(b, d)`，
@@ -974,16 +989,22 @@ bigfloat_err_ty bigfloat_compose(bigfloat_ty *dst, const bigint_bin_ty *mant,
   `mant_bits + 3` 时可直接判定结果（小的一方退化为粘位），避免无意义的大移位；
 - **乘法**：尾数整数乘（走 `bigint_bin_mul`），规范化并舍入；
 - **除法**：将被除数左移至商达到 `mant_bits + 3` 位，整数除法得商与余数，
-  余数非零置粘位，然后舍入。Newton 迭代除法列为后续；
+  余数非零置粘位，然后舍入。此时商仅 1–2 肢，Knuth D 为 O(m·n) 的线性
+  代价；Newton 迭代除法已评估（v1.7），在该形态下不占优，默认关闭
+  （`NEX_DIV_NEWTON_PATH`，见 §13 #1）。
 - **sqrt**：整数平方根（`bigint_bin_sqrt`，Newton 迭代）作用于缩放后的
   尾数，得到舍入所需的保护位与粘位；余数由 `x − q²` 补算供粘位判定
   （v0.17 由逐位试商法改为 Newton，万位精度实测 -O2：79.8 ms → 22.2 ms）；
 - **十进制输入**：十进制小数解析为 `bigfrac` 式精确有理数（分子分母为
   bigint，分母为 10^k），再做一次带保护位的除法并舍入——保证正确舍入的
   充分条件是中间精度 ≥ `mant_bits + 输入位数相关界`，实现取宽松上界并注释依据；
-- **十进制输出**：`to_str` 采用"逐步增加有效位数、试转回并比较"的往返策略
-  （类似 Grisu/Ryū 的效果，实现更简单）：从 1 位开始递增，直到输出串按同一
-  ctx 解析回原值。正确性由往返测试保证，性能列为后续优化。
+- **十进制输出**：`to_str` 求最短往返串。往返性质对有效位数 n 单调
+  （n 位成功 ⇒ n+1 位必成功），故用**单调二分**求最小 n：先试上界
+  `≈ bl·log10(2)+64`，再二分，每次候选经 `nex_bf_dec_round` 生成并按同一
+  ctx 解析回、`bigfloat_cmp` 精确比较（保持原有正确性契约）。代价从
+  O(n) 次“除法 + 解析”降为 O(log n) 次（v1.7：8192 bit 1180 ms →
+  11.8 ms，1024 bit 9.1 ms → 0.46 ms）。这是 Ryū 的“最短”目标在任意
+  精度下的工程化实现；未引入 64/128 位定点表（其前提是固定精度）。
 
 ---
 
@@ -1126,7 +1147,12 @@ bool bigcomplex_float_eq(const bigcomplex_float_ty *lhs, const bigcomplex_float_
 
 实现要点：
 
-- 乘法 `(a+bi)(c+di)` v1 用朴素四乘二加（Karatsuba 三乘式列为后续）；
+- 乘法 `(a+bi)(c+di)`：默认朴素四乘二加；`NEX_COMPLEX_KARATSUBA` 可选
+  Karatsuba 三乘式（`k1=(a+b)(c+d)`、`k2=ac`、`k3=bd`，`re=k2−k3`、
+  `im=k1−k2−k3`），仅作用于有限非零分量（零/±∞ 仍走四乘以保特殊值语义）。
+  v1.7 实测：4096 bit 10.86→10.50 µs（~3%），16384/32768 bit 反而慢
+  1–2%（多出的加法/分配抵消一次乘法），**默认关闭**；启用时舍入路径与
+  四乘不同（可差 ~1 ulp），黄金参考需同步改为三乘式；
 - 除法：有限输入用 **Smith 稳定缩放**（`|c| ≥ |d|` 时 `r = d/c`，
   `den = c + d·r`；否则 `r = c/d`，`den = d + c·r`），避免 `c²+d²`
   过早溢出/下溢；任一分量为 ±∞ 时回退共轭法以维持特殊值语义（§9.2）；
@@ -1251,17 +1277,26 @@ CI 每日基准见 `.github/workflows/benchmark.yml`（产物为 artifact，仅�
    （Burnikel-Ziegler v0.16 修复并启用：随机大数 + 稀疏/全 1/2 的幂/负数黄金
    对拍全过，块直写优化后 a/b=256 时较 Knuth D 快 ~22%；dec 侧 v1.5.0 移植，
    基 10⁹ 以 Knuth-D 归一化因子 d + 肢移位 pad 代替 bin 的位规约，除数 ≥ 64
-   肢分派，10⁵ 位 ≈ 45 ms 约 8×）、Newton 迭代除法与开方；
-2. 半 gcd（Lehmer gcd 已落地，v0.14）；Montgomery 模幂经实测否定（v0.16：
+   肢分派，10⁵ 位 ≈ 45 ms 约 8×；v1.7 将 bin 侧分派由“被除数 ≥ 2×”放宽为
+   “商 m ≥ 96 且 m ≥ n/32”，填补 m ∈ [n/32, n) 的 O(n²) 区间（4096 肢：
+   m=n/4 时 5.6→1.9 ms，m=n/2 时 11.3→3.0 ms；m ≥ n 原已走 BZ）、
+   Newton 迭代开方（已落地）；Newton 迭代除法已评估：v1.7 改为“精度倍增
+   倒数 + 商修正”并保留在 `NEX_DIV_NEWTON_PATH`（默认关闭），实测小商
+   （Knuth O(m·n) 已线性）、大商（BZ 常数更小）与浮点除法（商仅 1–2 肢）
+   均不占优；
+2. 半 gcd（Lehmer gcd 已落地，v0.14；v1.7 矩阵递归原型已验证但常数过大，默认关闭，见 §13 #2）；Montgomery 模幂经实测否定（v0.16：
    REDC 朴素 n² 不优于已优化 Knuth D，不启用）；
 3. 64 位肢变体：核心已落地（`nex/bigint/bin64/`，v0.13）——加/减/乘
    （schoolbook + Karatsuba），等位长下约 2 倍提速；64×64→128 经编译
    器探测（GCC/Clang __int128 + MSVC 便携 4 乘，§13 #3 条件编译落地）；
-   除法 / 字符串 / 互转待按需扩展；
-4. 十进制输出的 Ryū 式快速算法；
+   v1.7 补齐原生除法（64 位肢 Knuth D，128/64 试商经 __int128 或
+   4 字 ÷ 2 字便携 Knuth D；超大输入回退 bin 的 BZ）、字符串 I/O
+   （2..36 进制，2 的幂走位切片、其余按 uint64 分块；解析分块累加）与
+   bin / dec 互转（`nex_bigint_conv.h`）；
+4. 十进制输出的 Ryū 式快速算法（v1.7 以单调二分实现最短往返，见 §7.5）；
 5. 次正规浮点数支持（需放松"最高位恒 1"不变式，影响面大，单独设计评审）；
 6. 自定义分配器钩子；
-7. 复数 Karatsuba 三乘式（未做）；Smith 稳定除法已落地（v1.6）；
+7. 复数 Karatsuba 三乘式（v1.7 已实现于 `NEX_COMPLEX_KARATSUBA`，实测中性/略负，默认关闭）；Smith 稳定除法已落地（v1.6）；
 8. 超越函数：`atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos`、复数
    超越与复数辐角 `arg` 已全部落地（float + decimal，§16）；超大 `|x|` 的
    Payne–Hanek 规约已落地（v1.6，§16.2）；
@@ -1286,11 +1321,11 @@ CI 每日基准见 `.github/workflows/benchmark.yml`（产物为 artifact，仅�
 |------|------|--------------|
 | 超越函数 exp/log/sin/cos | 已实现 | `atan`/`atan2`/`exp`/`log`/`sin`/`cos`/`tan`/`asin`/`acos`、复数超越与 `arg` 已全部落地（float + decimal，§16）；超大 `|x|` 的 Payne–Hanek 已落地（§16.2） |
 | 次正规（subnormal）浮点 | 非目标 | 需放松“最高位恒 1”不变式，影响面大（§7.3） |
-| SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3）；跨平台线程封装列为**独立可选目标**（`contrib/nex_thread`，不进核心/amalgam，TODO §F） |
+| SIMD / GPU / 内部多线程 | 非目标 | 线程安全由调用方保证（§3.3）；跨平台线程封装列为**独立可选目标**（`contrib/nex_thread`，不进核心/amalgam，TODO §F）。v1.7 实验（`contrib/README.md`）：单次 16k/32k/64k/131k 肢 NTT 乘法 16 线程 2.50/3.11/3.58/4.92×（4M bit 达 4.9×）；批量独立 `bigfloat` 运算 6.5–7.7×；保持隔离，不开核心特例 |
 | 函数级子集 | 非目标（1.x 暂缓） | 成本高、收益低；替代见 §2.4 / §13 #11 |
 | 自定义分配器钩子 | 后续 | 现为内部统一分配器 `nex_alloc`（§13 #6） |
 | 十进制侧亚二次除法 | 已实现 | `bigint_dec` 大输入走 Burnikel-Ziegler（除数 ≥ 64 肢分派）；基 10⁹ 以 Knuth-D 归一化因子 + 肢移位规约（§13 #1） |
-| 超大输入 gcd | 限制 | Lehmer 仍 O(n²)；半 gcd 为后续（§13 #2） |
+| 超大输入 gcd | 限制 | Lehmer 仍 O(n²)；半 GCD 原型（`NEX_GCD_HGCD_PATH`）正确但 bigint 矩阵分配常数过大，暂不启用（§13 #2） |
 | 大端平台 | 已验证 | 实现为值语义；CI `linux-bigendian`（s390x + QEMU，v1.4.0）（§1.3） |
 | 32 位平台 | 已验证 | CI `linux-32bit`（`-m32 -msse2 -mfpmath=sse`，v1.4.0） |
 | 公开结构体字段 | 实现细节 | 布局在 1.x 冻结，但请使用访问器，勿依赖字段（§1.4） |
@@ -1659,3 +1694,4 @@ Payne–Hanek 规约（`nex/ball/nex_ball_pi.c`，内部接口）：
 | v1.4.0 | 2026-10-14 | 平台与正确性收口（TODO §G）：16-bit FFT 强制路径安全上限（超 1024 返回 `UNSUPPORTED`）；32 位（`-m32` + SSE2）与大端（s390x + QEMU）CI；内部未规范化视图比较规则（§3.4）；稀疏值定向测试 |
 | v1.5.0 | 2026-10-15 | 超越函数与十进制亚二次除法（§D、§I，新增 §16）：正确舍入的 `atan`/`atan2`/复数 `arg`、`exp`/`log`、`sin`/`cos`/`tan`、`asin`/`acos` 与复数超越（`exp`/`log`/`sqrt`/`sin`/`cos`/`tan`）——float/decimal 两套，球式严谨误差界 + Ziv，mpmath 黄金对拍；`bigint_dec` Burnikel-Ziegler 亚二次除法（10⁵ 位 ≈ 8×）；球系数截断级数；修复 `sincos` `one_ball` 半径缺陷并折半上限 20→64（覆盖 |x| ≲ 2⁶³）；新增 §16.1 正确舍入语义规范；行为准则与安全政策；§F 跨平台线程封装决策（独立可选目标，不进核心） |
 | v1.6.0 | 2026-10-18 | 超大实参与高精度性能（§16.2、§15.6、§9.2）：Payne–Hanek 规约（Chudnovsky 二分拆分 π，定点 2/π，象限还原），float/decimal 两套；`|x| > 2⁶³` 的 `sin`/`cos`/`tan` 不再返回 INVALID；输入半径 ≥ 4 时直接返回 `[−1,1]`；π 位数上限 2²⁰ bit。`log` 改为指数拆分 + 小实参规约（解除 40 次开方上限，覆盖全部可表示输入）。路线 A 的阶乘型/逆幂型部分和与阶估计改为扩展精度浮点递推（binomial 仍为精确 bigfrac；exp 4096 bit 10.2 s→63 ms，ln1p 1.64 s→180 ms）。复数除法改为 Smith 稳定缩放（有限输入，±∞ 回退共轭法）。修复 `bigfloat_from_bigint` 负输入尾数符号（`round_pack` 未取幅值）。mpmath 黄金对拍覆盖 2¹⁰⁰/2²⁰⁰/1e30/1e100/1e1000；文档漂移收口 |
+| v1.7.0 | 2026-10-19 | §13 #3 64 位肢补齐：原生 `bigint_bin64_div_rem`（Knuth D，128/64 试商；GCC/Clang __int128，MSVC 等 4 字 ÷ 2 字便携 Knuth D），除数 ≥ 1024 肢且被除数 ≥ 2× 回退 bin 的 Burnikel-Ziegler；`bigint_bin64_from_str` / `to_str`（进制 2..36，2 的幂进制位切片，其余 uint64 分块）；`bigint_conv_*_bin64_*` 互转（bin / dec）。实测小/中规模除法较转换包装快 ~2×。测试扩展：除法交叉验证与对抗模式（全 1、2 的幂、精确倍数、超大 BZ 回退）、字符串往返与错误语义、互转往返；便携 128/64 路径独立校验。另评估 Newton 迭代除法：重写为精度倍增倒数（总代价 O(M(P))）并保留 `NEX_DIV_NEWTON_PATH`；实测 4096 肢、商 1 肢时 0.039 ms vs Knuth 0.012 ms，商 2× 时 31.6 ms vs BZ 5.7 ms，bigfloat_div 262144 bit 19.3 ms vs 16.7 ms——均不占优，默认关闭。BZ 分派由 m ≥ n 放宽为 m ≥ 96 且 m ≥ n/32（商 1.25n–1.75n 区间原为 O(n²)）：4096 肢、m=n/4 时 5.6→1.9 ms、m=n/2 时 11.3→3.0 ms；m < 96 仍走 Knuth D，m ≥ n 原已走 BZ。半 GCD 原型（`NEX_GCD_HGCD_PATH`，矩阵递归 + 精确高位/回退）通过单元与三组黄金对拍，但 bigint 矩阵的分配/乘法常数过大：64 肢 0.97 ms vs Lehmer 0.066 ms，8192 肢 2.15 s vs 0.29 s，默认关闭。`bigfloat_to_str` 最短往返改为单调二分（O(log n) 次 dec_round + 解析）：8192 bit 1180→11.8 ms（100×），1024 bit 9.1→0.46 ms。复数 Karatsuba 三乘式实现于 `NEX_COMPLEX_KARATSUBA`（仅有限非零分量；零/±∞ 仍四乘）：4096 bit 10.86→10.50 µs，16384/32768 bit 略慢 1–2%，默认关闭。contrib 线程实验（`-DNEX_ENABLE_THREAD=ON`）：pthread/Win32 最小池 + 并行 NTT 与批量向量消费方；单次 16k/32k/64k/131k 肢乘法 16 线程 2.50/3.11/3.58/4.92×（扁平任务图 + 并行 Garner + 分块进位；4M bit 达 4.9×），批量 256–4096 bit `a*b+c` 6.5–7.7×，结果逐位一致；保持 contrib 隔离、不开核心特例，TSan/CI 未接 |

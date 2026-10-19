@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 /* ------------------------------------------------------------------ */
 /* 内部辅助                                                             */
 /* ------------------------------------------------------------------ */
@@ -51,6 +52,17 @@ static void set_nan_components(bigcomplex_float_ty *dst)
     dst->re.flag = BIGFLOAT_NAN_E;
     dst->im.flag = BIGFLOAT_NAN_E;
 }
+
+
+#ifdef NEX_COMPLEX_KARATSUBA
+/* 两分量均为有限非零正常值：可使用 Karatsuba 三乘式（否则走朴素四乘） */
+static bool cz_all_finite_nonzero(const bigcomplex_float_ty *z)
+{
+    return ((z->re.flag == BIGFLOAT_POS_E) || (z->re.flag == BIGFLOAT_NEG_E))
+            && ((z->im.flag == BIGFLOAT_POS_E)
+                || (z->im.flag == BIGFLOAT_NEG_E));
+}
+#endif /* NEX_COMPLEX_KARATSUBA */
 
 /* ------------------------------------------------------------------ */
 /* 生命周期与构造（§9.2）                                              */
@@ -449,6 +461,63 @@ bigcomplex_float_err_ty bigcomplex_float_mul(bigcomplex_float_ty *dst,
         set_nan_components(dst);
         return BIGCOMPLEX_FLOAT_OK_E;
     }
+#ifdef NEX_COMPLEX_KARATSUBA
+    /* Karatsuba 三乘式（仅有限非零分量）：k1=(a+b)(c+d)、k2=ac、k3=bd，
+       re=k2−k3，im=k1−k2−k3。零/±∞ 仍走四乘路径以保持特殊值语义。 */
+    if (cz_all_finite_nonzero(lhs) && cz_all_finite_nonzero(rhs)) {
+        bigfloat_ty s1;
+        bigfloat_ty s2;
+        bigfloat_ty k1;
+        bigfloat_ty k2;
+        bigfloat_ty k3;
+        bigfloat_ty re;
+        bigfloat_ty im;
+        bigfloat_init(&s1);
+        bigfloat_init(&s2);
+        bigfloat_init(&k1);
+        bigfloat_init(&k2);
+        bigfloat_init(&k3);
+        bigfloat_init(&re);
+        bigfloat_init(&im);
+        bigfloat_err_ty kerr = bigfloat_add(&s1, &lhs->re, &lhs->im, ctx);
+        if (kerr == BIGFLOAT_OK_E) {
+            kerr = bigfloat_add(&s2, &rhs->re, &rhs->im, ctx);
+        }
+        if (kerr == BIGFLOAT_OK_E) {
+            kerr = bigfloat_mul(&k1, &s1, &s2, ctx);
+        }
+        if (kerr == BIGFLOAT_OK_E) {
+            kerr = bigfloat_mul(&k2, &lhs->re, &rhs->re, ctx);
+        }
+        if (kerr == BIGFLOAT_OK_E) {
+            kerr = bigfloat_mul(&k3, &lhs->im, &rhs->im, ctx);
+        }
+        if (kerr == BIGFLOAT_OK_E) {
+            kerr = bigfloat_sub(&re, &k2, &k3, ctx);
+        }
+        if (kerr == BIGFLOAT_OK_E) {
+            kerr = bigfloat_sub(&im, &k1, &k2, ctx);
+        }
+        if (kerr == BIGFLOAT_OK_E) {
+            kerr = bigfloat_sub(&im, &im, &k3, ctx);
+        }
+        if (kerr == BIGFLOAT_OK_E) {
+            bigfloat_free(&dst->re);
+            bigfloat_free(&dst->im);
+            dst->re = re;
+            dst->im = im;
+        } else {
+            bigfloat_free(&re);
+            bigfloat_free(&im);
+        }
+        bigfloat_free(&k3);
+        bigfloat_free(&k2);
+        bigfloat_free(&k1);
+        bigfloat_free(&s2);
+        bigfloat_free(&s1);
+        return map_bf_err(kerr);
+    }
+#endif /* NEX_COMPLEX_KARATSUBA */
     // (a+bi)(c+di) = (ac−bd) + (bc+ad)i
     bigfloat_ty ac;
     bigfloat_ty bd;

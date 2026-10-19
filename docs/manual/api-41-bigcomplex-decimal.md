@@ -217,7 +217,7 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_sub(bigcomplex_decimal_ty *dst, con
 bigcomplex_decimal_err_ty bigcomplex_decimal_mul(bigcomplex_decimal_ty *dst, const bigcomplex_decimal_ty *lhs, const bigcomplex_decimal_ty *rhs, const bigdecimal_ctx_ty *ctx);
 ```
 
-**说明**：乘法 dst = lhs × rhs（分量四乘二加，§9.2）
+**说明**：乘法 dst = lhs × rhs（默认四乘二加；可选 Karatsuba 三乘，§9.2）
 
 ### `bigcomplex_decimal_div`
 

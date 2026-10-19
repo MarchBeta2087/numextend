@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 /* ------------------------------------------------------------------ */
 /* 内部辅助                                                             */
 /* ------------------------------------------------------------------ */
@@ -45,6 +46,18 @@ static void set_nan_components(bigcomplex_decimal_ty *dst)
     dst->re.flag = BIGDECIMAL_NAN_E;
     dst->im.flag = BIGDECIMAL_NAN_E;
 }
+
+
+#ifdef NEX_COMPLEX_KARATSUBA
+/* 两分量均为有限非零正常值：可使用 Karatsuba 三乘式（否则走朴素四乘） */
+static bool cz_all_finite_nonzero(const bigcomplex_decimal_ty *z)
+{
+    return ((z->re.flag == BIGDECIMAL_POS_E)
+                || (z->re.flag == BIGDECIMAL_NEG_E))
+            && ((z->im.flag == BIGDECIMAL_POS_E)
+                || (z->im.flag == BIGDECIMAL_NEG_E));
+}
+#endif /* NEX_COMPLEX_KARATSUBA */
 
 /* ------------------------------------------------------------------ */
 /* 生命周期与构造（§9.2）                                              */
@@ -446,6 +459,64 @@ bigcomplex_decimal_err_ty bigcomplex_decimal_mul(bigcomplex_decimal_ty *dst,
         set_nan_components(dst);
         return BIGCOMPLEX_DECIMAL_OK_E;
     }
+#ifdef NEX_COMPLEX_KARATSUBA
+    /* Karatsuba 三乘式（仅有限非零分量）：k1=(a+b)(c+d)、k2=ac、k3=bd，
+       re=k2−k3，im=k1−k2−k3。零/±∞ 仍走四乘路径以保持特殊值语义。 */
+    if (cz_all_finite_nonzero(lhs) && cz_all_finite_nonzero(rhs)) {
+        bigdecimal_ty s1;
+        bigdecimal_ty s2;
+        bigdecimal_ty k1;
+        bigdecimal_ty k2;
+        bigdecimal_ty k3;
+        bigdecimal_ty re;
+        bigdecimal_ty im;
+        bigdecimal_init(&s1);
+        bigdecimal_init(&s2);
+        bigdecimal_init(&k1);
+        bigdecimal_init(&k2);
+        bigdecimal_init(&k3);
+        bigdecimal_init(&re);
+        bigdecimal_init(&im);
+        bigdecimal_err_ty kerr = bigdecimal_add(&s1, &lhs->re, &lhs->im,
+                ctx);
+        if (kerr == BIGDECIMAL_OK_E) {
+            kerr = bigdecimal_add(&s2, &rhs->re, &rhs->im, ctx);
+        }
+        if (kerr == BIGDECIMAL_OK_E) {
+            kerr = bigdecimal_mul(&k1, &s1, &s2, ctx);
+        }
+        if (kerr == BIGDECIMAL_OK_E) {
+            kerr = bigdecimal_mul(&k2, &lhs->re, &rhs->re, ctx);
+        }
+        if (kerr == BIGDECIMAL_OK_E) {
+            kerr = bigdecimal_mul(&k3, &lhs->im, &rhs->im, ctx);
+        }
+        if (kerr == BIGDECIMAL_OK_E) {
+            kerr = bigdecimal_sub(&re, &k2, &k3, ctx);
+        }
+        if (kerr == BIGDECIMAL_OK_E) {
+            kerr = bigdecimal_sub(&im, &k1, &k2, ctx);
+        }
+        if (kerr == BIGDECIMAL_OK_E) {
+            kerr = bigdecimal_sub(&im, &im, &k3, ctx);
+        }
+        if (kerr == BIGDECIMAL_OK_E) {
+            bigdecimal_free(&dst->re);
+            bigdecimal_free(&dst->im);
+            dst->re = re;
+            dst->im = im;
+        } else {
+            bigdecimal_free(&re);
+            bigdecimal_free(&im);
+        }
+        bigdecimal_free(&k3);
+        bigdecimal_free(&k2);
+        bigdecimal_free(&k1);
+        bigdecimal_free(&s2);
+        bigdecimal_free(&s1);
+        return map_bd_err(kerr);
+    }
+#endif /* NEX_COMPLEX_KARATSUBA */
     // (a+bi)(c+di) = (ac−bd) + (bc+ad)i
     bigdecimal_ty ac;
     bigdecimal_ty bd;

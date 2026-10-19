@@ -14,6 +14,7 @@
 |------|------|------|--------|
 | `bigint/bin` | `bigint_bin_ty` | 基 2³² 任意精度整数（运算快） | — |
 | `bigint/dec` | `bigint_dec_ty` | 基 10⁹ 任意精度整数（十进制 I/O 快） | — |
+| `bigint/bin64` | `bigint_bin64_ty` | 基 2⁶⁴ 变体：加/减/乘/除、字符串 I/O、与 bin/dec 互转 | — |
 | `bigfrac` | `bigfrac_ty` | 精确有理数（既约分数） | bigint_bin |
 | `bigfloat` | `bigfloat_ty` | 可调精度二进制浮点（IEEE 754 推广） | bigint_bin |
 | `bigdecimal` | `bigdecimal_ty` | 可调精度十进制浮点（IEEE 754 十进制推广） | bigint_dec |
@@ -148,7 +149,7 @@ sh scripts/bench-math.sh ci all 300        # CI 缩减档
 夜间趋势收集。完整结果见 [`docs/bench-math.md`](docs/bench-math.md)。
 
 本机 full 档实测（WSL2 / Ubuntu 24.04 / GCC 13.3.0 / i5-13500H，-O2；
-预算 7200 s，实际 5791.8 s ≈ 96.5 min）：
+预算 7200 s；v1.7 加入 32768 bit 吞吐档后约 98 min，此前为 96.5 min）：
 
 | 运算 | 精度 | 耗时 |
 |------|------|------|
