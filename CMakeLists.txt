@@ -174,6 +174,21 @@ if(NEX_ENABLE_BIGNUM)
     endif()
 endif()
 
+# contrib/nex_ssa：Schönhage–Strassen 原型（P1b-SSA，issue #102）。
+# 默认 OFF，不进核心/amalgam/子集。
+option(NEX_ENABLE_SSA "构建 contrib/nex_ssa 原型" OFF)
+if(NEX_ENABLE_SSA)
+    if(NOT NEX_MODULES STREQUAL "all")
+        message(STATUS "NEX_ENABLE_SSA: 仅完整构建支持，已忽略")
+    elseif(NEX_AMALGAM)
+        message(STATUS "NEX_ENABLE_SSA: amalgam 构建不支持 contrib，已忽略")
+    else()
+        add_subdirectory(contrib/nex_ssa)
+    endif()
+endif()
+    endif()
+endif()
+
 # 数学库：Linux/macOS 需显式 -lm（库内 floor/sqrt 等；Windows/mingw 的 libm 在 libc 内）
 if(NOT WIN32)
     target_link_libraries(nex PUBLIC m)
