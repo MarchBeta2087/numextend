@@ -76,6 +76,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 
 ### 测试与 CI
 
+- **contrib 大数实验 CI**：新增 `linux-bignum`，用 `-DNEX_ENABLE_BIGNUM=ON`
+  `-DNEX_ENABLE_SSA=ON` 构建并运行 `block_ntt_selfcheck` / `nex_ssa_test` /
+  `nex_ooc_test`（约 30 s），避免实验代码与核心漂移。
 - **线程池 TSan（TODO §F F3）**：新增 CI job `linux-thread-tsan`
   （`-DNEX_ENABLE_THREAD=ON -DNEX_SANITIZE=thread`），只跑 `parallel_ntt`
   相关测试；与 ASan job 分离，MSVC 不覆盖。测试命令用
