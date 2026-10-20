@@ -9,6 +9,8 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-20
+
 ### 基准
 
 - **P0 大整数可行性工具（issue #98）**：新增
@@ -532,7 +534,8 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
-[Unreleased]: https://github.com/MarchBeta2087/numextend/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/MarchBeta2087/numextend/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.8.0
 [1.7.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.7.0
 [1.6.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.6.0
 [1.5.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.5.0
