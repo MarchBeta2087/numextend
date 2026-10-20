@@ -1,0 +1,16 @@
+# contrib 模块清单（与 cmake/nex_modules.txt 分离；不进核心构建/安装/amalgam）
+#
+# 字段：<dir>|<deps>|<sources>|<headers>|<flag>|<libs>|<preset>|<status>
+#   deps    依赖的 nex 模块或其它 contrib 模块（信息+校验用）
+#   sources 库源文件（不含测试/基准）
+#   headers 公开头（每个 contrib 头都必须登记）
+#   flag    CMake 开关
+#   libs    外部链接库（Threads/dl/psapi 等；空表示无）
+#   preset  对应 CMakePresets.json 的 preset 名
+#   status  当前状态（简述，详细见各目录 README / TODO §K）
+nex_thread|nex_alloc|contrib/nex_thread/nex_thread.c|contrib/nex_thread/nex_thread.h|NEX_ENABLE_THREAD|Threads|thread|可用（TSan CI）
+nex_parallel|nex_thread,ntt,bigint_bin|contrib/nex_parallel/nex_parallel_ntt.c,contrib/nex_parallel/nex_parallel_ntt_par.c|contrib/nex_parallel/nex_parallel_ntt.h,contrib/nex_parallel/nex_parallel_ntt_par.h|NEX_ENABLE_THREAD|Threads|thread|可用（并行 NTT / 批量向量）
+nex_bigint_block|bigint_bin,ntt,fft|contrib/nex_bigint_block/nex_bigint_block.c|contrib/nex_bigint_block/nex_bigint_block.h|NEX_ENABLE_BIGNUM||bignum|可用（1e9 位 2403 s / 6.24 GB）
+nex_ssa|bigint_bin,ntt|contrib/nex_ssa/nex_ssa.c|contrib/nex_ssa/nex_ssa.h|NEX_ENABLE_SSA||bignum|冻结（M1 原型，不再排期）
+nex_ooc|bigint_bin,ntt|contrib/nex_ooc/nex_ooc.c|contrib/nex_ooc/nex_ooc.h|NEX_ENABLE_BIGNUM||bignum|冻结（M1 原型，实用上限 1e9 位级）
+nex_opencl|bigint_bin|contrib/nex_opencl/nex_opencl.c|contrib/nex_opencl/nex_opencl.h,contrib/nex_opencl/nex_opencl_abi.h|NEX_ENABLE_OPENCL|dl|opencl|M1–M3（GPU 10.3×，P4 保持实验）

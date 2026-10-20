@@ -101,6 +101,14 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 
 ### 测试与 CI
 
+- **文档漂移加固**：`docs` CI 现在固定 pandoc **3.8.2.1** 生成并校验
+  `docs/manual.html`，同时运行 `scripts/check-docs.py`（校验 Markdown 中
+  引用的仓库路径与 CMake preset 名，跳过生成物/占位符）。
+- **contrib 模块索引**：新增 `contrib/modules.txt`（8 字段：deps/sources/
+  headers/flag/libs/preset/status）与 `modules.py check-contrib` /
+  `gen-contrib-docs`。校验每个 contrib 目录与公开头恰好登记一次、依赖与
+  preset 有效；生成 `docs/contrib-modules.md` 并纳入 `docs` CI 漂移检查。
+  核心 `cmake/nex_modules.txt` 保持不含 contrib（契约不变）。
 - **统一性能测试入口**：新增 `scripts/bench.py` + `bench/suites.json`，可按
   nex 模块与 `contrib` 任意组合，统一时间/内存预算（ci=300 s / quick=1200 s /
   full=7200 s；100 ms 峰值 RSS 采样 + POSIX `RLIMIT_AS` 安全网），输出

@@ -15,12 +15,15 @@
 """
 
 import glob
+import json
 import os
 import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(ROOT, "cmake", "nex_modules.txt")
+CONTRIB_MANIFEST = os.path.join(ROOT, "contrib", "modules.txt")
+CONTRIB_ROOT = os.path.join(ROOT, "contrib")
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import api_symbols  # noqa: E402  （复用公开函数名识别）
@@ -59,6 +62,113 @@ def closure(modules, requested):
         seen.append(name)
         queue.extend(modules[name]["deps"])
     return seen
+
+
+def parse_contrib():
+    modules = {}
+    order = []
+    if not os.path.exists(CONTRIB_MANIFEST):
+        return modules, order
+    with open(CONTRIB_MANIFEST, encoding="utf-8") as handle:
+        for raw in handle:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = [x.strip() for x in line.split("|")]
+            if len(parts) != 8:
+                raise SystemExit("contrib/modules.txt: 字段不足（需 8 个）：" + line)
+            name, deps, srcs, hdrs, flag, libs, preset, status = parts
+            modules[name] = {
+                "deps": [x for x in deps.split(",") if x],
+                "sources": [x for x in srcs.split(",") if x],
+                "headers": [x for x in hdrs.split(",") if x],
+                "flag": flag, "libs": libs, "preset": preset, "status": status,
+            }
+            order.append(name)
+    return modules, order
+
+
+def _presets():
+    path = os.path.join(ROOT, "CMakePresets.json")
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {p.get("name") for p in data.get("configurePresets", [])}
+
+
+def cmd_check_contrib(core_modules):
+    contrib, order = parse_contrib()
+    errors = []
+    known = set(core_modules) | set(contrib)
+    for name, info in contrib.items():
+        for dep in info["deps"]:
+            if dep not in known:
+                errors.append("%s: 未知依赖 '%s'" % (name, dep))
+        if not info["flag"].startswith("NEX_ENABLE_"):
+            errors.append("%s: flag 应为 NEX_ENABLE_*" % name)
+        if _presets() and info["preset"] not in _presets():
+            errors.append("%s: preset '%s' 不在 CMakePresets.json" % (name, info["preset"]))
+        for f in info["sources"] + info["headers"]:
+            if not os.path.exists(os.path.join(ROOT, f)):
+                errors.append("%s: 文件不存在 %s" % (name, f))
+        if not info["headers"]:
+            errors.append("%s: 未登记公开头" % name)
+
+    dirs = sorted(d for d in os.listdir(CONTRIB_ROOT)
+                  if os.path.isfile(os.path.join(CONTRIB_ROOT, d, "CMakeLists.txt")))
+    for d in dirs:
+        if d not in contrib:
+            errors.append("contrib/%s 未在 modules.txt 登记" % d)
+    for d in contrib:
+        if d not in dirs:
+            errors.append("modules.txt 中的 %s 没有 CMakeLists.txt" % d)
+
+    # 所有 contrib 头必须恰好登记一次（源文件允许测试/基准不登记）
+    all_h = sorted(_rel(p) for p in glob.glob(
+        os.path.join(CONTRIB_ROOT, "**", "*.h"), recursive=True))
+    listed_h = [h for name in order for h in contrib[name]["headers"]]
+    for h in all_h:
+        if listed_h.count(h) != 1:
+            errors.append("contrib 头 %s 登记次数 = %d（应恰好 1）" % (h, listed_h.count(h)))
+    for h in listed_h:
+        if h not in all_h:
+            errors.append("清单中的 contrib 头不存在: " + h)
+
+    if errors:
+        for err in errors:
+            print("FAIL(contrib):", err)
+        return 1
+    print("OK: %d 个 contrib 模块、%d 个公开头，清单与源码树一致" %
+          (len(contrib), len(all_h)))
+    return 0
+
+
+def cmd_gen_contrib_docs(out_path):
+    contrib, order = parse_contrib()
+    lines = [
+        "# contrib 模块索引（自动生成）", "",
+        "> 由 `python3 scripts/modules.py gen-contrib-docs` 生成；数据源为",
+        "> [`contrib/modules.txt`](../contrib/modules.txt)。请勿手改。",
+        "> 这些模块**不进入**核心 `libnex` / `nex_modules.txt` / 子集闭包 /",
+        "> amalgam（design §14、TODO §F1）。", "",
+        "| 模块 | 目录 | 依赖 | 开关 | preset | 外部库 | 状态 |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for name in order:
+        info = contrib[name]
+        deps = ", ".join("`%s`" % d for d in info["deps"]) or "—"
+        libs = info["libs"] or "—"
+        lines.append("| `%s` | [`contrib/%s`](../contrib/%s/README.md) | %s | "
+                     "`%s` | `%s` | %s | %s |" %
+                     (name, name, name, deps, info["flag"], info["preset"],
+                      libs, info["status"]))
+    lines.append("")
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    with open(out_path, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("\n".join(lines))
+    print("已生成 %s" % _rel(out_path))
+    return 0
 
 
 def _rel(path):
@@ -192,13 +302,14 @@ def cmd_check(modules, order):
     for hdr in listed_h:
         if hdr not in all_h:
             errors.append("清单中的头文件不存在: " + hdr)
+    contrib_status = cmd_check_contrib(modules)
     if errors:
         for err in errors:
             print("FAIL:", err)
         return 1
     print("OK: %d 模块、%d 源文件、%d 公开头，清单与源码树一致" %
           (len(modules), len(all_c), len(all_h)))
-    return 0
+    return contrib_status
 
 
 def cmd_list(modules, order):
@@ -243,6 +354,12 @@ def main(argv):
     if cmd == "gen-docs":
         out = argv[2] if len(argv) > 2 else os.path.join(ROOT, "docs", "modules.md")
         return cmd_gen_docs(modules, order, out)
+    if cmd == "check-contrib":
+        return cmd_check_contrib(modules)
+    if cmd == "gen-contrib-docs":
+        out = argv[2] if len(argv) > 2 else os.path.join(
+            ROOT, "docs", "contrib-modules.md")
+        return cmd_gen_contrib_docs(out)
     if cmd == "docs":
         if len(argv) < 3:
             raise SystemExit("用法: modules.py docs <module> [<module>...]")

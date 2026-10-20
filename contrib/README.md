@@ -15,8 +15,10 @@
 | `nex_ooc` | out-of-core 分块乘法：肢体文件 + 按块落盘，峰值内存 O(块长) | issue #104 | `-DNEX_ENABLE_BIGNUM=ON` | M1 完成：1e9 位 164 MB 峰值逐位校验；1e8 大×大 227 s / 652 MB 与内存 NTT 一致；**M2/M3 已决策不做**，实用上限 1e9 位级 |
 | `nex_opencl` | OpenCL 批量大整数：逐元素 `a*b+c` + 点积（M1），矩阵×矩阵子集（M2） | issue #98 P3 | `-DNEX_ENABLE_OPENCL=ON` | M1 完成：10k×1000 位 madd ≈6.9 ms / dot ≈4.6 ms；M2 子矩阵乘 4k×4k 60+60 并集 327 s / 6.1×10⁶ big-MADD/s；M3 稀疏 d=0.1 4.8 s（RTX 4050），逐位一致；CI `linux-opencl` 用 PoCL 做正确性 |
 
-各目录另有自己的 `README.md`（算法、参数模型、实测表）。规划状态见
-`TODO.md` §K，里程碑与验收标准以 Issue 为准。
+各目录另有自己的 `README.md`（算法、参数模型、实测表）。机器可读索引见
+[`contrib/modules.txt`](modules.txt)，渲染版为
+[`docs/contrib-modules.md`](../docs/contrib-modules.md)（自动生成）。
+规划状态见 `TODO.md` §K，里程碑与验收标准以 Issue 为准。
 
 CI 覆盖：`nex_thread` / `nex_parallel` 由 `linux-thread-tsan`（TSan）构建并跑
 `parallel_ntt` 自检；`nex_bigint_block` / `nex_ssa` / `nex_ooc` 由
