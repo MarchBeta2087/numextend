@@ -92,6 +92,11 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **#98 P2–P4 立项门槛**：`TODO.md` 新增 §K4，要求 Lean 4 形式化、
   OpenCL、进核心 AUTO 在启动前先定义验证边界、toolchain/设备范围、
   GPU CI 与验收指标（≥2× 且逐位一致）；当前无候选满足 P4。
+- **P2 形式化路线变更（2026-10-20，#98）**：**取消 Lean 4** 参考模型与
+  完整形式化。依据：核心 33k 行、7 个数值域，难点在 NTT/CRT/浮点误差界，
+  Mathlib 无现成库；且没有 C→Lean 精化链路时定理无法为 C 背书。改为
+  **先 C（CBMC 有界验证 limb 层）后 D（模糊测试 + 不变量断言）**；
+  重启 Lean 的条件（合规/审计消费方 + 精化链路）写入 §K4。
 
 ### 测试与 CI
 
@@ -101,6 +106,12 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **OpenCL 实验 CI**：新增 `linux-opencl`，安装 `ocl-icd-opencl-dev` +
   `pocl-opencl-icd`，在 PoCL CPU device 上跑 `nex_opencl_test`
   （`NEX_OPENCL_REQUIRE=1`）；GPU 性能数由本机 RTX 4050 记录。
+- **limb 层有界验证（P2-C，#98）**：新增 `verify/cbmc` 与 CI job
+  `linux-cbmc`（apt 安装 CBMC）。40 个目标覆盖 `nex/bigint/bin` 的
+  加/减/比较（功能对拍、等长/不等长、零操作数、`dst==lhs` 别名）与
+  乘法（无 UB/规范化/符号、常数乘子 0–3）；肢数固定 0..3 使循环边界为
+  常量，`--unwinding-assertions` 保证展开充分。本机约 30 s。变异测试
+  （尾随进位 `>>32`→`>>33`）确认 `1x3` 目标能抓到仅不等长才执行的路径。
 - **线程池 TSan（TODO §F F3）**：新增 CI job `linux-thread-tsan`
   （`-DNEX_ENABLE_THREAD=ON -DNEX_SANITIZE=thread`），只跑 `parallel_ntt`
   相关测试；与 ASan job 分离，MSVC 不覆盖。测试命令用
