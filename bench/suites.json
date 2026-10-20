@@ -75,13 +75,13 @@
       "args": [
         "deep",
         "--budget",
-        "480"
+        "900"
       ],
       "tier": "quick",
       "est_s": 480,
-      "timeout_s": 540,
+      "timeout_s": 1000,
       "rss_mb": 2048,
-      "note": "规模扫描 deep（本地快速档主力）"
+      "note": "规模扫描 deep（本地快速档主力；内部预算 900 s，实际通常更短）"
     },
     {
       "name": "core.math.quick",

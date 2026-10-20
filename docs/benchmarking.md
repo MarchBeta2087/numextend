@@ -53,6 +53,9 @@ python3 scripts/bench.py --profile quick \
 
 - **时间**：全局 deadline + 单 suite `timeout_s`。剩余预算不足时，后续 suite
   标记 `skipped(budget)`（不算失败）。`--max-time` 覆盖档位预算。
+- **预算是上限，不是目标**：各 suite 内部还有 `--budget`（如
+  `core.sweep.deep` 的 900 s），实际通常明显更短；以 `--dry-run` 的预估和
+  实际输出为准，不要假设一定会跑满档位时长。
 - **内存**：每 100 ms 采样峰值 RSS（Linux `VmHWM`、Windows
   `PeakWorkingSetSize`、macOS `ps`），超过 `rss_mb`（或 `--max-rss-mb`，取小）
   终止进程并记 `rss` 失败。POSIX 另设 `RLIMIT_AS = 2×` 预算作为硬安全网。
