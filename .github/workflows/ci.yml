@@ -290,6 +290,22 @@ jobs:
       - name: Test (block / ssa / ooc)
         run: ctest --test-dir build --output-on-failure -R 'block_ntt_selfcheck|nex_ssa_test|nex_ooc_test'
 
+  # OpenCL 实验：PoCL CPU 设备只做正确性（不跑性能断言）
+  linux-opencl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenCL (PoCL CPU runtime)
+        run: sudo apt-get update && sudo apt-get install -y ocl-icd-opencl-dev pocl-opencl-icd
+      - name: Build (contrib OpenCL)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEX_ENABLE_OPENCL=ON
+          cmake --build build --parallel
+      - name: Test (PoCL CPU)
+        env:
+          NEX_OPENCL_REQUIRE: "1"
+        run: ctest --test-dir build --output-on-failure -R nex_opencl
+
   # 覆盖率门槛（Linux）：库行覆盖率 ≥ 80%
   linux-coverage:
     runs-on: ubuntu-latest
