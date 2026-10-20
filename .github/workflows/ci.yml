@@ -397,9 +397,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc
+      - name: Install pandoc (pinned 3.8.2.1)
+        run: |
+          curl -fsSL -o /tmp/pandoc.deb \
+            https://github.com/jgm/pandoc/releases/download/3.8.2.1/pandoc-3.8.2.1-1-amd64.deb
+          sudo dpkg -i /tmp/pandoc.deb
+          pandoc --version | head -1
+      - name: Check doc references
+        run: python3 scripts/check-docs.py
       - name: Build manual
         run: sh scripts/docs.sh
       - name: Verify generated docs are up to date
-        run: git diff --exit-code -- docs/manual docs/modules.md docs/benchmark-suites.md
+        run: git diff --exit-code -- docs/manual docs/manual.html \
+             docs/modules.md docs/benchmark-suites.md docs/contrib-modules.md

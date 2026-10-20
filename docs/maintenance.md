@@ -157,6 +157,10 @@ git push -u origin hotfix/<name>
   --legacy` 清理（默认 dry-run，`--yes` 才删除；`--stale` 只列 CMakeCache
   源目录与当前仓库不一致的目录）。`scripts/build-msvc-debug.bat` 仍生成
   `build-dbg/`（MSVC Debug + CRT 调试堆）。
+- **文档生成**：`sh scripts/docs.sh` 生成 API 页、`docs/modules.md`、
+  `docs/benchmark-suites.md`、`docs/contrib-modules.md` 与 `docs/manual.html`；
+  HTML 由 CI 固定的 **pandoc 3.8.2.1** 生成（其他版本可能产生字节差异），
+  `docs` job 会校验 `docs/manual.html` 与源 Markdown 同步。
 - **默认优化级别**：`CMakeLists.txt` 在未指定 `CMAKE_BUILD_TYPE` 时默认
   `RelWithDebInfo`（`-O2 -g`）。历史/手工构建目录若显式配成空 build type 会是
   `-O0`（性能差数倍）。

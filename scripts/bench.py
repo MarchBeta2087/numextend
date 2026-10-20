@@ -53,11 +53,18 @@ def known_modules() -> set[str]:
                 mods.add(line.split("|", 1)[0])
     except OSError:
         pass
-    contrib = ROOT / "contrib"
-    if contrib.is_dir():
-        for p in contrib.iterdir():
-            if p.is_dir() and p.name != "README.md":
-                mods.add(p.name)
+    manifest = ROOT / "contrib" / "modules.txt"
+    try:
+        for line in manifest.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                mods.add(line.split("|", 1)[0].strip())
+    except OSError:
+        contrib = ROOT / "contrib"
+        if contrib.is_dir():
+            for p in contrib.iterdir():
+                if p.is_dir() and p.name != "README.md":
+                    mods.add(p.name)
     return mods
 
 
