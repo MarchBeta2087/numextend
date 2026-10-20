@@ -134,6 +134,7 @@ struct nex_opencl_ctx {
     cl_kernel k_dotreduce;
     cl_kernel k_carry1;
     cl_kernel k_matmul;
+    cl_kernel k_matmul_sparse;
     size_t limbs;
     size_t digits;      /* 2*limbs（16-bit digit 数） */
     size_t out_digits;  /* 4*limbs+1 */
@@ -151,6 +152,12 @@ struct nex_opencl_ctx {
     cl_mem b_mat_a;
     cl_mem b_mat_b;
     cl_mem b_mat_c;
+    cl_mem b_sp_a_ptr;
+    cl_mem b_sp_a_idx;
+    cl_mem b_sp_a_val;
+    cl_mem b_sp_b_ptr;
+    cl_mem b_sp_b_idx;
+    cl_mem b_sp_b_val;
     size_t cap_a;
     size_t cap_b;
     size_t cap_c;
@@ -162,6 +169,12 @@ struct nex_opencl_ctx {
     size_t cap_mat_a;
     size_t cap_mat_b;
     size_t cap_mat_c;
+    size_t cap_sp_a_ptr;
+    size_t cap_sp_a_idx;
+    size_t cap_sp_a_val;
+    size_t cap_sp_b_ptr;
+    size_t cap_sp_b_idx;
+    size_t cap_sp_b_val;
     char device_name[256];
     char err[512];
 };
@@ -301,7 +314,7 @@ static int choose_device(nex_opencl_ctx_ty *ctx)
 /* kernel 源码（按 limbs 特化）                                         */
 /* ------------------------------------------------------------------ */
 
-static const char *const NEX_CL_KERNEL_BODY =
+static const char *const NEX_CL_KERNEL_BODY_A =
 "__kernel void colsum(__global const uint *a, __global const uint *b,\n"
 "                     __global const uint *c, __global ulong *sums,\n"
 "                     uint n, int use_c)\n"
@@ -359,7 +372,9 @@ static const char *const NEX_CL_KERNEL_BODY =
 "        if ((k & 1u) == 0u) out[p] = d;\n"
 "        else out[p] |= (d << 16);\n"
 "    }\n"
-"}\n"
+"}\n";
+
+static const char *const NEX_CL_KERNEL_BODY_B =
 "__kernel __attribute__((reqd_work_group_size(64,1,1)))\n"
 "void matmul_sub(__global const uint *A, __global const uint *B,\n"
 "                __global uint *C, uint nout, uint k, uint ncols)\n"
@@ -407,6 +422,91 @@ static const char *const NEX_CL_KERNEL_BODY =
 "    }\n"
 "}\n";
 
+static const char *const NEX_CL_KERNEL_BODY_C =
+"__kernel __attribute__((reqd_work_group_size(64,1,1)))\n"
+"void matmul_sparse(__global const uint *a_ptr, __global const uint *a_idx,\n"
+"                   __global const uint *a_val, __global const uint *b_ptr,\n"
+"                   __global const uint *b_idx, __global const uint *b_val,\n"
+"                   __global uint *C, uint nout, uint ncols)\n"
+"{\n"
+"    uint idx = get_global_id(0) / 64u;\n"
+"    if (idx >= nout) return;\n"
+"    uint row = idx / ncols;\n"
+"    uint col = idx - row * ncols;\n"
+"    uint tid = get_local_id(0);\n"
+"    __local ulong acc[OUTDIGITS];\n"
+"    __local uint la[LIMBS];\n"
+"    __local uint lb[LIMBS];\n"
+"    __local uint pa, pb, nmatch;\n"
+"    for (uint q = tid; q < OUTDIGITS; q += 64u) acc[q] = 0;\n"
+"    if (tid == 0u) {\n"
+"        uint i = a_ptr[row];\n"
+"        uint i1 = a_ptr[row + 1u];\n"
+"        uint j = b_ptr[col];\n"
+"        uint j1 = b_ptr[col + 1u];\n"
+"        uint cnt = 0;\n"
+"        while (i < i1 && j < j1) {\n"
+"            uint ia = a_idx[i];\n"
+"            uint ib = b_idx[j];\n"
+"            if (ia == ib) { cnt++; i++; j++; }\n"
+"            else if (ia < ib) i++;\n"
+"            else j++;\n"
+"        }\n"
+"        nmatch = cnt;\n"
+"        pa = a_ptr[row];\n"
+"        pb = b_ptr[col];\n"
+"    }\n"
+"    barrier(CLK_LOCAL_MEM_FENCE);\n"
+"    for (uint m = 0; m < nmatch; ++m) {\n"
+"        if (tid == 0u) {\n"
+"            uint i = pa;\n"
+"            uint i1 = a_ptr[row + 1u];\n"
+"            uint j = pb;\n"
+"            uint j1 = b_ptr[col + 1u];\n"
+"            while (i < i1 && j < j1) {\n"
+"                uint ia = a_idx[i];\n"
+"                uint ib = b_idx[j];\n"
+"                if (ia == ib) break;\n"
+"                if (ia < ib) i++;\n"
+"                else j++;\n"
+"            }\n"
+"            pa = i;\n"
+"            pb = j;\n"
+"        }\n"
+"        barrier(CLK_LOCAL_MEM_FENCE);\n"
+"        __global const uint *av = a_val + (size_t)pa * LIMBS;\n"
+"        __global const uint *bv = b_val + (size_t)pb * LIMBS;\n"
+"        for (uint t = tid; t < LIMBS; t += 64u) la[t] = av[t];\n"
+"        for (uint t = tid; t < LIMBS; t += 64u) lb[t] = bv[t];\n"
+"        barrier(CLK_LOCAL_MEM_FENCE);\n"
+"        for (uint q = tid; q < OUTDIGITS; q += 64u) {\n"
+"            ulong s = 0;\n"
+"            uint i0 = (q >= DIGITS) ? (q - DIGITS + 1u) : 0u;\n"
+"            uint i1 = (q < DIGITS) ? q : (DIGITS - 1u);\n"
+"            for (uint i = i0; i <= i1; ++i) {\n"
+"                uint j = q - i;\n"
+"                uint ad = (la[i >> 1] >> ((i & 1u) * 16u)) & 0xFFFFu;\n"
+"                uint bd = (lb[j >> 1] >> ((j & 1u) * 16u)) & 0xFFFFu;\n"
+"                s += (ulong)ad * (ulong)bd;\n"
+"            }\n"
+"            acc[q] += s;\n"
+"        }\n"
+"        barrier(CLK_LOCAL_MEM_FENCE);\n"
+"        if (tid == 0u) { pa++; pb++; }\n"
+"    }\n"
+"    if (tid == 0u) {\n"
+"        ulong carry = 0;\n"
+"        for (uint q = 0; q < OUTDIGITS; ++q) {\n"
+"            ulong t = acc[q] + carry;\n"
+"            uint d = (uint)(t & 0xFFFFu);\n"
+"            carry = t >> 16;\n"
+"            uint limb = q >> 1;\n"
+"            if ((q & 1u) == 0u) C[(size_t)idx * OUTLIMBS + limb] = d;\n"
+"            else C[(size_t)idx * OUTLIMBS + limb] |= (d << 16);\n"
+"        }\n"
+"    }\n"
+"}\n";
+
 static int build_kernels(nex_opencl_ctx_ty *ctx)
 {
     char defs[256];
@@ -419,13 +519,18 @@ static int build_kernels(nex_opencl_ctx_ty *ctx)
     if (dn <= 0 || (size_t)dn >= sizeof(defs)) {
         return failf(ctx, "kernel 宏生成失败");
     }
-    size_t src_size = (size_t)dn + strlen(NEX_CL_KERNEL_BODY) + 1u;
+    const size_t body_a = strlen(NEX_CL_KERNEL_BODY_A);
+    const size_t body_b = strlen(NEX_CL_KERNEL_BODY_B);
+    const size_t body_c = strlen(NEX_CL_KERNEL_BODY_C);
+    size_t src_size = (size_t)dn + body_a + body_b + body_c + 1u;
     char *src = (char *)malloc(src_size);
     if (src == NULL) {
         return failf(ctx, "OOM（kernel 源码）");
     }
     memcpy(src, defs, (size_t)dn);
-    memcpy(src + dn, NEX_CL_KERNEL_BODY, strlen(NEX_CL_KERNEL_BODY) + 1u);
+    memcpy(src + dn, NEX_CL_KERNEL_BODY_A, body_a);
+    memcpy(src + dn + body_a, NEX_CL_KERNEL_BODY_B, body_b);
+    memcpy(src + dn + body_a + body_b, NEX_CL_KERNEL_BODY_C, body_c + 1u);
 
     cl_int rc = CL_SUCCESS;
     const char *src_ptr = src;
@@ -456,9 +561,10 @@ static int build_kernels(nex_opencl_ctx_ty *ctx)
     ctx->k_dotreduce = ctx->api.create_kernel(ctx->program, "dotreduce", &rc);
     ctx->k_carry1 = ctx->api.create_kernel(ctx->program, "carry1", &rc);
     ctx->k_matmul = ctx->api.create_kernel(ctx->program, "matmul_sub", &rc);
+    ctx->k_matmul_sparse = ctx->api.create_kernel(ctx->program, "matmul_sparse", &rc);
     if (ctx->k_colsum == NULL || ctx->k_carry == NULL ||
             ctx->k_dotreduce == NULL || ctx->k_carry1 == NULL ||
-            ctx->k_matmul == NULL) {
+            ctx->k_matmul == NULL || ctx->k_matmul_sparse == NULL) {
         return failf(ctx, "clCreateKernel 失败 (%d)", (int)rc);
     }
     return 0;
@@ -473,7 +579,9 @@ static void release_buffers(nex_opencl_ctx_ty *ctx)
     cl_mem *bufs[] = {
         &ctx->b_a, &ctx->b_b, &ctx->b_c, &ctx->b_zero,
         &ctx->b_sums, &ctx->b_out, &ctx->b_dot_sums, &ctx->b_dot_out,
-        &ctx->b_mat_a, &ctx->b_mat_b, &ctx->b_mat_c
+        &ctx->b_mat_a, &ctx->b_mat_b, &ctx->b_mat_c,
+        &ctx->b_sp_a_ptr, &ctx->b_sp_a_idx, &ctx->b_sp_a_val,
+        &ctx->b_sp_b_ptr, &ctx->b_sp_b_idx, &ctx->b_sp_b_val
     };
     for (size_t i = 0; i < sizeof(bufs) / sizeof(bufs[0]); i++) {
         if (*bufs[i] != NULL) {
@@ -490,6 +598,9 @@ void nex_opencl_destroy(nex_opencl_ctx_ty *ctx)
     }
     if (ctx->k_carry1 != NULL) {
         (void)ctx->api.release_kernel(ctx->k_carry1);
+    }
+    if (ctx->k_matmul_sparse != NULL) {
+        (void)ctx->api.release_kernel(ctx->k_matmul_sparse);
     }
     if (ctx->k_matmul != NULL) {
         (void)ctx->api.release_kernel(ctx->k_matmul);
@@ -1099,6 +1210,347 @@ int nex_opencl_matmul_subset(nex_opencl_ctx_ty *ctx,
     free(c_pack);
     return 0;
 }
+
+/* ------------------------------------------------------------------ */
+/* 稀疏子矩阵乘                                                        */
+/* ------------------------------------------------------------------ */
+
+static size_t csr_tile_nnz(const nex_opencl_csr_ty *A, const uint32_t *rows,
+        size_t r0, size_t nr)
+{
+    size_t n = 0;
+    for (size_t i = 0; i < nr; i++) {
+        const uint32_t r = rows[r0 + i];
+        n += (size_t)(A->row_ptr[r + 1u] - A->row_ptr[r]);
+    }
+    return n;
+}
+
+static size_t csc_tile_nnz(const nex_opencl_csc_ty *B, const uint32_t *cols,
+        size_t c0, size_t nc)
+{
+    size_t n = 0;
+    for (size_t j = 0; j < nc; j++) {
+        const uint32_t c = cols[c0 + j];
+        n += (size_t)(B->col_ptr[c + 1u] - B->col_ptr[c]);
+    }
+    return n;
+}
+
+static void pack_a_csr_tile(const nex_opencl_csr_ty *A, const uint32_t *rows,
+        size_t r0, size_t nr, size_t limbs,
+        uint32_t *ptr, uint32_t *idx, uint32_t *val)
+{
+    uint32_t n = 0;
+    ptr[0] = 0u;
+    for (size_t i = 0; i < nr; i++) {
+        const uint32_t r = rows[r0 + i];
+        for (uint32_t p = A->row_ptr[r]; p < A->row_ptr[r + 1u]; p++) {
+            idx[n] = A->col_idx[p];
+            memcpy(val + (size_t)n * limbs,
+                    A->values + (size_t)p * limbs,
+                    limbs * sizeof(uint32_t));
+            n++;
+        }
+        ptr[i + 1u] = n;
+    }
+}
+
+static void pack_b_csc_tile(const nex_opencl_csc_ty *B, const uint32_t *cols,
+        size_t c0, size_t nc, size_t limbs,
+        uint32_t *ptr, uint32_t *idx, uint32_t *val)
+{
+    uint32_t n = 0;
+    ptr[0] = 0u;
+    for (size_t j = 0; j < nc; j++) {
+        const uint32_t c = cols[c0 + j];
+        for (uint32_t p = B->col_ptr[c]; p < B->col_ptr[c + 1u]; p++) {
+            idx[n] = B->row_idx[p];
+            memcpy(val + (size_t)n * limbs,
+                    B->values + (size_t)p * limbs,
+                    limbs * sizeof(uint32_t));
+            n++;
+        }
+        ptr[j + 1u] = n;
+    }
+}
+
+int nex_opencl_matmul_sparse(nex_opencl_ctx_ty *ctx,
+        const nex_opencl_csr_ty *A, const nex_opencl_csc_ty *B,
+        const uint32_t *rows, size_t nrows,
+        const uint32_t *cols, size_t ncols,
+        uint32_t *C, size_t ldc)
+{
+    if (ctx == NULL || A == NULL || B == NULL || rows == NULL || cols == NULL
+            || C == NULL || nrows == 0u || ncols == 0u) {
+        return -1;
+    }
+    if (nrows > (SIZE_MAX / ncols)) {
+        return failf(ctx, "nrows*ncols 溢出");
+    }
+    if (ncols > 0xFFFFFFFFu) {
+        return failf(ctx, "ncols 超出 uint 范围");
+    }
+    size_t k_est = 1u;
+    for (size_t i = 0; i < A->nnz; i++) {
+        if ((size_t)A->col_idx[i] + 1u > k_est) {
+            k_est = (size_t)A->col_idx[i] + 1u;
+        }
+    }
+    for (size_t i = 0; i < B->nnz; i++) {
+        if ((size_t)B->row_idx[i] + 1u > k_est) {
+            k_est = (size_t)B->row_idx[i] + 1u;
+        }
+    }
+    if ((double)k_est * (double)ctx->digits * 65535.0 * 65535.0 >= 1.8e19) {
+        return failf(ctx, "k 过大，64-bit 累加可能溢出");
+    }
+
+    const size_t row_bytes = k_est * ctx->limbs * sizeof(uint32_t);
+    const size_t col_bytes = k_est * ctx->limbs * sizeof(uint32_t);
+    const size_t cell_bytes = ctx->out_limbs * sizeof(uint32_t);
+    const size_t budget = 2500000000u;
+
+    size_t rt = nrows;
+    size_t ct = ncols;
+    const char *tile_env = getenv("NEX_OPENCL_MATMUL_TILE");
+    size_t max_tile = (tile_env != NULL) ? (size_t)strtoull(tile_env, NULL, 10) : 0u;
+    if (max_tile > 0u) {
+        if (rt > max_tile) rt = max_tile;
+        if (ct > max_tile) ct = max_tile;
+    }
+    while ((rt > 1u || ct > 1u) &&
+            (rt * row_bytes + ct * col_bytes + rt * ct * cell_bytes > budget)) {
+        if (rt >= ct) rt = (rt + 1u) / 2u;
+        else ct = (ct + 1u) / 2u;
+    }
+
+    const size_t lwork = 64u;
+    const int rows_outer = (nrows <= ncols);
+    cl_int rc = CL_SUCCESS;
+
+    /* 先处理行外循环或列外循环；每 tile 重新分配 host 缓冲。
+     * 注意：稀疏路径的 packed 缓冲在 enqueue 后立即 free，因此写缓冲必须
+     * 用阻塞模式（CL_TRUE）。非阻塞写只登记命令，实现可以在稍后读取主机
+     * 内存（PoCL CPU 即如此），此时缓冲已释放 → 读到脏数据；NVIDIA 驱动
+     * 通常立即拷贝，掩盖了该 UB。 */
+    for (size_t outer = 0; outer < (rows_outer ? nrows : ncols); outer += (rows_outer ? rt : ct)) {
+        const int is_rows = rows_outer;
+        const size_t o_count = is_rows ? nrows : ncols;
+        const size_t o_step = is_rows ? rt : ct;
+        const size_t o0 = outer;
+        const size_t o_actual = (o0 + o_step > o_count) ? (o_count - o0) : o_step;
+        (void)o_actual;
+        if (is_rows) {
+            const size_t nr = (o0 + rt > nrows) ? (nrows - o0) : rt;
+            const size_t nnz_a = csr_tile_nnz(A, rows, o0, nr);
+            uint32_t *a_ptr = (uint32_t *)malloc((nr + 1u) * sizeof(uint32_t));
+            uint32_t *a_idx = (uint32_t *)malloc((nnz_a ? nnz_a : 1u) * sizeof(uint32_t));
+            uint32_t *a_val = (uint32_t *)malloc((nnz_a ? nnz_a : 1u) * ctx->limbs * sizeof(uint32_t));
+            if (a_ptr == NULL || a_idx == NULL || a_val == NULL) {
+                free(a_ptr); free(a_idx); free(a_val);
+                return failf(ctx, "OOM（稀疏 A tile）");
+            }
+            pack_a_csr_tile(A, rows, o0, nr, ctx->limbs, a_ptr, a_idx, a_val);
+            if (ensure_buffer(ctx, &ctx->b_sp_a_ptr, &ctx->cap_sp_a_ptr,
+                        (nr + 1u) * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                    ensure_buffer(ctx, &ctx->b_sp_a_idx, &ctx->cap_sp_a_idx,
+                        (nnz_a ? nnz_a : 1u) * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                    ensure_buffer(ctx, &ctx->b_sp_a_val, &ctx->cap_sp_a_val,
+                        (nnz_a ? nnz_a : 1u) * ctx->limbs * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0) {
+                free(a_ptr); free(a_idx); free(a_val);
+                return -1;
+            }
+            rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_ptr, CL_TRUE, 0,
+                    (nr + 1u) * sizeof(uint32_t), a_ptr, 0, NULL, NULL);
+            if (rc == CL_SUCCESS) {
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_idx, CL_TRUE, 0,
+                        nnz_a * sizeof(uint32_t), a_idx, 0, NULL, NULL);
+            }
+            if (rc == CL_SUCCESS) {
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_val, CL_TRUE, 0,
+                        nnz_a * ctx->limbs * sizeof(uint32_t), a_val, 0, NULL, NULL);
+            }
+            free(a_ptr); free(a_idx); free(a_val);
+            if (rc != CL_SUCCESS) {
+                return failf(ctx, "上传稀疏 A tile 失败 (%d)", (int)rc);
+            }
+
+            for (size_t c0 = 0; c0 < ncols; c0 += ct) {
+                const size_t nc = (c0 + ct > ncols) ? (ncols - c0) : ct;
+                const size_t nnz_b = csc_tile_nnz(B, cols, c0, nc);
+                uint32_t *b_ptr = (uint32_t *)malloc((nc + 1u) * sizeof(uint32_t));
+                uint32_t *b_idx = (uint32_t *)malloc((nnz_b ? nnz_b : 1u) * sizeof(uint32_t));
+                uint32_t *b_val = (uint32_t *)malloc((nnz_b ? nnz_b : 1u) * ctx->limbs * sizeof(uint32_t));
+                uint32_t *c_pack = (uint32_t *)malloc(nr * nc * ctx->out_limbs * sizeof(uint32_t));
+                if (b_ptr == NULL || b_idx == NULL || b_val == NULL || c_pack == NULL) {
+                    free(b_ptr); free(b_idx); free(b_val); free(c_pack);
+                    return failf(ctx, "OOM（稀疏 B tile）");
+                }
+                pack_b_csc_tile(B, cols, c0, nc, ctx->limbs, b_ptr, b_idx, b_val);
+                if (ensure_buffer(ctx, &ctx->b_sp_b_ptr, &ctx->cap_sp_b_ptr,
+                            (nc + 1u) * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                        ensure_buffer(ctx, &ctx->b_sp_b_idx, &ctx->cap_sp_b_idx,
+                            (nnz_b ? nnz_b : 1u) * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                        ensure_buffer(ctx, &ctx->b_sp_b_val, &ctx->cap_sp_b_val,
+                            (nnz_b ? nnz_b : 1u) * ctx->limbs * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                        ensure_buffer(ctx, &ctx->b_mat_c, &ctx->cap_mat_c,
+                            nr * nc * cell_bytes, CL_MEM_READ_WRITE) != 0) {
+                    free(b_ptr); free(b_idx); free(b_val); free(c_pack);
+                    return -1;
+                }
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_ptr, CL_TRUE, 0,
+                        (nc + 1u) * sizeof(uint32_t), b_ptr, 0, NULL, NULL);
+                if (rc == CL_SUCCESS) {
+                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_idx, CL_TRUE, 0,
+                            nnz_b * sizeof(uint32_t), b_idx, 0, NULL, NULL);
+                }
+                if (rc == CL_SUCCESS) {
+                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_val, CL_TRUE, 0,
+                            nnz_b * ctx->limbs * sizeof(uint32_t), b_val, 0, NULL, NULL);
+                }
+                free(b_ptr); free(b_idx); free(b_val);
+                if (rc != CL_SUCCESS) {
+                    free(c_pack);
+                    return failf(ctx, "上传稀疏 B tile 失败 (%d)", (int)rc);
+                }
+                cl_uint nout = (cl_uint)(nr * nc);
+                cl_uint ncc = (cl_uint)nc;
+                SET_ARG(ctx, ctx->k_matmul_sparse, 0, sizeof(cl_mem), &ctx->b_sp_a_ptr);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 1, sizeof(cl_mem), &ctx->b_sp_a_idx);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 2, sizeof(cl_mem), &ctx->b_sp_a_val);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 3, sizeof(cl_mem), &ctx->b_sp_b_ptr);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 4, sizeof(cl_mem), &ctx->b_sp_b_idx);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 5, sizeof(cl_mem), &ctx->b_sp_b_val);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 6, sizeof(cl_mem), &ctx->b_mat_c);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 7, sizeof(cl_uint), &nout);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 8, sizeof(cl_uint), &ncc);
+                const size_t global[1] = { nr * nc * 64u };
+                const size_t local[1] = { lwork };
+                if (run_kernel(ctx, ctx->k_matmul_sparse, 1, global, local) != 0) {
+                    free(c_pack);
+                    return -1;
+                }
+                rc = ctx->api.read_buffer(ctx->queue, ctx->b_mat_c, CL_TRUE, 0,
+                        nr * nc * cell_bytes, c_pack, 0, NULL, NULL);
+                if (rc != CL_SUCCESS) {
+                    free(c_pack);
+                    return failf(ctx, "读取稀疏 C tile 失败 (%d)", (int)rc);
+                }
+                for (size_t i = 0; i < nr; i++) {
+                    memcpy(C + (o0 + i) * ldc + c0 * ctx->out_limbs,
+                            c_pack + i * nc * ctx->out_limbs,
+                            nc * ctx->out_limbs * sizeof(uint32_t));
+                }
+                free(c_pack);
+            }
+        } else {
+            const size_t nc = (o0 + ct > ncols) ? (ncols - o0) : ct;
+            const size_t nnz_b = csc_tile_nnz(B, cols, o0, nc);
+            uint32_t *b_ptr = (uint32_t *)malloc((nc + 1u) * sizeof(uint32_t));
+            uint32_t *b_idx = (uint32_t *)malloc((nnz_b ? nnz_b : 1u) * sizeof(uint32_t));
+            uint32_t *b_val = (uint32_t *)malloc((nnz_b ? nnz_b : 1u) * ctx->limbs * sizeof(uint32_t));
+            if (b_ptr == NULL || b_idx == NULL || b_val == NULL) {
+                free(b_ptr); free(b_idx); free(b_val);
+                return failf(ctx, "OOM（稀疏 B tile）");
+            }
+            pack_b_csc_tile(B, cols, o0, nc, ctx->limbs, b_ptr, b_idx, b_val);
+            if (ensure_buffer(ctx, &ctx->b_sp_b_ptr, &ctx->cap_sp_b_ptr,
+                        (nc + 1u) * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                    ensure_buffer(ctx, &ctx->b_sp_b_idx, &ctx->cap_sp_b_idx,
+                        (nnz_b ? nnz_b : 1u) * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                    ensure_buffer(ctx, &ctx->b_sp_b_val, &ctx->cap_sp_b_val,
+                        (nnz_b ? nnz_b : 1u) * ctx->limbs * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0) {
+                free(b_ptr); free(b_idx); free(b_val);
+                return -1;
+            }
+            rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_ptr, CL_TRUE, 0,
+                    (nc + 1u) * sizeof(uint32_t), b_ptr, 0, NULL, NULL);
+            if (rc == CL_SUCCESS) {
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_idx, CL_TRUE, 0,
+                        nnz_b * sizeof(uint32_t), b_idx, 0, NULL, NULL);
+            }
+            if (rc == CL_SUCCESS) {
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_val, CL_TRUE, 0,
+                        nnz_b * ctx->limbs * sizeof(uint32_t), b_val, 0, NULL, NULL);
+            }
+            free(b_ptr); free(b_idx); free(b_val);
+            if (rc != CL_SUCCESS) {
+                return failf(ctx, "上传稀疏 B tile 失败 (%d)", (int)rc);
+            }
+            for (size_t r0 = 0; r0 < nrows; r0 += rt) {
+                const size_t nr = (r0 + rt > nrows) ? (nrows - r0) : rt;
+                const size_t nnz_a = csr_tile_nnz(A, rows, r0, nr);
+                uint32_t *a_ptr = (uint32_t *)malloc((nr + 1u) * sizeof(uint32_t));
+                uint32_t *a_idx = (uint32_t *)malloc((nnz_a ? nnz_a : 1u) * sizeof(uint32_t));
+                uint32_t *a_val = (uint32_t *)malloc((nnz_a ? nnz_a : 1u) * ctx->limbs * sizeof(uint32_t));
+                uint32_t *c_pack = (uint32_t *)malloc(nr * nc * ctx->out_limbs * sizeof(uint32_t));
+                if (a_ptr == NULL || a_idx == NULL || a_val == NULL || c_pack == NULL) {
+                    free(a_ptr); free(a_idx); free(a_val); free(c_pack);
+                    return failf(ctx, "OOM（稀疏 A tile）");
+                }
+                pack_a_csr_tile(A, rows, r0, nr, ctx->limbs, a_ptr, a_idx, a_val);
+                if (ensure_buffer(ctx, &ctx->b_sp_a_ptr, &ctx->cap_sp_a_ptr,
+                            (nr + 1u) * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                        ensure_buffer(ctx, &ctx->b_sp_a_idx, &ctx->cap_sp_a_idx,
+                            (nnz_a ? nnz_a : 1u) * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                        ensure_buffer(ctx, &ctx->b_sp_a_val, &ctx->cap_sp_a_val,
+                            (nnz_a ? nnz_a : 1u) * ctx->limbs * sizeof(uint32_t), CL_MEM_READ_ONLY) != 0 ||
+                        ensure_buffer(ctx, &ctx->b_mat_c, &ctx->cap_mat_c,
+                            nr * nc * cell_bytes, CL_MEM_READ_WRITE) != 0) {
+                    free(a_ptr); free(a_idx); free(a_val); free(c_pack);
+                    return -1;
+                }
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_ptr, CL_TRUE, 0,
+                        (nr + 1u) * sizeof(uint32_t), a_ptr, 0, NULL, NULL);
+                if (rc == CL_SUCCESS) {
+                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_idx, CL_TRUE, 0,
+                            nnz_a * sizeof(uint32_t), a_idx, 0, NULL, NULL);
+                }
+                if (rc == CL_SUCCESS) {
+                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_val, CL_TRUE, 0,
+                            nnz_a * ctx->limbs * sizeof(uint32_t), a_val, 0, NULL, NULL);
+                }
+                free(a_ptr); free(a_idx); free(a_val);
+                if (rc != CL_SUCCESS) {
+                    free(c_pack);
+                    return failf(ctx, "上传稀疏 A tile 失败 (%d)", (int)rc);
+                }
+                cl_uint nout = (cl_uint)(nr * nc);
+                cl_uint ncc = (cl_uint)nc;
+                SET_ARG(ctx, ctx->k_matmul_sparse, 0, sizeof(cl_mem), &ctx->b_sp_a_ptr);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 1, sizeof(cl_mem), &ctx->b_sp_a_idx);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 2, sizeof(cl_mem), &ctx->b_sp_a_val);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 3, sizeof(cl_mem), &ctx->b_sp_b_ptr);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 4, sizeof(cl_mem), &ctx->b_sp_b_idx);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 5, sizeof(cl_mem), &ctx->b_sp_b_val);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 6, sizeof(cl_mem), &ctx->b_mat_c);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 7, sizeof(cl_uint), &nout);
+                SET_ARG(ctx, ctx->k_matmul_sparse, 8, sizeof(cl_uint), &ncc);
+                const size_t global[1] = { nr * nc * 64u };
+                const size_t local[1] = { lwork };
+                if (run_kernel(ctx, ctx->k_matmul_sparse, 1, global, local) != 0) {
+                    free(c_pack);
+                    return -1;
+                }
+                rc = ctx->api.read_buffer(ctx->queue, ctx->b_mat_c, CL_TRUE, 0,
+                        nr * nc * cell_bytes, c_pack, 0, NULL, NULL);
+                if (rc != CL_SUCCESS) {
+                    free(c_pack);
+                    return failf(ctx, "读取稀疏 C tile 失败 (%d)", (int)rc);
+                }
+                for (size_t i = 0; i < nr; i++) {
+                    memcpy(C + (r0 + i) * ldc + o0 * ctx->out_limbs,
+                            c_pack + i * nc * ctx->out_limbs,
+                            nc * ctx->out_limbs * sizeof(uint32_t));
+                }
+                free(c_pack);
+            }
+        }
+    }
+    return 0;
+}
+
 
 /* ------------------------------------------------------------------ */
 /* 便捷转换                                                            */
