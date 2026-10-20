@@ -449,14 +449,14 @@ issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动�
 | 项 | 现状 | 启动前置（缺一不可） | 验收（若启动） |
 |---|---|---|---|
 | **P2 Lean 4 形式化** | 零代码 | ① 明确验证边界（仅肢级乘法/进位/规范化，还是含 NTT/CRT）；② 固定 toolchain（Lean/Mathlib 版本）与 CI 方式（自托管或 nightly）；③ 时间盒 ≤2 周的可行性 spike | spike 产出可编译定理清单 + 1 个端到端引理（如进位链） |
-| **P3 OpenCL** | M1 完成（madd/dot）；M2 矩阵流式待做（§K5） | ① 最低 OpenCL 版本（建议 1.2）与设备范围（CPU/GPU、厂商）；② GPU CI 方案（自托管 runner，或 CI 只编译不跑）；③ 明确消费方（批量乘法而非单次大数） | 与 CPU 逐位一致；批量场景 ≥2×（与并行 NTT 同口径）；默认 OFF、不进核心 |
+| **P3 OpenCL** | M1–M3 完成（madd/dot、稠密子矩阵、CSR/CSC 稀疏扫描，§K5）；P4 门槛待评估 | ① 最低 OpenCL 版本（建议 1.2）与设备范围（CPU/GPU、厂商）；② GPU CI 方案（自托管 runner，或 CI 只编译不跑）；③ 明确消费方（批量乘法而非单次大数） | 与 CPU 逐位一致；批量场景 ≥2×（与并行 NTT 同口径）；默认 OFF、不进核心 |
 | **P4 提升进核心** | 无候选达标 | 目标规模 ≥2× 且逐位一致（对 NTT 基线）、可复现、CI 可维护、跨平台（含 32 位/大端）；不改变零依赖/C99/amalgam 契约 | 进核心 AUTO 分派 + 全量回归 + 文档/基准更新 |
 
 - 当前没有候选满足 P4：1e9 位分块 NTT 与 OOC 都只在 `contrib/`，且 OOC
   的收益是大规模/低内存而非 ≥2× 加速。
 - 硬件门槛（≥128–256 GB 单机 vs out-of-core）随 Y8 冻结，不再单独决策。
 
-### K5 P3 OpenCL（M1 已落地，issue #98）
+### K5 P3 OpenCL（M1–M3 已落地，issue #98）
 
 - [x] **M0 骨架/CI**：`contrib/nex_opencl`（`-DNEX_ENABLE_OPENCL=ON`，默认 OFF），
       动态加载 OpenCL（Win `OpenCL.dll` / Linux `libOpenCL.so.1`），OpenCL 1.2
