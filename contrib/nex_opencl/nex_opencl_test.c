@@ -8,6 +8,10 @@
  * NEX_OPENCL_REQUIRE=1 强制失败。
  */
 
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "nex_opencl.h"
 
 #include <stdio.h>
@@ -261,6 +265,119 @@ static void run_case(size_t limbs, size_t n, int ones)
     nex_opencl_destroy(ctx);
 }
 
+static void cpu_matmul_ref(const uint32_t *A, size_t lda,
+        const uint32_t *B, size_t ldb,
+        const uint32_t *rows, size_t nrows,
+        const uint32_t *cols, size_t ncols,
+        uint32_t *C, size_t k, size_t limbs)
+{
+    const size_t out_limbs = limbs * 2u + 1u;
+    bigint_bin_ty av;
+    bigint_bin_ty bv;
+    bigint_bin_ty pv;
+    bigint_bin_ty sv;
+    CHECK(bigint_bin_init(&av) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&bv) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&pv) == BIGINT_OK_E);
+    CHECK(bigint_bin_init(&sv) == BIGINT_OK_E);
+    for (size_t i = 0; i < nrows; i++) {
+        for (size_t j = 0; j < ncols; j++) {
+            CHECK(bigint_bin_from_u64(&sv, 0u) == BIGINT_OK_E);
+            for (size_t p = 0; p < k; p++) {
+                CHECK(nex_opencl_unpack_bin(
+                        A + (size_t)rows[i] * lda + p * limbs, limbs, &av) == 0);
+                CHECK(nex_opencl_unpack_bin(
+                        B + p * ldb + (size_t)cols[j] * limbs, limbs, &bv) == 0);
+                CHECK(bigint_bin_mul(&pv, &av, &bv) == BIGINT_OK_E);
+                CHECK(bigint_bin_add(&sv, &sv, &pv) == BIGINT_OK_E);
+            }
+            uint32_t *dst = C + (i * ncols + j) * out_limbs;
+            memset(dst, 0, out_limbs * sizeof(uint32_t));
+            CHECK(sv.len <= out_limbs);
+            for (size_t q = 0; q < sv.len; q++) {
+                dst[q] = sv.limbs[q];
+            }
+        }
+    }
+    bigint_bin_free(&av);
+    bigint_bin_free(&bv);
+    bigint_bin_free(&pv);
+    bigint_bin_free(&sv);
+}
+
+static void set_tile_env(size_t v)
+{
+    char buf[32];
+    (void)snprintf(buf, sizeof(buf), "%zu", v);
+#if defined(_WIN32)
+    (void)_putenv_s("NEX_OPENCL_MATMUL_TILE", buf);
+#else
+    (void)setenv("NEX_OPENCL_MATMUL_TILE", buf, 1);
+#endif
+}
+
+static void unset_tile_env(void)
+{
+#if defined(_WIN32)
+    (void)_putenv_s("NEX_OPENCL_MATMUL_TILE", "");
+#else
+    (void)unsetenv("NEX_OPENCL_MATMUL_TILE");
+#endif
+}
+
+static void run_matmul_case(size_t limbs, size_t m, size_t k, size_t n,
+        size_t nrows, size_t ncols)
+{
+    char err[512];
+    nex_opencl_ctx_ty *ctx = nex_opencl_create(limbs, err, sizeof(err));
+    if (ctx == NULL) {
+        printf("FAIL: create(%zu): %s\n", limbs, err);
+        g_fail++;
+        return;
+    }
+    const size_t out_limbs = nex_opencl_out_limbs(ctx);
+    const size_t lda = k * limbs;
+    const size_t ldb = n * limbs;
+    const size_t ldc = ncols * out_limbs;
+    uint32_t *A = (uint32_t *)malloc(m * lda * sizeof(uint32_t));
+    uint32_t *B = (uint32_t *)malloc(k * ldb * sizeof(uint32_t));
+    uint32_t *rows = (uint32_t *)malloc(nrows * sizeof(uint32_t));
+    uint32_t *cols = (uint32_t *)malloc(ncols * sizeof(uint32_t));
+    uint32_t *gpu = (uint32_t *)malloc(nrows * ncols * out_limbs * sizeof(uint32_t));
+    uint32_t *cpu = (uint32_t *)malloc(nrows * ncols * out_limbs * sizeof(uint32_t));
+    CHECK(A != NULL && B != NULL && rows != NULL && cols != NULL
+            && gpu != NULL && cpu != NULL);
+    if (A == NULL || B == NULL || rows == NULL || cols == NULL
+            || gpu == NULL || cpu == NULL) {
+        free(A); free(B); free(rows); free(cols); free(gpu); free(cpu);
+        nex_opencl_destroy(ctx);
+        return;
+    }
+    fill_random(A, m * lda);
+    fill_random(B, k * ldb);
+    for (size_t i = 0; i < nrows; i++) {
+        rows[i] = (uint32_t)((i * 7u + 3u) % m);
+    }
+    for (size_t j = 0; j < ncols; j++) {
+        cols[j] = (uint32_t)((j * 5u + 1u) % n);
+    }
+    if (nex_opencl_matmul_subset(ctx, A, lda, B, ldb, rows, nrows,
+            cols, ncols, gpu, ldc, k) != 0) {
+        printf("FAIL: matmul_subset: %s\n", nex_opencl_error(ctx));
+        g_fail++;
+    }
+    cpu_matmul_ref(A, lda, B, ldb, rows, nrows, cols, ncols, cpu, k, limbs);
+    compare_limbs(gpu, cpu, nrows * ncols * out_limbs, "matmul/subset");
+    free(A);
+    free(B);
+    free(rows);
+    free(cols);
+    free(gpu);
+    free(cpu);
+    nex_opencl_destroy(ctx);
+}
+
+
 int main(void)
 {
     char err[512];
@@ -281,6 +398,11 @@ int main(void)
         }
     }
     run_case(8u, 33u, 1);
+    run_matmul_case(1u, 2u, 1u, 2u, 1u, 1u);
+    run_matmul_case(8u, 20u, 12u, 18u, 5u, 5u);
+    set_tile_env(3u);
+    run_matmul_case(4u, 10u, 5u, 9u, 5u, 4u);
+    unset_tile_env();
 
     nex_opencl_destroy(ctx);
     if (g_fail != 0) {

@@ -11,7 +11,7 @@
  * 当前覆盖：
  *   - nex_opencl_madd：out[i] = a[i]*b[i] + c[i]（逐元素）
  *   - nex_opencl_dot ：out = Σ a[i]*b[i]（一批点积）
- * 矩阵×向量复用 dot 的行形式，见 M2 计划（contrib/nex_opencl/README.md）。
+ * 矩阵×矩阵子集见 nex_opencl_matmul_subset（M2，contrib/nex_opencl/README.md）。
  */
 #ifndef NEX_OPENCL_H
 #define NEX_OPENCL_H
@@ -55,6 +55,17 @@ int nex_opencl_madd(nex_opencl_ctx_ty *ctx,
 int nex_opencl_dot(nex_opencl_ctx_ty *ctx,
         const uint32_t *a, const uint32_t *b,
         uint32_t *out, size_t n);
+
+/* 子矩阵乘：C[i,j] = Σ_{p<k} A[rows[i],p] * B[p,cols[j]]。
+ * A 为 m×k、B 为 k×n 的行主序定长 limb 数组（lda/ldb 为每行 limb 数），
+ * C 为 nrows×ncols、每行 ldc 个 limb；输出每元素 out_limbs。
+ * 内部按 tile 在 RAM/VRAM 间搬运，适合 4k×4k、只取部分行/列的场景。
+ * 返回 0 成功，-1 失败。 */
+int nex_opencl_matmul_subset(nex_opencl_ctx_ty *ctx,
+        const uint32_t *A, size_t lda, const uint32_t *B, size_t ldb,
+        const uint32_t *rows, size_t nrows,
+        const uint32_t *cols, size_t ncols,
+        uint32_t *C, size_t ldc, size_t k);
 
 /* 便捷转换：把非负 bigint_bin 打包/解包为定长 limb 数组。
  * pack 时 v->len 必须 ≤ limbs；unpack 会裁剪前导零并置正/零符号。

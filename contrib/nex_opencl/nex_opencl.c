@@ -133,6 +133,7 @@ struct nex_opencl_ctx {
     cl_kernel k_carry;
     cl_kernel k_dotreduce;
     cl_kernel k_carry1;
+    cl_kernel k_matmul;
     size_t limbs;
     size_t digits;      /* 2*limbs（16-bit digit 数） */
     size_t out_digits;  /* 4*limbs+1 */
@@ -147,6 +148,9 @@ struct nex_opencl_ctx {
     cl_mem b_out;
     cl_mem b_dot_sums;
     cl_mem b_dot_out;
+    cl_mem b_mat_a;
+    cl_mem b_mat_b;
+    cl_mem b_mat_c;
     size_t cap_a;
     size_t cap_b;
     size_t cap_c;
@@ -155,6 +159,9 @@ struct nex_opencl_ctx {
     size_t cap_out;
     size_t cap_dot_sums;
     size_t cap_dot_out;
+    size_t cap_mat_a;
+    size_t cap_mat_b;
+    size_t cap_mat_c;
     char device_name[256];
     char err[512];
 };
@@ -352,6 +359,52 @@ static const char *const NEX_CL_KERNEL_BODY =
 "        if ((k & 1u) == 0u) out[p] = d;\n"
 "        else out[p] |= (d << 16);\n"
 "    }\n"
+"}\n"
+"__kernel __attribute__((reqd_work_group_size(64,1,1)))\n"
+"void matmul_sub(__global const uint *A, __global const uint *B,\n"
+"                __global uint *C, uint nout, uint k, uint ncols)\n"
+"{\n"
+"    uint idx = get_global_id(0) / 64u;\n"
+"    if (idx >= nout) return;\n"
+"    uint row = idx / ncols;\n"
+"    uint col = idx - row * ncols;\n"
+"    uint tid = get_local_id(0);\n"
+"    __local ulong acc[OUTDIGITS];\n"
+"    __local uint la[LIMBS];\n"
+"    __local uint lb[LIMBS];\n"
+"    for (uint q = tid; q < OUTDIGITS; q += 64u) acc[q] = 0;\n"
+"    barrier(CLK_LOCAL_MEM_FENCE);\n"
+"    for (uint p = 0; p < k; ++p) {\n"
+"        __global const uint *ap = A + ((size_t)row * k + p) * LIMBS;\n"
+"        __global const uint *bp = B + ((size_t)p * ncols + col) * LIMBS;\n"
+"        for (uint i = tid; i < LIMBS; i += 64u) la[i] = ap[i];\n"
+"        for (uint i = tid; i < LIMBS; i += 64u) lb[i] = bp[i];\n"
+"        barrier(CLK_LOCAL_MEM_FENCE);\n"
+"        for (uint q = tid; q < OUTDIGITS; q += 64u) {\n"
+"            ulong s = 0;\n"
+"            uint i0 = (q >= DIGITS) ? (q - DIGITS + 1u) : 0u;\n"
+"            uint i1 = (q < DIGITS) ? q : (DIGITS - 1u);\n"
+"            for (uint i = i0; i <= i1; ++i) {\n"
+"                uint j = q - i;\n"
+"                uint ad = (la[i >> 1] >> ((i & 1u) * 16u)) & 0xFFFFu;\n"
+"                uint bd = (lb[j >> 1] >> ((j & 1u) * 16u)) & 0xFFFFu;\n"
+"                s += (ulong)ad * (ulong)bd;\n"
+"            }\n"
+"            acc[q] += s;\n"
+"        }\n"
+"        barrier(CLK_LOCAL_MEM_FENCE);\n"
+"    }\n"
+"    if (tid == 0u) {\n"
+"        ulong carry = 0;\n"
+"        for (uint q = 0; q < OUTDIGITS; ++q) {\n"
+"            ulong t = acc[q] + carry;\n"
+"            uint d = (uint)(t & 0xFFFFu);\n"
+"            carry = t >> 16;\n"
+"            uint limb = q >> 1;\n"
+"            if ((q & 1u) == 0u) C[(size_t)idx * OUTLIMBS + limb] = d;\n"
+"            else C[(size_t)idx * OUTLIMBS + limb] |= (d << 16);\n"
+"        }\n"
+"    }\n"
 "}\n";
 
 static int build_kernels(nex_opencl_ctx_ty *ctx)
@@ -402,8 +455,10 @@ static int build_kernels(nex_opencl_ctx_ty *ctx)
     ctx->k_carry = ctx->api.create_kernel(ctx->program, "carry", &rc);
     ctx->k_dotreduce = ctx->api.create_kernel(ctx->program, "dotreduce", &rc);
     ctx->k_carry1 = ctx->api.create_kernel(ctx->program, "carry1", &rc);
+    ctx->k_matmul = ctx->api.create_kernel(ctx->program, "matmul_sub", &rc);
     if (ctx->k_colsum == NULL || ctx->k_carry == NULL ||
-            ctx->k_dotreduce == NULL || ctx->k_carry1 == NULL) {
+            ctx->k_dotreduce == NULL || ctx->k_carry1 == NULL ||
+            ctx->k_matmul == NULL) {
         return failf(ctx, "clCreateKernel 失败 (%d)", (int)rc);
     }
     return 0;
@@ -417,7 +472,8 @@ static void release_buffers(nex_opencl_ctx_ty *ctx)
 {
     cl_mem *bufs[] = {
         &ctx->b_a, &ctx->b_b, &ctx->b_c, &ctx->b_zero,
-        &ctx->b_sums, &ctx->b_out, &ctx->b_dot_sums, &ctx->b_dot_out
+        &ctx->b_sums, &ctx->b_out, &ctx->b_dot_sums, &ctx->b_dot_out,
+        &ctx->b_mat_a, &ctx->b_mat_b, &ctx->b_mat_c
     };
     for (size_t i = 0; i < sizeof(bufs) / sizeof(bufs[0]); i++) {
         if (*bufs[i] != NULL) {
@@ -434,6 +490,9 @@ void nex_opencl_destroy(nex_opencl_ctx_ty *ctx)
     }
     if (ctx->k_carry1 != NULL) {
         (void)ctx->api.release_kernel(ctx->k_carry1);
+    }
+    if (ctx->k_matmul != NULL) {
+        (void)ctx->api.release_kernel(ctx->k_matmul);
     }
     if (ctx->k_dotreduce != NULL) {
         (void)ctx->api.release_kernel(ctx->k_dotreduce);
@@ -798,6 +857,246 @@ int nex_opencl_dot(nex_opencl_ctx_ty *ctx,
     if (rc != CL_SUCCESS) {
         return failf(ctx, "读取 dot 结果失败 (%d)", (int)rc);
     }
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* 子矩阵乘                                                            */
+/* ------------------------------------------------------------------ */
+
+static int idx_contiguous(const uint32_t *idx, size_t start, size_t count)
+{
+    for (size_t i = 0; i < count; i++) {
+        if (idx[start + i] != (uint32_t)(start + i)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static void pack_a_rows(const uint32_t *A, size_t lda, const uint32_t *rows,
+        size_t r0, size_t nr, size_t k, size_t limbs, uint32_t *out)
+{
+    if (idx_contiguous(rows, r0, nr)) {
+        memcpy(out, A + r0 * lda, nr * k * limbs * sizeof(uint32_t));
+        return;
+    }
+    for (size_t i = 0; i < nr; i++) {
+        memcpy(out + i * k * limbs,
+                A + (size_t)rows[r0 + i] * lda,
+                k * limbs * sizeof(uint32_t));
+    }
+}
+
+static void pack_b_cols(const uint32_t *B, size_t ldb, const uint32_t *cols,
+        size_t c0, size_t nc, size_t k, size_t limbs, uint32_t *out)
+{
+    if (idx_contiguous(cols, c0, nc)) {
+        for (size_t p = 0; p < k; p++) {
+            memcpy(out + p * nc * limbs,
+                    B + p * ldb + c0 * limbs,
+                    nc * limbs * sizeof(uint32_t));
+        }
+        return;
+    }
+    for (size_t p = 0; p < k; p++) {
+        for (size_t j = 0; j < nc; j++) {
+            memcpy(out + (p * nc + j) * limbs,
+                    B + p * ldb + (size_t)cols[c0 + j] * limbs,
+                    limbs * sizeof(uint32_t));
+        }
+    }
+}
+
+int nex_opencl_matmul_subset(nex_opencl_ctx_ty *ctx,
+        const uint32_t *A, size_t lda, const uint32_t *B, size_t ldb,
+        const uint32_t *rows, size_t nrows,
+        const uint32_t *cols, size_t ncols,
+        uint32_t *C, size_t ldc, size_t k)
+{
+    if (ctx == NULL || A == NULL || B == NULL || rows == NULL || cols == NULL
+            || C == NULL || nrows == 0u || ncols == 0u || k == 0u) {
+        return -1;
+    }
+    if (k > 0xFFFFFFFFu || ncols > 0xFFFFFFFFu) {
+        return failf(ctx, "k/ncols 超出 uint 范围");
+    }
+    if (nrows > (SIZE_MAX / ncols)) {
+        return failf(ctx, "nrows*ncols 溢出");
+    }
+    if ((double)k * (double)ctx->digits * 65535.0 * 65535.0 >= 1.8e19) {
+        return failf(ctx, "k 过大，64-bit 累加可能溢出");
+    }
+
+    const size_t row_bytes = k * ctx->limbs * sizeof(uint32_t);
+    const size_t col_bytes = k * ctx->limbs * sizeof(uint32_t);
+    const size_t cell_bytes = ctx->out_limbs * sizeof(uint32_t);
+    const size_t budget = 2500000000u; /* 2.5 GB，给 4 GB 显存留余量 */
+
+    size_t rt = nrows;
+    size_t ct = ncols;
+    const char *tile_env = getenv("NEX_OPENCL_MATMUL_TILE");
+    size_t max_tile = (tile_env != NULL) ? (size_t)strtoull(tile_env, NULL, 10) : 0u;
+    if (max_tile > 0u) {
+        if (rt > max_tile) {
+            rt = max_tile;
+        }
+        if (ct > max_tile) {
+            ct = max_tile;
+        }
+    }
+    while ((rt > 1u || ct > 1u) &&
+            (rt * row_bytes + ct * col_bytes + rt * ct * cell_bytes > budget)) {
+        if (rt >= ct) {
+            rt = (rt + 1u) / 2u;
+        } else {
+            ct = (ct + 1u) / 2u;
+        }
+    }
+
+    uint32_t *a_pack = (uint32_t *)malloc(rt * k * ctx->limbs * sizeof(uint32_t));
+    uint32_t *b_pack = (uint32_t *)malloc(k * ct * ctx->limbs * sizeof(uint32_t));
+    uint32_t *c_pack = (uint32_t *)malloc(rt * ct * ctx->out_limbs * sizeof(uint32_t));
+    if (a_pack == NULL || b_pack == NULL || c_pack == NULL) {
+        free(a_pack);
+        free(b_pack);
+        free(c_pack);
+        return failf(ctx, "OOM（matmul 主机缓冲）");
+    }
+    if (ensure_buffer(ctx, &ctx->b_mat_a, &ctx->cap_mat_a,
+                rt * row_bytes, CL_MEM_READ_ONLY) != 0 ||
+            ensure_buffer(ctx, &ctx->b_mat_b, &ctx->cap_mat_b,
+                ct * col_bytes, CL_MEM_READ_ONLY) != 0 ||
+            ensure_buffer(ctx, &ctx->b_mat_c, &ctx->cap_mat_c,
+                rt * ct * cell_bytes, CL_MEM_READ_WRITE) != 0) {
+        free(a_pack);
+        free(b_pack);
+        free(c_pack);
+        return -1;
+    }
+
+    const size_t lwork = 64u;
+    const int rows_outer = (nrows <= ncols);
+    cl_int rc = CL_SUCCESS;
+
+    for (size_t r0 = 0; r0 < nrows; r0 += rt) {
+        if (!rows_outer) {
+            continue;
+        }
+        const size_t nr = (r0 + rt > nrows) ? (nrows - r0) : rt;
+        pack_a_rows(A, lda, rows, r0, nr, k, ctx->limbs, a_pack);
+        rc = ctx->api.write_buffer(ctx->queue, ctx->b_mat_a, CL_FALSE, 0,
+                nr * row_bytes, a_pack, 0, NULL, NULL);
+        if (rc != CL_SUCCESS) {
+            free(a_pack);
+            free(b_pack);
+            free(c_pack);
+            return failf(ctx, "上传 A tile 失败 (%d)", (int)rc);
+        }
+        for (size_t c0 = 0; c0 < ncols; c0 += ct) {
+            const size_t nc = (c0 + ct > ncols) ? (ncols - c0) : ct;
+            pack_b_cols(B, ldb, cols, c0, nc, k, ctx->limbs, b_pack);
+            rc = ctx->api.write_buffer(ctx->queue, ctx->b_mat_b, CL_FALSE, 0,
+                    nc * col_bytes, b_pack, 0, NULL, NULL);
+            if (rc != CL_SUCCESS) {
+                free(a_pack);
+                free(b_pack);
+                free(c_pack);
+                return failf(ctx, "上传 B tile 失败 (%d)", (int)rc);
+            }
+            cl_uint kk = (cl_uint)k;
+            cl_uint ncc = (cl_uint)nc;
+            cl_uint nout = (cl_uint)(nr * nc);
+            SET_ARG(ctx, ctx->k_matmul, 0, sizeof(cl_mem), &ctx->b_mat_a);
+            SET_ARG(ctx, ctx->k_matmul, 1, sizeof(cl_mem), &ctx->b_mat_b);
+            SET_ARG(ctx, ctx->k_matmul, 2, sizeof(cl_mem), &ctx->b_mat_c);
+            SET_ARG(ctx, ctx->k_matmul, 3, sizeof(cl_uint), &nout);
+            SET_ARG(ctx, ctx->k_matmul, 4, sizeof(cl_uint), &kk);
+            SET_ARG(ctx, ctx->k_matmul, 5, sizeof(cl_uint), &ncc);
+            const size_t global[1] = { nr * nc * 64u };
+            const size_t local[1] = { lwork };
+            if (run_kernel(ctx, ctx->k_matmul, 1, global, local) != 0) {
+                free(a_pack);
+                free(b_pack);
+                free(c_pack);
+                return -1;
+            }
+            rc = ctx->api.read_buffer(ctx->queue, ctx->b_mat_c, CL_TRUE, 0,
+                    nr * nc * cell_bytes, c_pack, 0, NULL, NULL);
+            if (rc != CL_SUCCESS) {
+                free(a_pack);
+                free(b_pack);
+                free(c_pack);
+                return failf(ctx, "读取 C tile 失败 (%d)", (int)rc);
+            }
+            for (size_t i = 0; i < nr; i++) {
+                memcpy(C + (r0 + i) * ldc + c0 * ctx->out_limbs,
+                        c_pack + i * nc * ctx->out_limbs,
+                        nc * ctx->out_limbs * sizeof(uint32_t));
+            }
+        }
+    }
+
+    if (!rows_outer) {
+        for (size_t c0 = 0; c0 < ncols; c0 += ct) {
+            const size_t nc = (c0 + ct > ncols) ? (ncols - c0) : ct;
+            pack_b_cols(B, ldb, cols, c0, nc, k, ctx->limbs, b_pack);
+            rc = ctx->api.write_buffer(ctx->queue, ctx->b_mat_b, CL_FALSE, 0,
+                    nc * col_bytes, b_pack, 0, NULL, NULL);
+            if (rc != CL_SUCCESS) {
+                free(a_pack);
+                free(b_pack);
+                free(c_pack);
+                return failf(ctx, "上传 B tile 失败 (%d)", (int)rc);
+            }
+            for (size_t r0 = 0; r0 < nrows; r0 += rt) {
+                const size_t nr = (r0 + rt > nrows) ? (nrows - r0) : rt;
+                pack_a_rows(A, lda, rows, r0, nr, k, ctx->limbs, a_pack);
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_mat_a, CL_FALSE, 0,
+                        nr * row_bytes, a_pack, 0, NULL, NULL);
+                if (rc != CL_SUCCESS) {
+                    free(a_pack);
+                    free(b_pack);
+                    free(c_pack);
+                    return failf(ctx, "上传 A tile 失败 (%d)", (int)rc);
+                }
+                cl_uint kk = (cl_uint)k;
+                cl_uint ncc = (cl_uint)nc;
+                cl_uint nout = (cl_uint)(nr * nc);
+                SET_ARG(ctx, ctx->k_matmul, 0, sizeof(cl_mem), &ctx->b_mat_a);
+                SET_ARG(ctx, ctx->k_matmul, 1, sizeof(cl_mem), &ctx->b_mat_b);
+                SET_ARG(ctx, ctx->k_matmul, 2, sizeof(cl_mem), &ctx->b_mat_c);
+                SET_ARG(ctx, ctx->k_matmul, 3, sizeof(cl_uint), &nout);
+                SET_ARG(ctx, ctx->k_matmul, 4, sizeof(cl_uint), &kk);
+                SET_ARG(ctx, ctx->k_matmul, 5, sizeof(cl_uint), &ncc);
+                const size_t global[1] = { nr * nc * 64u };
+                const size_t local[1] = { lwork };
+                if (run_kernel(ctx, ctx->k_matmul, 1, global, local) != 0) {
+                    free(a_pack);
+                    free(b_pack);
+                    free(c_pack);
+                    return -1;
+                }
+                rc = ctx->api.read_buffer(ctx->queue, ctx->b_mat_c, CL_TRUE, 0,
+                        nr * nc * cell_bytes, c_pack, 0, NULL, NULL);
+                if (rc != CL_SUCCESS) {
+                    free(a_pack);
+                    free(b_pack);
+                    free(c_pack);
+                    return failf(ctx, "读取 C tile 失败 (%d)", (int)rc);
+                }
+                for (size_t i = 0; i < nr; i++) {
+                    memcpy(C + (r0 + i) * ldc + c0 * ctx->out_limbs,
+                            c_pack + i * nc * ctx->out_limbs,
+                            nc * ctx->out_limbs * sizeof(uint32_t));
+                }
+            }
+        }
+    }
+
+    free(a_pack);
+    free(b_pack);
+    free(c_pack);
     return 0;
 }
 

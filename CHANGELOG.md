@@ -35,7 +35,11 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   针对 104 limb（≈1000 位十进制）特化；10k 元素在 RTX 4050 上端到端
   （含传输）**madd ≈6.9 ms / dot ≈4.6 ms**，与 CPU 参考及 `bigint_bin`
   逐位一致；对比 16 线程 `parallel_vector` 的 14.85 ms 约 **2.1×**。
-  10k×10k 稠密矩阵（41.6 GB）按 4 GB 显存 tile 流式，列为 M2。
+  M2 增加子矩阵乘 `nex_opencl_matmul_subset`：4k×4k、1000 位、取
+  60 行 + 60 列并集（487,920 输出、2.0×10⁹ 次大数乘法）在 RTX 4050 上
+  **327.1 s（5.45 min）/ 6.11×10⁶ big-MADD/s**，抽样与 `bigint_bin`
+  逐位一致；A/B 各 6.98 GB 走 RAM，tile 显存 ≤2.5 GB；CPU 16 线程
+  投影 ~22.5 min。
 - **P1b-SSA M1 原型（issue #102，PR #103）**：新增 `contrib/nex_ssa`
   （Schönhage–Strassen，`2^L+1` / `2^(L/2)+1` 双环 + CRT）。双环而非
   `2^L−1`：后者 DFT 存在零因子（`1−2^(L/2)` 与模不互素、变换不可逆）。
