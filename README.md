@@ -28,6 +28,11 @@
 ```sh
 cmake -S . -B build && cmake --build build      # 库 + 测试 + demo
 ctest --test-dir build                          # 全部测试（GCC）
+
+# 或使用 CMake 预设（需 CMake ≥3.19 + Ninja），产物统一在 build/<preset>：
+cmake --preset default && cmake --build build/default
+cmake --preset opencl  && cmake --build build/opencl    # 其余见 docs/maintenance.md §8
+python3 scripts/clean.py --list                 # 构建/产物清理（默认 dry-run）
 # sanitizer 构建（CI 亦用）：GCC/Clang 用 -DNEX_SANITIZE=address,undefined；
 # MSVC 用 -DNEX_SANITIZE=address（MSVC 无 UBSan）
 scripts/build-msvc-debug.bat                    # MSVC Debug + CRT 调试堆检查

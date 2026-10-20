@@ -507,6 +507,8 @@ issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动�
 ## 流程与约定
 
 - **分支**：`feature/*` / `chore/*` → PR → `dev` → `main`；PR 触发多平台 CI。
+- **构建目录**：优先 `cmake --preset <name>`（`build/<preset>`，见
+  `CMakePresets.json`）；清理用 `python3 scripts/clean.py`（默认 dry-run）。
 - **性能**：用 `-O2` 构建；`bench_sweep`（交错采样）做规模扫描。**基准必须与
   对比基线同优化级别**——不同 level 会颠倒算法交叉点（如 FFT 与 Toom-3）。
 - **测试**：`ctest --test-dir build`（默认 42 项，OpenCL 构建 43 项，含
