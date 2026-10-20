@@ -2,7 +2,8 @@
 
 > **活文档**：v1.0.0 – v1.4.0 已发布，本文件记录 **v1.4 之后的规划**。只收录已评估、
 > 可执行的方向；未决/否定的候选集中列在文末。优先级见 §0。
-> 最后更新：2026-10-20（v1.8.0 进行中：超大位宽乘法 §K 已收口，实用上限 10⁹ 位级）
+> 最后更新：2026-10-20（v1.8.0 进行中：超大位宽乘法 §K 已收口，实用上限 10⁹ 位级；
+> OpenCL M1–M3 + CPU 基线已合并；P2 形式化改为 C/D 并收口）
 
 ---
 
@@ -10,14 +11,14 @@
 
 | 优先级 | 方向 | 目标 | 依据 |
 |--------|------|------|------|
-| **P0** | C++ 互操作 + C 标准矩阵 | v1.1（低风险，尽快） | 实测：13/14 公开头缺 `extern "C"`，C++ 链接失败；C11–C2y 可编过但无 CI |
-| **P1** | 子集化 + 单文件组合 | v1.2 | CMake 源列表显式、模块依赖单向；amalgamation 有 44 处跨文件 `static` 重名待解 |
-| **P2** | 秦九韶 / 幂级数 / Padé | v1.3 | 精确有理数 `bigfrac` 天然适配；属超越函数前置基础设施 |
-| **P3** | 超越函数（分阶段） | v1.x | `docs/design.md` §13 #8 已列；正确舍入工作量最大 |
+| **P0** | C++ 互操作 + C 标准矩阵 | v1.1 ✅ | 当时实测 13/14 公开头缺 `extern "C"`；现全头自包含 + C11–C2y CI |
+| **P1** | 子集化 + 单文件组合 | v1.2 ✅ | 模块清单/子集/amalgam 均已落地；跨文件 `static` 重名按文件前缀改名（43 处） |
+| **P2** | 秦九韶 / 幂级数 / Padé | v1.3 ✅ | 精确有理数 `bigfrac` 天然适配；超越函数前置基础设施 |
+| **P3** | 超越函数（分阶段） | v1.x ✅（D1–D6） | 正确舍入 + 黄金/mpmath 对拍；Payne–Hanek 见 P3.5 |
 | **P3.5** | 超大实参三角（Payne–Hanek） | v1.6 ✅ | §16.2 唯一遗留正确性缺口；已落地 |
-| **P4** | 无穷列表（重新设计后决策） | 探索 | C99 无生成器，惰性抽象与本库句柄式 API 不契合 |
-| **X** | 跨平台多线程封装 | 隔离评估 | §14 明确「内部多线程」为非目标；建议独立模块/仓库 |
-| **Y** | 超大位宽乘法（SSA / out-of-core） | 10⁹ 位级（10¹⁰ 不做） | issue [#98](https://github.com/MarchBeta2087/numextend/issues/98) / [#102](https://github.com/MarchBeta2087/numextend/issues/102) / [#104](https://github.com/MarchBeta2087/numextend/issues/104)；实验均在 `contrib/`，不进核心 AUTO |
+| **P4** | 无穷列表 | 已决策：不引入 | C99 无生成器，惰性抽象与本库句柄式 API 不契合（§E） |
+| **X** | 跨平台多线程封装 | 已落地（`contrib/nex_thread`，不进核心） | §14 明确「内部多线程」为非目标；F1–F4 完成 |
+| **Y** | 超大位宽乘法（SSA / out-of-core） | 10⁹ 位级 ✅（10¹⁰ 不做） | issue [#98](https://github.com/MarchBeta2087/numextend/issues/98) / [#102](https://github.com/MarchBeta2087/numextend/issues/102) / [#104](https://github.com/MarchBeta2087/numextend/issues/104)；实验均在 `contrib/`，不进核心 AUTO |
 
 依赖关系：`P0 → P1`（子集/合并需先固定公开面与兼容性）；`P2 → P3`（超越函数复用求值与级数工具）。
 
@@ -100,7 +101,8 @@
       公开头 → 单头；内部头 + 源文件 → 单源；剥离内部 `#include "nex/..."`；
       跨文件重名 `static` 按文件前缀改名（实测 43 处）；版本宏内联。
 - [x] CMake 选项 `-DNEX_AMALGAM=ON`（配置期生成，单 TU 构建）。
-- [x] 验收：`linux-amalgam` CI 用**全量 CTest（34/34）**验证与分文件构建等价；
+- [x] 验收：`linux-amalgam` CI 用**全量 CTest（当时 34/34；现默认 42、OpenCL 43）**
+      验证与分文件构建等价；
       子集 amalgam（`bigfloat`）亦通过 `subset_smoke`。
 - 决策：可选单头（STB `NEX_IMPLEMENTATION` 风格）**移入 §H（非目标）**——二文件
   `nex_amalgam.c/.h` 已覆盖“拖入即用”；若出现明确需求，为约 30 行的生成器扩展
@@ -415,7 +417,8 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 - [x] **Y8b/M3 提速（块级 Karatsuba/FFT、并行块对）** —— 随 Y8 冻结；
       若恢复 M2，按 M2b（Karatsuba）→ M3（并行/缓存）→ 块级 FFT（并入 #102
       SSA）的顺序。
-- [ ] **Y10 #98 P2–P4 立项门槛**：见 §K4 —— 每项先过门槛再谈实现。
+- [x] **Y10 #98 P2–P4 立项门槛**：见 §K4。P2（→ C/D）与 P3（M1–M3）均已按门槛
+      立项并收口；P4 无候选达标，不启动（决定与数据见 §K4/§K5）。
 
 ### K3 门槛与约束
 
@@ -441,15 +444,15 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 - 任何时候不改变「零依赖 / C99 / 单文件组合 / 库内不加锁」契约。
 - 只有满足 ≥2× 且逐位一致、可复现、CI 可维护，才讨论进入正式支持面（#98 P4）。
 
-### K4 #98 P2–P4 立项门槛（P3 已启动，见 §K5）
+### K4 #98 P2–P4 立项门槛（P2 完成、P3 M1–M3 完成；P4 无候选）
 
 统一原则：**没有明确验证目标或需求方就不写代码**。任何一项启动前先在
 issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动前置」。
 
 | 项 | 现状 | 启动前置（缺一不可） | 验收（若启动） |
 |---|---|---|---|
-| **P2 形式化** | **C、D 已落地**：`verify/cbmc`（40 目标，CI `linux-cbmc`）+ `tests/fuzz`（6 模式，CI `linux-fuzz`）+ `NEX_DEBUG_INVARIANTS`；Lean 已取消（2026-10-20） | ① **C（先做）**：CBMC/Frama-C 有界验证 limb/进位/规范化/比较（`nex/bigint/bin`），证明无溢出、无 UB；② **D（后做）**：差分/属性模糊测试 + debug 不变量断言，覆盖 NTT/CRT、dec↔bin、bigfloat 舍入、ball 包含性；③ 重启 Lean 需：合规/审计消费方 + 明确 C→模型精化链路 | C：机器检查的「无溢出/无 UB」；D：风险面进 CI（sanitizer + fuzz）；Lean 不再产出 |
-| **P3 OpenCL** | M1–M3 完成（madd/dot、稠密子矩阵、CSR/CSC 稀疏扫描，§K5）；P4 门槛待评估 | ① 最低 OpenCL 版本（建议 1.2）与设备范围（CPU/GPU、厂商）；② GPU CI 方案（自托管 runner，或 CI 只编译不跑）；③ 明确消费方（批量乘法而非单次大数） | 与 CPU 逐位一致；批量场景 ≥2×（与并行 NTT 同口径）；默认 OFF、不进核心 |
+| **P2 形式化** | **C、D 已落地**：`verify/cbmc`（40 目标，CI `linux-cbmc`）+ `tests/fuzz`（6 模式，CI `linux-fuzz`）+ `NEX_DEBUG_INVARIANTS`；Lean 已取消（2026-10-20） | ① **C（已完成）**：CBMC 有界验证 limb/进位/规范化/比较（`verify/cbmc`）；② **D（已完成）**：差分/属性模糊测试 + 不变量断言（`tests/fuzz`）；③ 重启 Lean 需：合规/审计消费方 + 明确 C→模型精化链路 | C：机器检查的「无溢出/无 UB」；D：风险面进 CI（sanitizer + fuzz）；Lean 不再产出 |
+| **P3 OpenCL** | M1–M3 完成（madd/dot、稠密子矩阵、CSR/CSC 稀疏扫描，§K5）；稠密 4k×4k 对 16 线程 CPU **10.3×**，稀疏交叉点 d≈0.01–0.02；P4 仍无候选 | ① 最低 OpenCL 版本（建议 1.2）与设备范围（CPU/GPU、厂商）；② GPU CI 方案（自托管 runner，或 CI 只编译不跑）；③ 明确消费方（批量乘法而非单次大数） | 与 CPU 逐位一致；批量场景 ≥2×（与并行 NTT 同口径）；默认 OFF、不进核心 |
 | **P4 提升进核心** | 无候选达标 | 目标规模 ≥2× 且逐位一致（对 NTT 基线）、可复现、CI 可维护、跨平台（含 32 位/大端）；不改变零依赖/C99/amalgam 契约 | 进核心 AUTO 分派 + 全量回归 + 文档/基准更新 |
 
 - **P2 决策（2026-10-20，issue #98）**：取消 Lean 4 参考模型与完整形式化
@@ -465,8 +468,9 @@ issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动�
   ASan+UBSan，CI `linux-fuzz` 120 s）+ `NEX_DEBUG_INVARIANTS`（进位/借位上界、
   规范化、bigfrac 约分断言）。
   重启 Lean 条件：出现合规/认证或下游要求机器检查证明，且精化链路可落地。
-- 当前没有候选满足 P4：1e9 位分块 NTT 与 OOC 都只在 `contrib/`，且 OOC
-  的收益是大规模/低内存而非 ≥2× 加速。
+- 当前没有候选满足 P4：1e9 位分块 NTT 与 OOC 都只在 `contrib/`（OOC 的收益是
+  大规模/低内存而非 ≥2×）；OpenCL 稠密批量已达 10.3×，但性能数依赖本机 GPU、
+  CI 只有 PoCL 正确性，且口径尚未对齐 NTT 基线 → 仍保持实验状态。
 - 硬件门槛（≥128–256 GB 单机 vs out-of-core）随 Y8 冻结，不再单独决策。
 
 ### K5 P3 OpenCL（M1–M3 已落地，issue #98）
@@ -488,7 +492,10 @@ issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动�
       0.005 0.36 s（GPU 固定开销 ~0.4 s）；按实测 CPU 基准折算交叉点
       **d≈0.01–0.02**（d<1 的 CPU 列为投影，未实现稀疏 CPU 路径），更低
       密度 CPU 更快。每次 16 抽样与 `bigint_bin` 逐位一致。
-- [ ] **P4 门槛**：M2 达标后再评估独立包/支持面；核心 API/ABI 不变。
+- [x] **P4 评估（2026-10-20）**：稠密 4k×4k 60+60 对 16 线程 CPU **10.3×**
+      （327.1 s vs 3385.1 s），逐位一致；但 GPU 性能不可在 CI 复现（只有 PoCL
+      正确性）、口径未对齐 NTT 基线 → **保持实验状态，不开独立包/支持面**；
+      核心 API/ABI 不变（已满足）。
 
 ---
 
@@ -497,7 +504,9 @@ issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动�
 - **分支**：`feature/*` / `chore/*` → PR → `dev` → `main`；PR 触发多平台 CI。
 - **性能**：用 `-O2` 构建；`bench_sweep`（交错采样）做规模扫描。**基准必须与
   对比基线同优化级别**——不同 level 会颠倒算法交叉点（如 FFT 与 Toom-3）。
-- **测试**：`ctest --test-dir build`（当前 42 项，含 Python/mpmath 黄金对拍）；
+- **测试**：`ctest --test-dir build`（默认 42 项，OpenCL 构建 43 项，含
+  Python/mpmath 黄金对拍）；另有独立 CI 门槛：`linux-cbmc`（40 个有界验证目标）
+  与 `linux-fuzz`（libFuzzer 120 s）；
   平台矩阵含 32 位（`-m32 -msse2 -mfpmath=sse`）与大端（s390x + QEMU）。
 - **文档**：算法与决策入 `docs/design.md`；API 手册由 `sh scripts/docs.sh` 生成
   （API 页取自头文件 + Pandoc 合成 `docs/manual.html`），手写页随能力更新；
