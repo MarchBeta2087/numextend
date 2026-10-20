@@ -12,6 +12,7 @@
 #include "nex/bigint/bin/nex_bigint_bin.h"
 #include "nex/bigint/nex_bigint_conv.h"
 #include "nex/nex_alloc.h"
+#include "nex/nex_debug_internal.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -60,6 +61,8 @@ static void normalize(bigint_bin_ty *val)
     if (val->len == 0U) {
         val->sign = BIGINT_SIGN_ZERO_E;
     }
+    NEX_INVARIANT(val->len == 0U || val->limbs[val->len - 1U] != 0U);
+    NEX_INVARIANT(val->len != 0U || val->sign == BIGINT_SIGN_ZERO_E);
 }
 
 /*
@@ -146,11 +149,13 @@ static bigint_err_ty mag_add(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
         const uint64_t sum = (uint64_t)big->limbs[idx] + small->limbs[idx] + carry;
         dst->limbs[idx] = (uint32_t)sum;
         carry = sum >> 32U;
+        NEX_INVARIANT(carry <= 1U);
     }
     for (; idx < big->len; idx++) {
         const uint64_t sum = (uint64_t)big->limbs[idx] + carry;
         dst->limbs[idx] = (uint32_t)sum;
         carry = sum >> 32U;
+        NEX_INVARIANT(carry <= 1U);
     }
     if (carry > 0U) {
         dst->limbs[big->len] = (uint32_t)carry;
@@ -186,7 +191,9 @@ static bigint_err_ty mag_sub(bigint_bin_ty *dst, const bigint_bin_ty *lhs,
             dst->limbs[idx] = (uint32_t)((UINT64_C(1) << 32U) + cur - sub);
             borrow = 1U;
         }
+        NEX_INVARIANT(borrow <= 1U);
     }
+    NEX_INVARIANT(borrow == 0U);  /* 要求 |lhs| >= |rhs| */
     dst->len = lhs->len;
     return BIGINT_OK_E;
 }
@@ -203,6 +210,7 @@ static bigint_err_ty mul_small(bigint_bin_ty *val, uint32_t factor)
         const uint64_t cur = (uint64_t)val->limbs[idx] * (uint64_t)factor + carry;
         val->limbs[idx] = (uint32_t)cur;
         carry = cur >> 32U;
+        NEX_INVARIANT(carry < (UINT64_C(1) << 32U));
     }
     if (carry > 0U) {
         const bigint_err_ty err = ensure_cap(val, val->len + 1U);

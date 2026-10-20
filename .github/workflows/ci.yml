@@ -258,7 +258,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build (GCC ASan+UBSan)
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DNEX_SANITIZE=address,undefined
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug                 -DNEX_SANITIZE=address,undefined -DNEX_DEBUG_INVARIANTS=ON
           cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
@@ -289,6 +289,24 @@ jobs:
           cmake --build build --parallel
       - name: Test (block / ssa / ooc)
         run: ctest --test-dir build --output-on-failure -R 'block_ntt_selfcheck|nex_ssa_test|nex_ooc_test'
+
+  # P2-D：属性/差分模糊测试（libFuzzer + ASan/UBSan，固定预算）
+  linux-fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build fuzz target (clang, ASan/UBSan)
+        run: |
+          cmake -S . -B build-fuzz -DCMAKE_C_COMPILER=clang \
+                -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNEX_ENABLE_FUZZ=ON \
+                -DNEX_DEBUG_INVARIANTS=ON
+          cmake --build build-fuzz --target fuzz_nex --parallel
+      - name: Fuzz (120 s budget)
+        run: |
+          mkdir -p build-fuzz/corpus
+          cp -r tests/fuzz/corpus/. build-fuzz/corpus/
+          ./build-fuzz/tests/fuzz_nex build-fuzz/corpus -max_total_time=120 \
+                -rss_limit_mb=2048 -print_final_stats=1
 
   # P2-C：limb 层有界验证（CBMC）；只验证 nex/bigint/bin 的信任基
   linux-cbmc:

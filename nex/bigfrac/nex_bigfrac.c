@@ -23,6 +23,7 @@
  */
 
 #include "nex/bigfrac/nex_bigfrac.h"
+#include "nex/nex_debug_internal.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -86,6 +87,12 @@ static bigfrac_err_ty frac_reduce(bigfrac_ty *frac)
         }
     }
 
+    if (err == BIGFRAC_OK_E) {
+        NEX_INVARIANT(bigint_bin_is_zero(&frac->num)
+                || bigint_bin_sign(&frac->den) == BIGINT_SIGN_POS_E);
+        NEX_INVARIANT(bigint_bin_is_zero(&frac->num)
+                || !bigint_bin_is_zero(&frac->den));
+    }
     bigint_bin_free(&g);
     bigint_bin_free(&q);
     return err;

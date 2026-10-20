@@ -96,6 +96,7 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   完整形式化。依据：核心 33k 行、7 个数值域，难点在 NTT/CRT/浮点误差界，
   Mathlib 无现成库；且没有 C→Lean 精化链路时定理无法为 C 背书。改为
   **先 C（CBMC 有界验证 limb 层）后 D（模糊测试 + 不变量断言）**；
+  C、D 均已落地（`verify/cbmc`、`tests/fuzz` + `NEX_DEBUG_INVARIANTS`）；
   重启 Lean 的条件（合规/审计消费方 + 精化链路）写入 §K4。
 
 ### 测试与 CI
@@ -112,6 +113,15 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   乘法（无 UB/规范化/符号、常数乘子 0–3）；肢数固定 0..3 使循环边界为
   常量，`--unwinding-assertions` 保证展开充分。本机约 30 s。变异测试
   （尾随进位 `>>32`→`>>33`）确认 `1x3` 目标能抓到仅不等长才执行的路径。
+- **属性/差分模糊测试（P2-D，#98）**：新增 `tests/fuzz/fuzz_nex.c`（单入口
+  6 模式：NTT 往返/卷积、CRT 回代、dec↔bin 往返、bigfrac 既约与代数恒等式、
+  bigfloat 规范化/指数范围/幂等、ball 包含性）。CI job `linux-fuzz`
+  （clang + libFuzzer + ASan/UBSan + `NEX_DEBUG_INVARIANTS`，120 s 预算）。
+  本机约 3.9k exec/s；注入 NTT 归一化错误后 200 次内可复现失败。
+- **内部不变量断言（P2-D）**：新增 `nex/nex_debug_internal.h` 与 CMake 选项
+  `NEX_DEBUG_INVARIANTS`（默认 OFF）；在 `normalize` / `mag_add` / `mag_sub` /
+  `mul_small` / `frac_reduce` 断言进位/借位上界与规范化。`linux-sanitizer`
+  与 `linux-fuzz` 开启。
 - **线程池 TSan（TODO §F F3）**：新增 CI job `linux-thread-tsan`
   （`-DNEX_ENABLE_THREAD=ON -DNEX_SANITIZE=thread`），只跑 `parallel_ntt`
   相关测试；与 ASan job 分离，MSVC 不覆盖。测试命令用

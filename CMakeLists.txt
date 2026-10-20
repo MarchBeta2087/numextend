@@ -32,6 +32,23 @@ if(NEX_SANITIZE)
     endif()
 endif()
 
+# libFuzzer 模糊测试（P2-D）：需要 Clang。只编译 fuzz_nex 目标；
+# 全库用 -fsanitize=fuzzer-no-link,address,undefined 插桩，目标自身链 libFuzzer。
+option(NEX_ENABLE_FUZZ "构建 libFuzzer 目标（Clang）" OFF)
+if(NEX_ENABLE_FUZZ)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "NEX_ENABLE_FUZZ 需要 Clang（-fsanitize=fuzzer）")
+    endif()
+    add_compile_options(-fsanitize=fuzzer-no-link,address,undefined
+                        -fno-omit-frame-pointer -g)
+endif()
+
+# 内部不变量断言（P2-D）：默认 OFF，Debug/CI 可开；release 零开销。
+option(NEX_DEBUG_INVARIANTS "启用内部不变量断言（调试/CI）" OFF)
+if(NEX_DEBUG_INVARIANTS)
+    add_compile_definitions(NEX_DEBUG_INVARIANTS=1)
+endif()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
