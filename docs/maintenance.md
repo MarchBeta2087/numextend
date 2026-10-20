@@ -66,8 +66,9 @@ sh scripts/coverage.sh                # 不低于 CI 门槛 80%（约 89%，见 
 ### 3.1 夜间基准与趋势基线
 
 - `.github/workflows/benchmark.yml` 每日 04:00 UTC 在**默认分支**（当前为
-  `main`）运行 `bench_math --preset ci`，产物为 `performance-report`
-  artifact（含 `bench-math-ci.json`）。
+  `main`）运行统一入口 `python3 scripts/bench.py --all --profile ci`（内含
+  `bench_math --preset ci`），产物为 `performance-report` artifact（含
+  `bench-ci.json/md`、`build/bench/core.math.ci.json` 与各 suite 日志）。
 - 基线文件：`bench/baseline/bench-math-ci.json`，必须来自同一 runner
   （固定 `ubuntu-24.04`，避免 `ubuntu-latest` 迁移漂移）；**不要**用
   本地/其他机器的结果。

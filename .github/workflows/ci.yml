@@ -402,4 +402,4 @@ jobs:
       - name: Build manual
         run: sh scripts/docs.sh
       - name: Verify generated docs are up to date
-        run: git diff --exit-code -- docs/manual docs/modules.md
+        run: git diff --exit-code -- docs/manual docs/modules.md docs/benchmark-suites.md

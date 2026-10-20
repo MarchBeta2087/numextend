@@ -8,7 +8,7 @@ on:
       budget:
         description: '时间预算（秒）'
         required: false
-        default: '600'
+        default: ''
   schedule:
     - cron: '0 4 * * *'   # 每日 04:00 UTC
 
@@ -17,28 +17,33 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Run benchmark (deep, reduced)
-        run: sh scripts/bench.sh docs/performance-ci.md "${{ github.event.inputs.budget || '600' }}"
-      - name: Run math benchmark (CI preset)
+      - name: Install ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Run benchmarks (unified runner, ci profile)
         run: |
-          cmake --build build-bench --target bench_math --parallel
-          ./build-bench/bench_math --preset ci --budget 300             --json bench-math-ci.json | tee bench-math-ci.txt
+          EXTRA=""
+          if [ -n "${{ github.event.inputs.budget }}" ]; then
+            EXTRA="--max-time ${{ github.event.inputs.budget }}"
+          fi
+          python3 scripts/bench.py --all --profile ci $EXTRA \
+                --json bench-ci.json --markdown-out bench-ci.md
       - name: Compare math benchmark to baseline (advisory)
         run: |
           python3 scripts/bench-math-compare.py \
-            --current bench-math-ci.json \
+            --current build/bench/core.math.ci.json \
             --baseline bench/baseline/bench-math-ci.json \
             --out bench-math-compare.md
           cat bench-math-compare.md >> "$GITHUB_STEP_SUMMARY"
           if [ ! -f bench/baseline/bench-math-ci.json ]; then
-            echo "::notice::No committed baseline; download bench-math-ci.json from this run and commit it to bench/baseline/."
+            echo "::notice::No committed baseline; download core.math.ci.json from this run and commit it to bench/baseline/bench-math-ci.json."
           fi
       - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
           name: performance-report
           path: |
-            docs/performance-ci.md
-            bench-math-ci.txt
-            bench-math-ci.json
+            bench-ci.json
+            bench-ci.md
+            build/bench/*.log
+            build/bench/core.math.ci.json
             bench-math-compare.md

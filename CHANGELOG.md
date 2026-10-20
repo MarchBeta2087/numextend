@@ -101,6 +101,12 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 
 ### 测试与 CI
 
+- **统一性能测试入口**：新增 `scripts/bench.py` + `bench/suites.json`，可按
+  nex 模块与 `contrib` 任意组合，统一时间/内存预算（ci=300 s / quick=1200 s /
+  full=7200 s；100 ms 峰值 RSS 采样 + POSIX `RLIMIT_AS` 安全网），输出
+  JSON/Markdown 与逐 suite 日志；`benchmark.yml` 改用它。文档见
+  `docs/benchmarking.md`，suite 清单 `docs/benchmark-suites.md` 自动生成并
+  由 `docs` CI 校验漂移。
 - **构建目录治理**：新增 `CMakePresets.json`（13 个配置，产物统一到
   `build/<preset>`；需 CMake ≥3.19 + Ninja，普通 `-B` 仍兼容 3.16）与
   `scripts/clean.py`（默认 dry-run；`--builds/--installs/--coverage/
