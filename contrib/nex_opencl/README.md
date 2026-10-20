@@ -9,7 +9,7 @@
 |---|---|---|
 | M0 | 骨架、动态加载、设备枚举、CI（PoCL CPU 正确性） | ✅ |
 | M1 | `madd`（逐元素 `c=a*b+c`）与 `dot`（一批点积） | ✅ |
-| M2 | 矩阵×向量流式（4 GB 显存 safety zone、VRAM > RAM > 磁盘） | ⏳ 计划 |
+| M2 | 矩阵×矩阵子集（4k×4k，60 行 + 60 列并集，稠密） | ✅ |
 
 ## M1 实测（Windows，RTX 4050 Laptop 6 GB，Release）
 
@@ -73,25 +73,63 @@ cmake --build build -j
 `ocl-icd-opencl-dev + pocl-opencl-icd` 在 CPU device 上验证正确性（不做
 性能断言）；GPU 性能数在本机（RTX 4050）记录。
 
-## M2：矩阵×向量（10k×10k，4 GB 显存）
+## M2：矩阵×矩阵子集（4k×4k，稠密）
 
-**约束已量化**：10⁴×10⁴ 稠密、每元素 416 B ⇒ 矩阵 **41.6 GB**，大于本机
-RAM（31.7 GB）和显存（4 GB safety zone），必须流式。
+目标（按实际需求调整后）：`C = A×B`，A/B 都是 **4096×4096**、每元素 1000 位
+（104 limb），只取 **随机 60 行 + 随机 60 列** 的并集：
 
-计划：
-1. 行分块（tile），`x` 常驻显存（4.16 MB），A 按 tile 从 RAM/NVMe 读入；
-   双缓冲 overlap 磁盘/PCIe 与 kernel；
-2. 每行/每 tile 复用 `colsum` 的乘积列和，按 digit 累加到 `uint32`
-   （10⁴ 项 × 65535 < 2³⁰，无溢出），全部列累加完后一次进位；
-3. 优先 VRAM，其次 RAM，最后磁盘；4 GB 显存内按 `tile_rows × 10k × 416 B`
-   反推 tile 行数（如 64 行 ≈ 266 MB/缓冲）；
-4. 验收：10k×10k 端到端 ≥3× 于 16 线程 CPU（按 148 s 基线），峰值显存
-   <4 GB；若矩阵在 RAM/显存则走快路径。
+- 输出数：60×4096 + 4096×60 − 60×60 = **487,920**；
+- 大数乘法：487,920 × 4096 ≈ **2.0×10⁹**；
+- 数据：A/B 各 **6.98 GB**（进 RAM，不进 4 GB 显存），输出 **408 MB**；
+- 显存：按 tile 装入 A 行块 + B 列块，默认预算 2.5 GB（4 GB safety zone）。
+
+### 实测（RTX 4050，Windows，Release）
+
+```sh
+./build/contrib/nex_opencl/nex_opencl_bench matmul 4096 4096 4096 60 60
+```
+
+| 阶段 | 耗时 |
+|---|---:|
+| GPU：60 行 × 4096 列 | 162.6 s |
+| GPU：4096 行 × 60 列 | 164.5 s |
+| **GPU 总计（含 host 打包/传输）** | **327.1 s（5.45 min）** |
+| 吞吐 | **6.11×10⁶ big-MADD/s** |
+
+- 16 个抽样输出与 `bigint_bin` **逐位一致**；
+- CPU 投影：串行 ~6.0 h，16 线程 ~**22.5 min**（<1 h；按规则可运行，本 bench
+  未完整执行）。GPU 约为 16 线程 CPU 的 **4.1×**；
+- 规模校准（同一内核）：
+
+| m=k=n | 选取 | GPU 总耗时 | 吞吐 |
+|---:|---:|---:|---:|
+| 512 | 16 行/16 列 | 1.46 s | 5.66×10⁶/s |
+| 1024 | 32/32 | 10.95 s | 6.03×10⁶/s |
+| 2048 | 30/30 | 41.47 s | 6.02×10⁶/s |
+| 4096 | 60/60 | 327.1 s | 6.11×10⁶/s |
+
+### 实现
+
+- kernel `matmul_sub`：**一个 workgroup 负责一个输出**（64 线程），
+  A/B 元素按 p 载入 local memory，64 个线程分摊 4L+1 个 16-bit digit 的
+  列和；`ulong` 累加（k×2L×65535² < 2⁶⁴），最后一次进位。
+- host 侧 `nex_opencl_matmul_subset(ctx, A, lda, B, ldb, rows, nrows, cols,
+  ncols, C, ldc, k)`：
+  - 选行/选列，按 `NEX_OPENCL_MATMUL_TILE`（可选）与 2.5 GB 预算选 tile；
+  - tile 外循环只上传一次，内循环流式上传另一侧；
+  - 输出按 `ldc` scatter 回调用方数组。
+- 稠密 A/B 走 RAM；显存只放 tile。NVMe 流式留给更大的矩阵（本次不需要）。
+
+### 后续（稀疏）
+
+“多种稠密度”尚未利用：当前 kernel 对零元素仍做完整乘加。下一步按
+CSR/CSC 存非零项，dot 只遍历行/列非零索引的交集；在 4k×4k 上做
+density = 1.0 / 0.5 / 0.1 / 0.01 的扫描，找 GPU/CPU 交叉点。
 
 ## 限制
 
 - 仅非负幅值；不支持负数/符号位。
 - `limbs` 在 ctx 创建时固定（kernel 特化）；不同位宽需多个 ctx。
 - `dot` 的 `n` ≤ 2³²；更大规模需增加高位余量。
-- Windows 端当前为阻塞回读 + 非阻塞写；pinned/异步传输留 M2。
+- Windows 端当前为阻塞回读 + 非阻塞写；pinned/异步传输留后续优化。
 - 实验代码，不承诺 API/ABI；默认 OFF、不进核心。

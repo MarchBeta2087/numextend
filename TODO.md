@@ -464,9 +464,13 @@ issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动�
 - [x] **M1 elementwise + dot**：`madd` / `dot`，104 limb（≈1000 位十进制），
       10k 元素：GPU 端到端 **≈6.9 ms / 4.6 ms**（RTX 4050），与 CPU/bigint
       逐位一致；对比 16 线程 `parallel_vector` 14.85 ms ≈ **2.1×**。
-- [ ] **M2 矩阵×向量流式**：10k×10k 稠密 = **41.6 GB**（>31.7 GB RAM、>4 GB
-      VRAM），按 tile 从 NVMe/RAM 流入显存、`x` 常驻、digit 级 uint32 累加、
-      最后进位；验收 ≥3× 于 16 线程（148 s 基线）、峰值显存 <4 GB。
+- [x] **M2 矩阵×矩阵子集（稠密）**：4k×4k、1000 位，取 60 行 + 60 列并集
+      （487,920 输出、2.0×10⁹ 次大数乘法）。GPU **327.1 s（5.45 min）**、
+      6.11×10⁶ big-MADD/s，16 个抽样输出与 `bigint_bin` 逐位一致；A/B 各
+      6.98 GB 走 RAM，tile 显存 ≤2.5 GB。CPU 投影 16 线程 ~22.5 min（<1 h，
+      未完整执行）。见 `contrib/nex_opencl/README.md`。
+- [ ] **M2b 稀疏密度扫描**：CSR/CSC 非零索引、dot 只遍历交集中的非零项；
+      4k×4k 上 density = 1.0 / 0.5 / 0.1 / 0.01，找 GPU/CPU 交叉点。
 - [ ] **P4 门槛**：M2 达标后再评估独立包/支持面；核心 API/ABI 不变。
 
 ---
