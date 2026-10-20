@@ -8,11 +8,11 @@
 
 | 目录 | 内容 | 跟踪 | 开关 | 状态 |
 |---|---|---|---|---|
-| `nex_thread` | 跨平台最小线程池（pthread / Win32 `CONDITION_VARIABLE`） | TODO §F | `-DNEX_ENABLE_THREAD=ON` | 可用，未接 CI/TSan |
+| `nex_thread` | 跨平台最小线程池（pthread / Win32 `CONDITION_VARIABLE`） | TODO §F | `-DNEX_ENABLE_THREAD=ON` | 可用，CI `linux-thread-tsan`（TSan） |
 | `nex_parallel` | 线程池的两个消费方：并行 NTT 乘法（A）与批量 `a*b+c`（B） | TODO §F | 同上 | 可用，收益已量化 |
 | `nex_bigint_block` | 分块 NTT 乘法：三分块（P1a）→ 递归多级分块（P1b），突破直接 NTT 上限 | issue #98 | `-DNEX_ENABLE_BIGNUM=ON` | 1e9 位 2403 s / 6.24 GB；2e9 位递归验证；1e10 位 OOM |
-| `nex_ssa` | Schönhage–Strassen 原型（`2^L+1` / `2^(L/2)+1` 双环 + CRT） | issue #102 | `-DNEX_ENABLE_BIGNUM=ON` | M1 完成：1e6–1e8 位，1e8 位 1142–1318 s / 1.66 GB |
-| `nex_ooc` | out-of-core 分块乘法：肢体文件 + 按块落盘，峰值内存 O(块长) | issue #104 | `-DNEX_ENABLE_BIGNUM=ON` | M1 完成：1e9 位 164 MB 峰值逐位校验；1e8 大×大 227 s / 652 MB 与内存 NTT 一致 |
+| `nex_ssa` | Schönhage–Strassen 原型（`2^L+1` / `2^(L/2)+1` 双环 + CRT） | issue #102 | `-DNEX_ENABLE_BIGNUM=ON` | M1 完成：1e6–1e8 位，1e8 位 1142–1318 s / 1.66 GB；**M2/M3 已决策不做**（2026-10-20） |
+| `nex_ooc` | out-of-core 分块乘法：肢体文件 + 按块落盘，峰值内存 O(块长) | issue #104 | `-DNEX_ENABLE_BIGNUM=ON` | M1 完成：1e9 位 164 MB 峰值逐位校验；1e8 大×大 227 s / 652 MB 与内存 NTT 一致；**M2/M3 已决策不做**，实用上限 1e9 位级 |
 
 各目录另有自己的 `README.md`（算法、参数模型、实测表）。规划状态见
 `TODO.md` §K，里程碑与验收标准以 Issue 为准。

@@ -55,4 +55,17 @@ cmake --build build -j
 ## M1 结论
 
 - 1e6–1e8 位 SSA 原型跑通；1e8 位 19–22 min / 1.66 GB。
-- 10¹⁰ 位仍受内存限制，需 out-of-core；下一步按计划做 out-of-core 分块。
+- 10¹⁰ 位仍受内存限制（双环 ~100 GB），需 out-of-core。
+
+## 决策：M2 / M3 不做（2026-10-20）
+
+issue #102 停在 M1（原型存档）。理由与 out-of-core 一致：
+
+- **1e9 位已被覆盖**：分块 NTT 2403 s / 6.24 GB、OOC 111 min / 2.7 GB。
+- **M2 的目标没有增量**：原定 RSS <16 GB（比分块 NTT 实测 6.24 GB 更差）、
+  时间「不劣于 2403 s」（只是打平）；而 M1 在 1e8 位已慢 5.8×，达标
+  约需 6× 提速。
+- **M3（10¹⁰ 位）**的前提（1e10 位有需求）已被否决，重启条件跟随 OOC
+  的 1e10 决策（见 `contrib/nex_ooc/README.md` 与 `TODO.md` §K2）。
+
+代码保留在 `contrib/nex_ssa`，默认 OFF，不排期。
