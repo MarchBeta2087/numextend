@@ -158,6 +158,7 @@ PR 不跑性能门禁（runner 噪声大）；`docs` job 只校验
 
 | 内容 | 位置 |
 |---|---|
+| 完整单机实测（快照） | `docs/bench-full-2026-10-20.md` |
 | 数学专项解读 | `docs/bench-math.md` |
 | 核心性能报告 | `docs/performance.md`（`scripts/bench.sh` 生成） |
 | 夜间趋势基线 | `bench/baseline/*.json` |

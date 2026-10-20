@@ -172,7 +172,9 @@ python3 scripts/bench.py --profile ci --html-out build/bench-report.html
 ```
 
 详见 [`docs/benchmarking.md`](docs/benchmarking.md) 与自动生成的
-[`docs/benchmark-suites.md`](docs/benchmark-suites.md)。
+[`docs/benchmark-suites.md`](docs/benchmark-suites.md)。2026-10-20 的完整单机实测
+（nex + contrib，8 个 suite，约 2 h）见
+[`docs/bench-full-2026-10-20.md`](docs/bench-full-2026-10-20.md)。
 
 本机 full 档实测（WSL2 / Ubuntu 24.04 / GCC 13.3.0 / i5-13500H，-O2；
 预算 7200 s；v1.7 加入 32768 bit 吞吐档后约 98 min，此前为 96.5 min）：
