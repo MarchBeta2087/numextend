@@ -101,6 +101,11 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 
 ### 测试与 CI
 
+- **构建目录治理**：新增 `CMakePresets.json`（13 个配置，产物统一到
+  `build/<preset>`；需 CMake ≥3.19 + Ninja，普通 `-B` 仍兼容 3.16）与
+  `scripts/clean.py`（默认 dry-run；`--builds/--installs/--coverage/
+  --artifacts/--pycache/--stale`、`--keep`、`--json`；WSL `/mnt/c` 源路径归一，
+  避免误判 stale）。本机 46 个遗留 `build*` + 安装树约 395 MB 可一次性回收。
 - **contrib 大数实验 CI**：新增 `linux-bignum`，用 `-DNEX_ENABLE_BIGNUM=ON`
   `-DNEX_ENABLE_SSA=ON` 构建并运行 `block_ntt_selfcheck` / `nex_ssa_test` /
   `nex_ooc_test`（约 30 s），避免实验代码与核心漂移。

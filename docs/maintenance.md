@@ -133,6 +133,9 @@ git push -u origin hotfix/<name>
 | 回滚已发版 main | `git revert` + patch 版本；不 rewrite 已推送历史 |
 | 查看发布历史 | `git log main --oneline`、`git tag -n` |
 | 本地强制验证 MSVC | `scripts/build-msvc-debug.bat` → `cd build-dbg\tests && runall.bat` |
+| 用预设构建 | `cmake --preset opencl && cmake --build build/opencl`（需 CMake ≥3.19 + Ninja） |
+| 清理构建/产物 | `python3 scripts/clean.py --builds --installs`（默认 dry-run；加 `--yes` 删除） |
+| 查过期构建目录 | `python3 scripts/clean.py --builds --stale` |
 
 ## 7. 纪律提醒
 
@@ -145,7 +148,13 @@ git push -u origin hotfix/<name>
 
 ## 8. 本地开发环境与基准纪律
 
-- **构建目录**：`build/`（本地主构建）；`scripts/build-msvc-debug.bat` 生成
+- **构建目录**：推荐 `cmake --preset <name>` → `build/<preset>`（`default` /
+  `debug` / `asan` / `tsan` / `cov` / `clang` / `opencl` / `opencl-cpu` /
+  `thread` / `bignum` / `fuzz` / `bench` / `amalgam`；需 CMake ≥3.19 + Ninja，
+  见 `CMakePresets.json`）。不用预设时 `cmake -B build/xxx` 亦可（最低 CMake
+  仍为 3.16）。历史根目录 `build-*` 用 `python3 scripts/clean.py --builds
+  --legacy` 清理（默认 dry-run，`--yes` 才删除；`--stale` 只列 CMakeCache
+  源目录与当前仓库不一致的目录）。`scripts/build-msvc-debug.bat` 仍生成
   `build-dbg/`（MSVC Debug + CRT 调试堆）。
 - **默认优化级别**：`CMakeLists.txt` 在未指定 `CMAKE_BUILD_TYPE` 时默认
   `RelWithDebInfo`（`-O2 -g`）。历史/手工构建目录若显式配成空 build type 会是

@@ -1,0 +1,146 @@
+{
+  "version": 2,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 19,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Release（默认主构建）",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "asan",
+      "displayName": "Debug + ASan/UBSan + 不变量断言",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NEX_SANITIZE": "address,undefined",
+        "NEX_DEBUG_INVARIANTS": "ON"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "tsan",
+      "displayName": "Debug + TSan + contrib 线程池",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NEX_SANITIZE": "thread",
+        "NEX_ENABLE_THREAD": "ON"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "cov",
+      "displayName": "Debug + 覆盖率（gcov）",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_FLAGS": "--coverage -fprofile-abs-path",
+        "CMAKE_EXE_LINKER_FLAGS": "--coverage"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "clang",
+      "displayName": "Release + Clang",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "opencl",
+      "displayName": "Release + contrib/nex_opencl",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "NEX_ENABLE_OPENCL": "ON"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "opencl-cpu",
+      "displayName": "Release + OpenCL + 线程池（--cpu 基线）",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "NEX_ENABLE_OPENCL": "ON",
+        "NEX_ENABLE_THREAD": "ON"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "thread",
+      "displayName": "Release + contrib 线程池/并行 NTT",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "NEX_ENABLE_THREAD": "ON"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "bignum",
+      "displayName": "Release + 大数实验（block/SSA/OOC）",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "NEX_ENABLE_BIGNUM": "ON",
+        "NEX_ENABLE_SSA": "ON"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "fuzz",
+      "displayName": "RelWithDebInfo + Clang + libFuzzer + 不变量断言",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "NEX_ENABLE_FUZZ": "ON",
+        "NEX_DEBUG_INVARIANTS": "ON"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "bench",
+      "displayName": "Release（基准专用目录）",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "amalgam",
+      "displayName": "Release + 单文件组合",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "NEX_AMALGAM": "ON"
+      },
+      "generator": "Ninja"
+    }
+  ]
+}
