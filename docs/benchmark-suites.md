@@ -7,7 +7,7 @@
 | `core.smoke` | bigint_bin, ntt, bigfloat | — | ci | 10 | 60 | 512 |
 | `core.sweep.ci` | bigint_bin, ntt, fft | — | ci | 70 | 120 | 1024 |
 | `core.math.ci` | bigfloat, bigdecimal, bigcomplex_float, transcend | — | ci | 130 | 180 | 1024 |
-| `core.sweep.deep` | bigint_bin, ntt, fft | — | quick | 480 | 540 | 2048 |
+| `core.sweep.deep` | bigint_bin, ntt, fft | — | quick | 480 | 1000 | 2048 |
 | `core.math.quick` | bigfloat, bigdecimal, transcend, series | — | quick | 240 | 300 | 2048 |
 | `contrib.block.1e6` | bigint_bin, ntt | nex_bigint_block | quick | 30 | 180 | 1024 |
 | `contrib.parallel.ntt` | ntt, bigint_bin | nex_parallel | quick | 120 | 600 | 2048 |
