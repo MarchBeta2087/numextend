@@ -378,6 +378,134 @@ static void run_matmul_case(size_t limbs, size_t m, size_t k, size_t n,
 }
 
 
+static int nonzero_limbs(const uint32_t *v, size_t limbs)
+{
+    for (size_t i = 0; i < limbs; i++) {
+        if (v[i] != 0u) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void fill_sparse_dense(uint32_t *v, size_t count, size_t limbs,
+        double density)
+{
+    for (size_t e = 0; e < count / limbs; e++) {
+        if ((double)rnd32() / 4294967296.0 < density) {
+            fill_random(v + e * limbs, limbs);
+        } else {
+            memset(v + e * limbs, 0, limbs * sizeof(uint32_t));
+        }
+    }
+}
+
+static void run_sparse_case(size_t limbs, size_t m, size_t k, size_t n,
+        size_t nrows, size_t ncols, double density)
+{
+    char err[512];
+    nex_opencl_ctx_ty *ctx = nex_opencl_create(limbs, err, sizeof(err));
+    if (ctx == NULL) {
+        printf("FAIL: create(%zu): %s\n", limbs, err);
+        g_fail++;
+        return;
+    }
+    const size_t out_limbs = nex_opencl_out_limbs(ctx);
+    const size_t lda = k * limbs;
+    const size_t ldb = n * limbs;
+    const size_t ldc = ncols * out_limbs;
+    uint32_t *A = (uint32_t *)calloc(m * lda, sizeof(uint32_t));
+    uint32_t *B = (uint32_t *)calloc(k * ldb, sizeof(uint32_t));
+    if (A == NULL || B == NULL) {
+        abort();
+    }
+    fill_sparse_dense(A, m * k, limbs, density);
+    fill_sparse_dense(B, k * n, limbs, density);
+
+    /* 稠密 → CSR/CSC */
+    uint32_t *a_ptr = (uint32_t *)malloc((m + 1u) * sizeof(uint32_t));
+    uint32_t *b_ptr = (uint32_t *)malloc((n + 1u) * sizeof(uint32_t));
+    size_t annz = 0;
+    size_t bnnz = 0;
+    a_ptr[0] = 0u;
+    for (size_t i = 0; i < m; i++) {
+        for (size_t p = 0; p < k; p++) {
+            if (nonzero_limbs(A + i * lda + p * limbs, limbs)) {
+                annz++;
+            }
+        }
+        a_ptr[i + 1u] = (uint32_t)annz;
+    }
+    b_ptr[0] = 0u;
+    for (size_t j = 0; j < n; j++) {
+        for (size_t p = 0; p < k; p++) {
+            if (nonzero_limbs(B + p * ldb + j * limbs, limbs)) {
+                bnnz++;
+            }
+        }
+        b_ptr[j + 1u] = (uint32_t)bnnz;
+    }
+    uint32_t *a_idx = (uint32_t *)malloc((annz ? annz : 1u) * sizeof(uint32_t));
+    uint32_t *b_idx = (uint32_t *)malloc((bnnz ? bnnz : 1u) * sizeof(uint32_t));
+    uint32_t *a_val = (uint32_t *)malloc((annz ? annz : 1u) * limbs * sizeof(uint32_t));
+    uint32_t *b_val = (uint32_t *)malloc((bnnz ? bnnz : 1u) * limbs * sizeof(uint32_t));
+    size_t ai = 0;
+    for (size_t i = 0; i < m; i++) {
+        for (size_t p = 0; p < k; p++) {
+            if (nonzero_limbs(A + i * lda + p * limbs, limbs)) {
+                a_idx[ai] = (uint32_t)p;
+                memcpy(a_val + ai * limbs, A + i * lda + p * limbs,
+                        limbs * sizeof(uint32_t));
+                ai++;
+            }
+        }
+    }
+    size_t bi = 0;
+    for (size_t j = 0; j < n; j++) {
+        for (size_t p = 0; p < k; p++) {
+            if (nonzero_limbs(B + p * ldb + j * limbs, limbs)) {
+                b_idx[bi] = (uint32_t)p;
+                memcpy(b_val + bi * limbs, B + p * ldb + j * limbs,
+                        limbs * sizeof(uint32_t));
+                bi++;
+            }
+        }
+    }
+    nex_opencl_csr_ty csr;
+    csr.rows = m;
+    csr.nnz = annz;
+    csr.row_ptr = a_ptr;
+    csr.col_idx = a_idx;
+    csr.values = a_val;
+    nex_opencl_csc_ty csc;
+    csc.cols = n;
+    csc.nnz = bnnz;
+    csc.col_ptr = b_ptr;
+    csc.row_idx = b_idx;
+    csc.values = b_val;
+
+    uint32_t *rows = (uint32_t *)malloc(nrows * sizeof(uint32_t));
+    uint32_t *cols = (uint32_t *)malloc(ncols * sizeof(uint32_t));
+    for (size_t i = 0; i < nrows; i++) rows[i] = (uint32_t)((i * 3u) % m);
+    for (size_t j = 0; j < ncols; j++) cols[j] = (uint32_t)((j * 5u + 1u) % n);
+    uint32_t *gpu = (uint32_t *)malloc(nrows * ncols * out_limbs * sizeof(uint32_t));
+    uint32_t *cpu = (uint32_t *)malloc(nrows * ncols * out_limbs * sizeof(uint32_t));
+    if (nex_opencl_matmul_sparse(ctx, &csr, &csc, rows, nrows, cols, ncols,
+            gpu, ldc) != 0) {
+        printf("FAIL: matmul_sparse: %s\n", nex_opencl_error(ctx));
+        g_fail++;
+    }
+    cpu_matmul_ref(A, lda, B, ldb, rows, nrows, cols, ncols, cpu, k, limbs);
+    compare_limbs(gpu, cpu, nrows * ncols * out_limbs, "matmul/sparse");
+
+    free(A);
+    free(B);
+    free(a_ptr); free(b_ptr); free(a_idx); free(b_idx); free(a_val); free(b_val);
+    free(rows); free(cols); free(gpu); free(cpu);
+    nex_opencl_destroy(ctx);
+}
+
+
 int main(void)
 {
     char err[512];
@@ -402,6 +530,10 @@ int main(void)
     run_matmul_case(8u, 20u, 12u, 18u, 5u, 5u);
     set_tile_env(3u);
     run_matmul_case(4u, 10u, 5u, 9u, 5u, 4u);
+    unset_tile_env();
+    run_sparse_case(8u, 20u, 12u, 18u, 5u, 4u, 0.3);
+    set_tile_env(2u);
+    run_sparse_case(6u, 12u, 8u, 10u, 4u, 4u, 0.25);
     unset_tile_env();
 
     nex_opencl_destroy(ctx);

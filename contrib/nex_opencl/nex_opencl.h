@@ -67,6 +67,32 @@ int nex_opencl_matmul_subset(nex_opencl_ctx_ty *ctx,
         const uint32_t *cols, size_t ncols,
         uint32_t *C, size_t ldc, size_t k);
 
+/* 稀疏矩阵（CSR / CSC）：索引按升序，values 为 nnz×limbs 的 limb 数组。
+ * A 用 CSR（行主序），B 用 CSC（按列），便于 C[rows,cols] 的索引归并。 */
+typedef struct {
+    size_t rows;
+    size_t nnz;
+    const uint32_t *row_ptr;  /* rows+1 */
+    const uint32_t *col_idx;  /* nnz，升序 */
+    const uint32_t *values;   /* nnz × limbs */
+} nex_opencl_csr_ty;
+
+typedef struct {
+    size_t cols;
+    size_t nnz;
+    const uint32_t *col_ptr;  /* cols+1 */
+    const uint32_t *row_idx;  /* nnz，升序 */
+    const uint32_t *values;   /* nnz × limbs */
+} nex_opencl_csc_ty;
+
+/* 稀疏子矩阵乘：只遍历 A 行非零与 B 列非零的交集。
+ * 语义同 nex_opencl_matmul_subset；density=1 时建议走稠密接口。 */
+int nex_opencl_matmul_sparse(nex_opencl_ctx_ty *ctx,
+        const nex_opencl_csr_ty *A, const nex_opencl_csc_ty *B,
+        const uint32_t *rows, size_t nrows,
+        const uint32_t *cols, size_t ncols,
+        uint32_t *C, size_t ldc);
+
 /* 便捷转换：把非负 bigint_bin 打包/解包为定长 limb 数组。
  * pack 时 v->len 必须 ≤ limbs；unpack 会裁剪前导零并置正/零符号。
  * unpack 要求 v 已用 bigint_bin_init()/init_cap() 初始化。

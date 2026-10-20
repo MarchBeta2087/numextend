@@ -10,6 +10,7 @@
 | M0 | 骨架、动态加载、设备枚举、CI（PoCL CPU 正确性） | ✅ |
 | M1 | `madd`（逐元素 `c=a*b+c`）与 `dot`（一批点积） | ✅ |
 | M2 | 矩阵×矩阵子集（4k×4k，60 行 + 60 列并集，稠密） | ✅ |
+| M3 | 稀疏 CSR/CSC + 密度扫描（`--density d`） | ✅ |
 
 ## M1 实测（Windows，RTX 4050 Laptop 6 GB，Release）
 
@@ -125,6 +126,42 @@ cmake --build build -j
 “多种稠密度”尚未利用：当前 kernel 对零元素仍做完整乘加。下一步按
 CSR/CSC 存非零项，dot 只遍历行/列非零索引的交集；在 4k×4k 上做
 density = 1.0 / 0.5 / 0.1 / 0.01 的扫描，找 GPU/CPU 交叉点。
+
+## M3：稀疏密度扫描（4k×4k，60+60 并集）
+
+输入为 CSR（A 按行）与 CSC（B 按列），索引升序；kernel 只归并两边非零
+索引的交集，零元素不参与乘加。
+
+```sh
+nex_opencl_bench matmul 4096 4096 4096 60 60 --density 0.1
+```
+
+| density | A/B nnz（约） | GPU 总耗时 | CPU 16 线程投影 | GPU/CPU |
+|---:|---:|---:|---:|---:|
+| 1.0（稠密路径） | 16.8M / 16.8M | 327.1 s | 22.5 min | **4.1×** |
+| 0.5 | 8.39M / 8.39M | 88.7 s | 360 s | **4.1×** |
+| 0.1 | 1.68M / 1.68M | 4.77 s | 10.4 s | **2.2×** |
+| 0.05 | 0.84M / 0.84M | 1.78 s | 3.3 s | 1.9× |
+| 0.01 | 168k / 168k | 0.52 s | 0.6 s | ~1.1× |
+| 0.005 | 84k / 84k | 0.36 s | 0.4 s | ~1.1× |
+| 0.001 | 17k / 17k | 0.41 s | <0.1 s | CPU 更快 |
+
+- 每次运行 16 个抽样输出与 `bigint_bin` **逐位一致**；
+- 低密度下 GPU 有约 **0.4 s 固定开销**（host 打包 + 256 个 tile 上传/launch），
+  交叉点在 **density ≈ 0.005–0.01**：再低就应由 CPU 处理；
+- 稀疏数据量：d=0.1 时 A+B 的 values 约 **1.4 GB**（vs 稠密 14 GB）；
+- 索引/值只在 tile 内上传，显存仍按 2.5 GB 预算。
+
+### 调用
+
+```c
+nex_opencl_csr_ty A = { m, nnz, row_ptr, col_idx, values };
+nex_opencl_csc_ty B = { n, nnz, col_ptr, row_idx, values };
+nex_opencl_matmul_sparse(ctx, &A, &B, rows, nrows, cols, ncols, C, ldc);
+```
+
+`row_ptr` / `col_idx` 与 `values` 的布局与稠密接口一致（values 为
+`nnz × limbs`）；索引必须升序。
 
 ## 限制
 

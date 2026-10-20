@@ -170,13 +170,311 @@ static void bigint_dot_ref(const uint32_t *A, size_t lda,
     bigint_bin_free(&sv);
 }
 
+static void sparse_dot_ref(const nex_opencl_csr_ty *A, size_t row,
+        const nex_opencl_csc_ty *B, size_t col, size_t limbs, uint32_t *out)
+{
+    bigint_bin_ty av;
+    bigint_bin_ty bv;
+    bigint_bin_ty pv;
+    bigint_bin_ty sv;
+    (void)bigint_bin_init(&av);
+    (void)bigint_bin_init(&bv);
+    (void)bigint_bin_init(&pv);
+    (void)bigint_bin_init(&sv);
+    (void)bigint_bin_from_u64(&sv, 0u);
+    size_t i = A->row_ptr[row];
+    size_t i1 = A->row_ptr[row + 1u];
+    size_t j = B->col_ptr[col];
+    size_t j1 = B->col_ptr[col + 1u];
+    while (i < i1 && j < j1) {
+        const uint32_t ia = A->col_idx[i];
+        const uint32_t ib = B->row_idx[j];
+        if (ia == ib) {
+            (void)nex_opencl_unpack_bin(A->values + i * limbs, limbs, &av);
+            (void)nex_opencl_unpack_bin(B->values + j * limbs, limbs, &bv);
+            (void)bigint_bin_mul(&pv, &av, &bv);
+            (void)bigint_bin_add(&sv, &sv, &pv);
+            i++;
+            j++;
+        } else if (ia < ib) {
+            i++;
+        } else {
+            j++;
+        }
+    }
+    const size_t out_limbs = limbs * 2u + 1u;
+    memset(out, 0, out_limbs * sizeof(uint32_t));
+    for (size_t q = 0; q < sv.len && q < out_limbs; q++) {
+        out[q] = sv.limbs[q];
+    }
+    bigint_bin_free(&av);
+    bigint_bin_free(&bv);
+    bigint_bin_free(&pv);
+    bigint_bin_free(&sv);
+}
+
+static void fill_value_rng(uint32_t *v, size_t count, uint64_t *state)
+{
+    for (size_t i = 0; i < count; i++) {
+        uint64_t x = *state;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        *state = x;
+        v[i] = (uint32_t)(x >> 16);
+    }
+    if (count > 0u) {
+        v[count - 1u] |= 0x80000000u;
+    }
+}
+
+static int gen_csr(size_t rows, size_t cols, double density, size_t limbs,
+        nex_opencl_csr_ty *out, uint32_t **ptr_mem, uint32_t **idx_mem,
+        uint32_t **val_mem)
+{
+    uint32_t *ptr = (uint32_t *)malloc((rows + 1u) * sizeof(uint32_t));
+    if (ptr == NULL) {
+        return -1;
+    }
+    const uint64_t seed = g_rng;
+    uint64_t vstate = seed ^ 0xA5A5A5A5A5A5A5A5ULL;
+    size_t nnz = 0;
+    ptr[0] = 0u;
+    for (size_t i = 0; i < rows; i++) {
+        for (size_t p = 0; p < cols; p++) {
+            if ((double)rnd32() / 4294967296.0 < density) {
+                nnz++;
+            }
+        }
+        ptr[i + 1u] = (uint32_t)nnz;
+    }
+    uint32_t *idx = (uint32_t *)malloc((nnz ? nnz : 1u) * sizeof(uint32_t));
+    uint32_t *val = (uint32_t *)malloc((nnz ? nnz : 1u) * limbs * sizeof(uint32_t));
+    if (idx == NULL || val == NULL) {
+        free(ptr);
+        free(idx);
+        free(val);
+        return -1;
+    }
+    g_rng = seed;
+    size_t n = 0;
+    for (size_t i = 0; i < rows; i++) {
+        for (size_t p = 0; p < cols; p++) {
+            if ((double)rnd32() / 4294967296.0 < density) {
+                idx[n] = (uint32_t)p;
+                fill_value_rng(val + n * limbs, limbs, &vstate);
+                n++;
+            }
+        }
+    }
+    out->rows = rows;
+    out->nnz = nnz;
+    out->row_ptr = ptr;
+    out->col_idx = idx;
+    out->values = val;
+    *ptr_mem = ptr;
+    *idx_mem = idx;
+    *val_mem = val;
+    return 0;
+}
+
+static int gen_csc(size_t cols, size_t rows, double density, size_t limbs,
+        nex_opencl_csc_ty *out, uint32_t **ptr_mem, uint32_t **idx_mem,
+        uint32_t **val_mem)
+{
+    uint32_t *ptr = (uint32_t *)malloc((cols + 1u) * sizeof(uint32_t));
+    if (ptr == NULL) {
+        return -1;
+    }
+    const uint64_t seed = g_rng;
+    uint64_t vstate = seed ^ 0xA5A5A5A5A5A5A5A5ULL;
+    size_t nnz = 0;
+    ptr[0] = 0u;
+    for (size_t j = 0; j < cols; j++) {
+        for (size_t p = 0; p < rows; p++) {
+            if ((double)rnd32() / 4294967296.0 < density) {
+                nnz++;
+            }
+        }
+        ptr[j + 1u] = (uint32_t)nnz;
+    }
+    uint32_t *idx = (uint32_t *)malloc((nnz ? nnz : 1u) * sizeof(uint32_t));
+    uint32_t *val = (uint32_t *)malloc((nnz ? nnz : 1u) * limbs * sizeof(uint32_t));
+    if (idx == NULL || val == NULL) {
+        free(ptr);
+        free(idx);
+        free(val);
+        return -1;
+    }
+    g_rng = seed;
+    size_t n = 0;
+    for (size_t j = 0; j < cols; j++) {
+        for (size_t p = 0; p < rows; p++) {
+            if ((double)rnd32() / 4294967296.0 < density) {
+                idx[n] = (uint32_t)p;
+                fill_value_rng(val + n * limbs, limbs, &vstate);
+                n++;
+            }
+        }
+    }
+    out->cols = cols;
+    out->nnz = nnz;
+    out->col_ptr = ptr;
+    out->row_idx = idx;
+    out->values = val;
+    *ptr_mem = ptr;
+    *idx_mem = idx;
+    *val_mem = val;
+    return 0;
+}
+
+static int run_sparse_bench(size_t m, size_t k, size_t n, size_t sel_r,
+        size_t sel_c, double density)
+{
+    const size_t limbs = 104u;
+    char err[512];
+    nex_opencl_ctx_ty *ctx = nex_opencl_create(limbs, err, sizeof(err));
+    if (ctx == NULL) {
+        fprintf(stderr, "OpenCL 不可用: %s\n", err);
+        return 1;
+    }
+    const size_t out_limbs = nex_opencl_out_limbs(ctx);
+    nex_opencl_csr_ty A;
+    nex_opencl_csc_ty B;
+    uint32_t *p1 = NULL;
+    uint32_t *p2 = NULL;
+    uint32_t *p3 = NULL;
+    uint32_t *p4 = NULL;
+    uint32_t *p5 = NULL;
+    uint32_t *p6 = NULL;
+    double t0 = now_ms();
+    if (gen_csr(m, k, density, limbs, &A, &p1, &p2, &p3) != 0 ||
+            gen_csc(n, k, density, limbs, &B, &p4, &p5, &p6) != 0) {
+        fprintf(stderr, "生成稀疏矩阵失败/OOM\n");
+        return 1;
+    }
+    double gen_s = (now_ms() - t0) / 1000.0;
+    printf("device: %s\n", nex_opencl_device_name(ctx));
+    printf("sparse: A=%zux%zu nnz=%zu (%.3f%%)  B=%zux%zu nnz=%zu (%.3f%%)\n",
+            m, k, A.nnz, 100.0 * (double)A.nnz / ((double)m * k),
+            k, n, B.nnz, 100.0 * (double)B.nnz / ((double)k * n));
+    printf("density=%.3f, gen=%.2f s, values ~%.2f GB\n", density, gen_s,
+            ((double)(A.nnz + B.nnz) * limbs * 4u) / 1e9);
+
+    uint32_t *rows = (uint32_t *)malloc(sel_r * sizeof(uint32_t));
+    uint32_t *cols = (uint32_t *)malloc(sel_c * sizeof(uint32_t));
+    uint32_t *all_rows = (uint32_t *)malloc(m * sizeof(uint32_t));
+    uint32_t *all_cols = (uint32_t *)malloc(n * sizeof(uint32_t));
+    const size_t c_rows_limbs = n * out_limbs;
+    const size_t c_cols_limbs = sel_c * out_limbs;
+    uint32_t *c_rows = (uint32_t *)malloc(sel_r * c_rows_limbs * sizeof(uint32_t));
+    uint32_t *c_cols = (uint32_t *)malloc(m * c_cols_limbs * sizeof(uint32_t));
+    if (rows == NULL || cols == NULL || all_rows == NULL || all_cols == NULL
+            || c_rows == NULL || c_cols == NULL) {
+        fprintf(stderr, "OOM（输出/索引）\n");
+        return 1;
+    }
+    for (size_t i = 0; i < sel_r; i++) rows[i] = (uint32_t)((i * m) / sel_r);
+    for (size_t j = 0; j < sel_c; j++) cols[j] = (uint32_t)((j * n) / sel_c);
+    for (size_t i = 0; i < m; i++) all_rows[i] = (uint32_t)i;
+    for (size_t j = 0; j < n; j++) all_cols[j] = (uint32_t)j;
+
+    t0 = now_ms();
+    int rc = nex_opencl_matmul_sparse(ctx, &A, &B, rows, sel_r,
+            all_cols, n, c_rows, c_rows_limbs);
+    double rows_s = (now_ms() - t0) / 1000.0;
+    t0 = now_ms();
+    if (rc == 0) {
+        rc = nex_opencl_matmul_sparse(ctx, &A, &B, all_rows, m,
+                cols, sel_c, c_cols, c_cols_limbs);
+    }
+    double cols_s = (now_ms() - t0) / 1000.0;
+    if (rc != 0) {
+        fprintf(stderr, "sparse matmul 失败: %s\n", nex_opencl_error(ctx));
+        return 1;
+    }
+    printf("GPU rows: %.2f s   cols: %.2f s   total: %.2f s\n",
+            rows_s, cols_s, rows_s + cols_s);
+
+    uint32_t expect[1024];
+    int bad = 0;
+    for (size_t t = 0; t < 8u; t++) {
+        size_t i = (t * 7u + 1u) % sel_r;
+        size_t j = (t * 13u + 3u) % n;
+        sparse_dot_ref(&A, rows[i], &B, j, limbs, expect);
+        if (memcmp(expect, c_rows + i * c_rows_limbs + j * out_limbs,
+                out_limbs * sizeof(uint32_t)) != 0) {
+            bad++;
+        }
+    }
+    for (size_t t = 0; t < 8u; t++) {
+        size_t i = (t * 11u + 5u) % m;
+        size_t j = (t * 17u + 2u) % sel_c;
+        sparse_dot_ref(&A, i, &B, cols[j], limbs, expect);
+        if (memcmp(expect, c_cols + i * c_cols_limbs + j * out_limbs,
+                out_limbs * sizeof(uint32_t)) != 0) {
+            bad++;
+        }
+    }
+    printf("spot check (16 outputs): %s\n", bad == 0 ? "bit-exact" : "MISMATCH");
+
+    const double outputs = (double)(sel_r * n + m * sel_c - sel_r * sel_c);
+    double cpu_sample_ms = 0.0;
+    const size_t sample = 4u;
+    for (size_t t = 0; t < sample; t++) {
+        size_t i = (t * 3u) % sel_r;
+        size_t j = (t * 5u) % n;
+        t0 = now_ms();
+        sparse_dot_ref(&A, rows[i], &B, j, limbs, expect);
+        cpu_sample_ms += now_ms() - t0;
+    }
+    const double cpu_serial_s = (cpu_sample_ms / 1000.0) / (double)sample * outputs;
+    printf("CPU projection: serial %.1f s (%.2f h), 16-thread ~%.1f s\n",
+            cpu_serial_s, cpu_serial_s / 3600.0, cpu_serial_s / 16.0);
+    if (cpu_serial_s / 16.0 > 3600.0) {
+        printf("CPU 基线跳过：预计 16 线程 > 1 h\n");
+    }
+
+    nex_opencl_destroy(ctx);
+    free(p1); free(p2); free(p3); free(p4); free(p5); free(p6);
+    free(rows); free(cols); free(all_rows); free(all_cols);
+    free(c_rows); free(c_cols);
+    return bad == 0 ? 0 : 1;
+}
+
+
 static int run_matmul_bench(int argc, char **argv)
 {
-    size_t m = (argc > 2) ? (size_t)strtoull(argv[2], NULL, 10) : 1024u;
-    size_t k = (argc > 3) ? (size_t)strtoull(argv[3], NULL, 10) : 1024u;
-    size_t n = (argc > 4) ? (size_t)strtoull(argv[4], NULL, 10) : 1024u;
-    size_t sel_r = (argc > 5) ? (size_t)strtoull(argv[5], NULL, 10) : 16u;
-    size_t sel_c = (argc > 6) ? (size_t)strtoull(argv[6], NULL, 10) : 16u;
+    size_t pos[5];
+    int np = 0;
+    double density = 1.0;
+    for (int i = 2; i < argc; i++) {
+        if (strcmp(argv[i], "--density") == 0 && i + 1 < argc) {
+            density = strtod(argv[++i], NULL);
+            continue;
+        }
+        if (np < 5) {
+            pos[np++] = (size_t)strtoull(argv[i], NULL, 10);
+        }
+    }
+    size_t m = (np > 0) ? pos[0] : 1024u;
+    size_t k = (np > 1) ? pos[1] : 1024u;
+    size_t n = (np > 2) ? pos[2] : 1024u;
+    size_t sel_r = (np > 3) ? pos[3] : 16u;
+    size_t sel_c = (np > 4) ? pos[4] : 16u;
+    if (density < 0.0 || density > 1.0) {
+        fprintf(stderr, "density 必须在 [0,1]\n");
+        return 2;
+    }
+    if (density < 0.999) {
+        if (m == 0u || k == 0u || n == 0u || sel_r == 0u || sel_c == 0u
+                || sel_r > m || sel_c > n) {
+            fprintf(stderr, "用法: %s matmul [m] [k] [n] [sel_rows] [sel_cols] [--density d]\n",
+                    argv[0]);
+            return 2;
+        }
+        return run_sparse_bench(m, k, n, sel_r, sel_c, density);
+    }
     const size_t limbs = 104u;
     if (m == 0u || k == 0u || n == 0u || sel_r == 0u || sel_c == 0u
             || sel_r > m || sel_c > n) {
