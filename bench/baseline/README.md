@@ -2,7 +2,8 @@
 
 本目录存放 nightly `bench_math --preset ci` 的趋势基线：
 
-- 文件名：`bench-math-ci.json`（JSON Lines，与 workflow artifact 同名）；
+- 文件名：`bench-math-ci.json`（历史命名；nightly artifact 里的原名是
+  `build/bench/core.math.ci.json`，内容为 `bench_math --preset ci` 的 JSON Lines）；
 - 生成环境：GitHub Actions **`ubuntu-24.04`（固定）** 上的
   `.github/workflows/benchmark.yml`（默认分支，当前为 `main`）；
   `ubuntu-latest` 正在向 Ubuntu 26 迁移，固定镜像避免基线漂移；
@@ -11,9 +12,9 @@
 ## 更新流程
 
 1. 等待一次成功的 nightly（或手动 `workflow_dispatch`）运行；
-2. 从 run artifact `performance-report` 下载 `bench-math-ci.json`；
+2. 从 run artifact `performance-report` 下载 `build/bench/core.math.ci.json`；
 3. 确认该次运行未触发预算截断、无已知性能回归；
-4. 将文件提交到本目录（`bench/baseline/bench-math-ci.json`）；
+4. 以 `bench/baseline/bench-math-ci.json` 为名提交（保持 compare 脚本路径不变）；
 5. 在 PR/提交说明中记录 runner、日期与更新原因。
 
 建议节奏：每次 v1.x 发布、或有意改变算法/阈值后更新一次；不要每个 PR 都改。
@@ -32,12 +33,13 @@
 ## 本地对照
 
 ```bash
+# 统一入口（推荐）：先跑 ci 档，再对比
+python3 scripts/bench.py --all --profile ci --no-build
 python3 scripts/bench-math-compare.py \
-  --current build-bench/bench-math-ci.json \
+  --current build/bench/core.math.ci.json \
   --baseline bench/baseline/bench-math-ci.json \
   --out bench-math-compare.md
 ```
 
-当前基线：2026-10-19 的 `workflow_dispatch`（run `39184434034`，dev），
-耗时 71.9 s、172 条记录；runner 为 4 核 AMD EPYC 7763 / GCC 13.3.0 /
-Ubuntu 24.04。
+直接跑 `scripts/bench-math.sh ci all 300` 时，当前文件在
+`build-bench/bench-math-ci.json`，把 `--current` 指到那里即可。

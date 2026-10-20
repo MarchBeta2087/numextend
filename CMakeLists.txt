@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(numextend VERSION 1.7.0 LANGUAGES C)
+project(numextend VERSION 1.8.0 LANGUAGES C)
 
 # 默认构建类型：未显式指定且非多配置生成器时取 RelWithDebInfo（-O2 -g）。
 # 否则 CMake 会以空 CMAKE_BUILD_TYPE 生成 -O0 构建：既严重拖慢性能，
@@ -30,6 +30,23 @@ if(NEX_SANITIZE)
                             -fno-sanitize-recover=all)
         add_link_options(-fsanitize=${NEX_SANITIZE})
     endif()
+endif()
+
+# libFuzzer 模糊测试（P2-D）：需要 Clang。只编译 fuzz_nex 目标；
+# 全库用 -fsanitize=fuzzer-no-link,address,undefined 插桩，目标自身链 libFuzzer。
+option(NEX_ENABLE_FUZZ "构建 libFuzzer 目标（Clang）" OFF)
+if(NEX_ENABLE_FUZZ)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "NEX_ENABLE_FUZZ 需要 Clang（-fsanitize=fuzzer）")
+    endif()
+    add_compile_options(-fsanitize=fuzzer-no-link,address,undefined
+                        -fno-omit-frame-pointer -g)
+endif()
+
+# 内部不变量断言（P2-D）：默认 OFF，Debug/CI 可开；release 零开销。
+option(NEX_DEBUG_INVARIANTS "启用内部不变量断言（调试/CI）" OFF)
+if(NEX_DEBUG_INVARIANTS)
+    add_compile_definitions(NEX_DEBUG_INVARIANTS=1)
 endif()
 
 include(GNUInstallDirs)
@@ -130,6 +147,14 @@ if(NEX_MODULES STREQUAL "all")
     add_executable(bench_math bench/bench_math.c)
     target_link_libraries(bench_math PRIVATE nex)
     target_include_directories(bench_math PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    # 大整数 P0 可行性基准（issue #98）
+    add_executable(bench_huge bench/bench_huge.c)
+    target_link_libraries(bench_huge PRIVATE nex)
+    target_include_directories(bench_huge PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(WIN32)
+        target_link_libraries(bench_huge PRIVATE psapi)
+    endif()
 elseif("bigint_bin" IN_LIST NEX_RESOLVED_MODULES)
     # 子集构建：最小冒烟测试（仅依赖 bigint_bin 闭包）。
     add_executable(subset_smoke tests/subset_smoke.c)
@@ -151,6 +176,45 @@ if(NEX_ENABLE_THREAD)
 
         add_executable(parallel_vector examples/parallel_vector/parallel_vector.c)
         target_link_libraries(parallel_vector PRIVATE nex nex_thread)
+    endif()
+endif()
+
+# contrib 大数分块 NTT / out-of-core 实验（P1，issue #98 / #104）：默认 OFF。
+option(NEX_ENABLE_BIGNUM "构建 contrib/nex_bigint_block 与 contrib/nex_ooc 实验" OFF)
+if(NEX_ENABLE_BIGNUM)
+    if(NOT NEX_MODULES STREQUAL "all")
+        message(STATUS "NEX_ENABLE_BIGNUM: 仅完整构建支持，已忽略")
+    elseif(NEX_AMALGAM)
+        message(STATUS "NEX_ENABLE_BIGNUM: amalgam 构建不支持 contrib，已忽略")
+    else()
+        add_subdirectory(contrib/nex_bigint_block)
+        add_subdirectory(contrib/nex_ooc)
+    endif()
+endif()
+
+# contrib/nex_ssa：Schönhage–Strassen 原型（P1b-SSA，issue #102）。
+# 默认 OFF，不进核心/amalgam/子集。
+option(NEX_ENABLE_SSA "构建 contrib/nex_ssa 原型" OFF)
+if(NEX_ENABLE_SSA)
+    if(NOT NEX_MODULES STREQUAL "all")
+        message(STATUS "NEX_ENABLE_SSA: 仅完整构建支持，已忽略")
+    elseif(NEX_AMALGAM)
+        message(STATUS "NEX_ENABLE_SSA: amalgam 构建不支持 contrib，已忽略")
+    else()
+        add_subdirectory(contrib/nex_ssa)
+    endif()
+endif()
+
+# contrib/nex_opencl：OpenCL 批量大整数实验（issue #98 P3）。
+# 默认 OFF；动态加载运行库，不需要 OpenCL SDK。不进核心/amalgam/子集。
+option(NEX_ENABLE_OPENCL "构建 contrib/nex_opencl 实验" OFF)
+if(NEX_ENABLE_OPENCL)
+    if(NOT NEX_MODULES STREQUAL "all")
+        message(STATUS "NEX_ENABLE_OPENCL: 仅完整构建支持，已忽略")
+    elseif(NEX_AMALGAM)
+        message(STATUS "NEX_ENABLE_OPENCL: amalgam 构建不支持 contrib，已忽略")
+    else()
+        add_subdirectory(contrib/nex_opencl)
     endif()
 endif()
 

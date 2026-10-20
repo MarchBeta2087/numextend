@@ -284,3 +284,12 @@ if(CMAKE_CXX_COMPILER)
     endif()
     add_test(NAME cpp_consumer COMMAND test_cpp_consumer)
 endif()
+
+# libFuzzer 目标（-DNEX_ENABLE_FUZZ=ON，Clang）：tests/fuzz/fuzz_nex.c
+if(NEX_ENABLE_FUZZ)
+    add_executable(fuzz_nex fuzz/fuzz_nex.c)
+    target_link_libraries(fuzz_nex PRIVATE nex)
+    target_compile_options(fuzz_nex PRIVATE -Wall -Wextra -Wpedantic)
+    target_link_options(fuzz_nex PRIVATE
+        -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer)
+endif()

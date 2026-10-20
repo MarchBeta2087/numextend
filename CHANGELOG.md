@@ -7,6 +7,167 @@
 v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 [`docs/design.md`](docs/design.md#修订记录)）。
 
+## [Unreleased]
+
+## [1.8.0] - 2026-10-20
+
+### 基准
+
+- **P0 大整数可行性工具（issue #98）**：新增
+  `scripts/bigint-feasibility.py`（十进制位 → bit/肢/变换长度/内存/相对
+  工作量）与 `bench/bench_huge.c`（强制多模数 CRT NTT，报告耗时与 Peak
+  RSS）。实测 10⁶/10⁷/10⁸ 位：0.29 s / 7.5 s / 195.8 s，峰值 RSS
+  12.6 / 75.5 / 930 MB；CRT 代理约 0.15%。当前 NTT 上限约 3.2×10⁸
+  位（`sum(limbs) ≤ 2^26`、`log2n ≤ 27`），10⁹ 位需更大模数或 SSA。
+- **P1 分块 NTT（issue #98）**：`nex/ntt` 内置模数扩展到 c=28/30，
+  直接 NTT 上限提升到 `sum(limbs) ≤ 2^27`、`log2n ≤ 28`；新增
+  `contrib/nex_bigint_block`（`-DNEX_ENABLE_BIGNUM=ON`）用三个半积
+  分块突破直接上限。10⁸ 位分块 359.8 s vs 直接 195.8 s（直接可用时
+  分块不占优）；10⁹ 位（半积 s≈1.04e8）实测 **2403 s（40.1 min）、
+  Peak RSS 6.24 GB**，结果肢数 207,620,506。P1b 将分块改为**递归**
+  （单块 max_len≤2^26），1e9/2e9 位用“大数 × 小乘数”与 schoolbook
+  对拍通过（11.6 s / 21.8 s）；10¹⁰ 位在 34 GB 机器合并阶段 OOM
+  （模型 64 GB 分块 / 114 GB SSA），需 ≥256 GB 或 out-of-core。
+
+### 实验（`contrib/`，默认 OFF，不进核心）
+
+- **P3 OpenCL M1（issue #98）**：新增 `contrib/nex_opencl`
+  （`-DNEX_ENABLE_OPENCL=ON`，默认 OFF；动态加载 OpenCL.dll /
+  libOpenCL.so.1，不需要 SDK）。`nex_opencl_madd` / `nex_opencl_dot`
+  针对 104 limb（≈1000 位十进制）特化；10k 元素在 RTX 4050 上端到端
+  （含传输）**madd ≈6.9 ms / dot ≈4.6 ms**，与 CPU 参考及 `bigint_bin`
+  逐位一致；对比 16 线程 `parallel_vector` 的 14.85 ms 约 **2.1×**。
+  M2 增加子矩阵乘 `nex_opencl_matmul_subset`：4k×4k、1000 位、取
+  60 行 + 60 列并集（487,920 输出、2.0×10⁹ 次大数乘法）在 RTX 4050 上
+  **327.1 s（5.45 min）/ 6.11×10⁶ big-MADD/s**，抽样与 `bigint_bin`
+  逐位一致；A/B 各 6.98 GB 走 RAM，tile 显存 ≤2.5 GB。CPU 16 线程
+  **实测** 3385.1 s（56.4 min，`--cpu --threads 16`，同一 schoolbook
+  参考实现；GPU **10.3×**），此前的 ~22.5 min 是完美线性外推、偏低 2.5×。
+  M3 增加 CSR/CSC 稀疏路径与 `--density d`：只遍历非零索引交集，
+  d=0.5/0.1/0.01/0.005 时 88.7/4.77/0.52/0.36 s；按实测基准折算
+  交叉点 d≈0.01–0.02（更低密度 CPU 更快，d<1 的 CPU 列为投影），
+  抽样逐位一致。
+  修复：稀疏路径把 packed 缓冲以 `CL_FALSE`（非阻塞）入队后立即 `free`，
+  实现可延迟读取主机内存（PoCL CPU 即如此），属 UB；改为阻塞写后
+  `linux-opencl` 恢复通过（NVIDIA 立即拷贝，未暴露该问题）。
+- **P1b-SSA M1 原型（issue #102，PR #103）**：新增 `contrib/nex_ssa`
+  （Schönhage–Strassen，`2^L+1` / `2^(L/2)+1` 双环 + CRT）。双环而非
+  `2^L−1`：后者 DFT 存在零因子（`1−2^(L/2)` 与模不互素、变换不可逆）。
+  实测 1e6–1e8 位：1e8 位 **1142–1318 s / Peak RSS 1.66 GB**（较直接
+  NTT 的 195.8 s 慢约 5.8×）；1e6 / 3e6 肢与 `bigint_bin_mul`（NTT）
+  逐位对拍通过。结论：10¹⁰ 位双环峰值仍约 **100 GB**（标准模型
+  111.5 GB），34 GB 不够，下一步转 out-of-core（issue #104）。
+- **P1b-OOC M1 骨架（issue #104）**：新增 `contrib/nex_ooc`（随
+  `-DNEX_ENABLE_BIGNUM=ON` 构建）。操作数与结果是「纯肢体文件」，块长 L
+  可配（默认 2^23 肢）；输出块 k 的累加器只保留 2L+2 肢，低 L 肢写盘、
+  高位作为进位入块 k+1，因此**峰值内存 O(L)、与规模无关**；块对乘法
+  直接复用核心 AUTO。实测：1e7×1e7（8×8 块）19.9 s / 16.3 MB；
+  1e8×1e8（2×2 块）**227.0 s / 651.5 MB**，与内存内 NTT 逐位一致；
+  **1e9 位**（13 块）×3 **0.8 s / 163.9 MB**，与 schoolbook 逐位一致。
+  新增 `--verify-mod`（5 素数流式校验：(a mod p)·(b mod p) ≡ (a·b) mod p，
+  内存 O(chunk)，任意规模可用；1e9 位无法用 `--verify-direct`，因为需要
+  s = 2^29 超出直接 NTT 上限）。
+  实测补：**1e9×1e9（L=2^25，4×4 块）= 6648.9 / 6992.8 s（两次，同输入，
+  波动 5%）/ 峰值 RSS 2692 MB / 读 3.43 GB / 写 0.94 GB**，结果
+  207,620,506 肢（与内存三分块算法一致）；第二次带上 `--verify-mod`：
+  **5 素数流式校验通过**。另直测 L=2^26 单块对：**1092.8 s / 峰值 4611 MB**。
+  结论：框架可行。总时间 ≈ `pairs × P(L)`，随块数 nb 近似线性
+  （实测 n=1e7 位，nb=1/2/4/8/16/32 → 4.6/6.6/11.7/19.6/26.3/50.0 s）；
+  1e10 位对应 nb = 124（`L=2^23`）/ 31（`L=2^25`）/ 16（`L=2^26`）。
+  `P(L)` 在大 L 段超线性（P(8.39M)=56.8 s vs P(33.55M)=415.6 s ⇒
+  `P ∝ L^1.44`）。**此前"百小时/不可行"的说法基于错误的块数（1240 应为
+  124），已更正**：1e10 —— `L=2^23` 242 h、`L=2^25` 111 h、`L=2^26`
+  （16 块 / 256 块对，**时间与峰值内存都用同块长实测值算**）
+  **77.7 h（3.2 天）/ ~4.6 GB**。固定块长时 `time ∝ n²`（块对 ∝ 块数²），
+  故 1e10 位的代价是「3 天级」。**决策：M2 不做**——普通 PC 跑 3 天无实用
+  意义，且 1e10 位无需求方；测量保留为门槛数据，重启条件见 issue #104。
+  当前实用上限为 1e9 位级（~1–2 h、≤4.6 GB）。
+
+### 评估与决策
+
+- **超大位宽乘法收口（2026-10-20，#98 / #102 / #104）**：SSA M2/M3
+  （递归环变换、10¹⁰ 位）与 OOC M2/M3（1e10 位、块级提速）**一并冻结**。
+  依据：1e9 位已由分块 NTT（2403 s / 6.24 GB）与 OOC（111 min / 2.7 GB）
+  覆盖；SSA M2 原目标（RSS <16 GB、不劣于 2403 s）相对现状没有增量，
+  且 1e10 位无需求方。`contrib/nex_ssa` 与 `contrib/nex_ooc` 保留为原型与
+  门槛数据，重启条件见 `TODO.md` §K2 / 各自 README。
+- **#98 P2–P4 立项门槛**：`TODO.md` 新增 §K4，要求 Lean 4 形式化、
+  OpenCL、进核心 AUTO 在启动前先定义验证边界、toolchain/设备范围、
+  GPU CI 与验收指标（≥2× 且逐位一致）；当前无候选满足 P4。
+- **P2 形式化路线变更（2026-10-20，#98）**：**取消 Lean 4** 参考模型与
+  完整形式化。依据：核心 33k 行、7 个数值域，难点在 NTT/CRT/浮点误差界，
+  Mathlib 无现成库；且没有 C→Lean 精化链路时定理无法为 C 背书。改为
+  **先 C（CBMC 有界验证 limb 层）后 D（模糊测试 + 不变量断言）**；
+  C、D 均已落地（`verify/cbmc`、`tests/fuzz` + `NEX_DEBUG_INVARIANTS`）；
+  重启 Lean 的条件（合规/审计消费方 + 精化链路）写入 §K4。
+
+### 测试与 CI
+
+- **contrib 参考手册**：`gen_api_doc.py --contrib` 从
+  `contrib/modules.txt` 的公开头生成 `docs/contrib-manual/`（7 页 + 总览），
+  `docs.sh` 用同一份 CSS/pandoc 合成 `docs/contrib-manual.html`；纳入 docs CI
+  漂移检查。补齐 `nex_opencl` / `nex_parallel` / `nex_ssa` / `nex_bigint_block`
+  的函数注释（生成器零告警）。
+- **bench 参数覆盖**：`scripts/bench.py` 新增 `--suite NAME`（只跑指定
+  suite，绕过 profile 档位）与 `--suite-args NAME=ARGS`（向该 suite 追加参数，
+  保留默认值；后出现的同名 flag 生效，`${json}` 仍有效）。`--dry-run`
+  现在打印每个 suite 的最终参数。文档见 `docs/benchmarking.md` §3。
+- **性能报告日志 HTML**：`--html-out` 现在默认生成
+  `<报告名>-logs/`（每 suite 日志 HTML + `index.html`），主报告
+  “日志”列直接可点；新增 `--html-logs DIR` 与 `--render-json FILE`
+  （不重跑，仅从结果 JSON 重新渲染）。结果 JSON 增加 `elapsed_s`。
+- **HTML 性能报告**：`scripts/bench.py` 新增 `--html-out`
+  （自包含 HTML：摘要卡片、环境、suite 表与日志路径），与
+  `--json`/`--markdown-out` 共用同一份结果。
+- **HTML 测试报告**：新增 `scripts/test-report.py`：运行 CTest
+  （`--output-junit`）并生成自包含 HTML（摘要卡片、环境/构建信息、失败
+  详情、全部用例表）；退出码与 ctest 一致。用法见 README/maintenance §6。
+- **文档漂移加固**：`docs` CI 现在固定 pandoc **3.8.2.1** 生成并校验
+  `docs/manual.html`，同时运行 `scripts/check-docs.py`（校验 Markdown 中
+  引用的仓库路径与 CMake preset 名，跳过生成物/占位符）。
+- **contrib 模块索引**：新增 `contrib/modules.txt`（8 字段：deps/sources/
+  headers/flag/libs/preset/status）与 `modules.py check-contrib` /
+  `gen-contrib-docs`。校验每个 contrib 目录与公开头恰好登记一次、依赖与
+  preset 有效；生成 `docs/contrib-modules.md` 并纳入 `docs` CI 漂移检查。
+  核心 `cmake/nex_modules.txt` 保持不含 contrib（契约不变）。
+- **统一性能测试入口**：新增 `scripts/bench.py` + `bench/suites.json`，可按
+  nex 模块与 `contrib` 任意组合，统一时间/内存预算（ci=300 s / quick=1200 s /
+  full=7200 s；100 ms 峰值 RSS 采样 + POSIX `RLIMIT_AS` 安全网），输出
+  JSON/Markdown 与逐 suite 日志；`benchmark.yml` 改用它。文档见
+  `docs/benchmarking.md`，suite 清单 `docs/benchmark-suites.md` 自动生成并
+  由 `docs` CI 校验漂移。
+- **构建目录治理**：新增 `CMakePresets.json`（13 个配置，产物统一到
+  `build/<preset>`；需 CMake ≥3.19 + Ninja，普通 `-B` 仍兼容 3.16）与
+  `scripts/clean.py`（默认 dry-run；`--builds/--installs/--coverage/
+  --artifacts/--pycache/--stale`、`--keep`、`--json`；WSL `/mnt/c` 源路径归一，
+  避免误判 stale）。本机 46 个遗留 `build*` + 安装树约 395 MB 可一次性回收。
+- **contrib 大数实验 CI**：新增 `linux-bignum`，用 `-DNEX_ENABLE_BIGNUM=ON`
+  `-DNEX_ENABLE_SSA=ON` 构建并运行 `block_ntt_selfcheck` / `nex_ssa_test` /
+  `nex_ooc_test`（约 30 s），避免实验代码与核心漂移。
+- **OpenCL 实验 CI**：新增 `linux-opencl`，安装 `ocl-icd-opencl-dev` +
+  `pocl-opencl-icd`，在 PoCL CPU device 上跑 `nex_opencl_test`
+  （`NEX_OPENCL_REQUIRE=1`）；GPU 性能数由本机 RTX 4050 记录。
+- **limb 层有界验证（P2-C，#98）**：新增 `verify/cbmc` 与 CI job
+  `linux-cbmc`（apt 安装 CBMC）。40 个目标覆盖 `nex/bigint/bin` 的
+  加/减/比较（功能对拍、等长/不等长、零操作数、`dst==lhs` 别名）与
+  乘法（无 UB/规范化/符号、常数乘子 0–3）；肢数固定 0..3 使循环边界为
+  常量，`--unwinding-assertions` 保证展开充分。本机约 30 s。变异测试
+  （尾随进位 `>>32`→`>>33`）确认 `1x3` 目标能抓到仅不等长才执行的路径。
+- **属性/差分模糊测试（P2-D，#98）**：新增 `tests/fuzz/fuzz_nex.c`（单入口
+  6 模式：NTT 往返/卷积、CRT 回代、dec↔bin 往返、bigfrac 既约与代数恒等式、
+  bigfloat 规范化/指数范围/幂等、ball 包含性）。CI job `linux-fuzz`
+  （clang + libFuzzer + ASan/UBSan + `NEX_DEBUG_INVARIANTS`，120 s 预算）。
+  本机约 3.9k exec/s；注入 NTT 归一化错误后 200 次内可复现失败。
+- **内部不变量断言（P2-D）**：新增 `nex/nex_debug_internal.h` 与 CMake 选项
+  `NEX_DEBUG_INVARIANTS`（默认 OFF）；在 `normalize` / `mag_add` / `mag_sub` /
+  `mul_small` / `frac_reduce` 断言进位/借位上界与规范化。`linux-sanitizer`
+  与 `linux-fuzz` 开启。
+- **线程池 TSan（TODO §F F3）**：新增 CI job `linux-thread-tsan`
+  （`-DNEX_ENABLE_THREAD=ON -DNEX_SANITIZE=thread`），只跑 `parallel_ntt`
+  相关测试；与 ASan job 分离，MSVC 不覆盖。测试命令用
+  `setarch $(uname -m) -R` 关闭 ASLR（高熵 ASLR 会触发 TSan 的
+  "unexpected memory mapping"）；本地 WSL（GCC 13.3）已验证通过。
+
 ## [1.7.0] - 2026-10-19
 
 ### 新增
@@ -373,6 +534,8 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **非目标**：SIMD / GPU / 内部多线程、超越函数（仅保留 `sqrt`）、次正规浮点、
   复数辐角 `arg`（依赖 `atan`）。详见设计文档「已知限制与非目标」。
 
+[Unreleased]: https://github.com/MarchBeta2087/numextend/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.8.0
 [1.7.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.7.0
 [1.6.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.6.0
 [1.5.0]: https://github.com/MarchBeta2087/numextend/releases/tag/v1.5.0

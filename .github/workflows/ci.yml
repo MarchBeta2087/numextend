@@ -258,10 +258,83 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build (GCC ASan+UBSan)
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DNEX_SANITIZE=address,undefined
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug                 -DNEX_SANITIZE=address,undefined -DNEX_DEBUG_INVARIANTS=ON
           cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  # 线程池 / 并行 NTT + TSan（TODO §F F3）：与 ASan job 分开（TSan 不能与 ASan 同编）
+  linux-thread-tsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (TSan, thread pool)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+                -DNEX_ENABLE_THREAD=ON -DNEX_SANITIZE=thread
+          cmake --build build --parallel
+      # 高熵 ASLR 会触发 TSan "unexpected memory mapping"；setarch -R 关闭即可
+      - name: Test (thread pool / parallel NTT)
+        run: setarch "$(uname -m)" -R ctest --test-dir build --output-on-failure -R parallel_ntt
+
+  # contrib 大数实验（分块 NTT / SSA / out-of-core）：默认 OFF，单独构建并跑自检
+  linux-bignum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (contrib big-number experiments)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DNEX_ENABLE_BIGNUM=ON -DNEX_ENABLE_SSA=ON
+          cmake --build build --parallel
+      - name: Test (block / ssa / ooc)
+        run: ctest --test-dir build --output-on-failure -R 'block_ntt_selfcheck|nex_ssa_test|nex_ooc_test'
+
+  # P2-D：属性/差分模糊测试（libFuzzer + ASan/UBSan，固定预算）
+  linux-fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build fuzz target (clang, ASan/UBSan)
+        run: |
+          cmake -S . -B build-fuzz -DCMAKE_C_COMPILER=clang \
+                -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNEX_ENABLE_FUZZ=ON \
+                -DNEX_DEBUG_INVARIANTS=ON
+          cmake --build build-fuzz --target fuzz_nex --parallel
+      - name: Fuzz (120 s budget)
+        run: |
+          mkdir -p build-fuzz/corpus
+          cp -r tests/fuzz/corpus/. build-fuzz/corpus/
+          ./build-fuzz/tests/fuzz_nex build-fuzz/corpus -max_total_time=120 \
+                -rss_limit_mb=2048 -print_final_stats=1
+
+  # P2-C：limb 层有界验证（CBMC）；只验证 nex/bigint/bin 的信任基
+  linux-cbmc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CBMC
+        run: sudo apt-get update && sudo apt-get install -y cbmc
+      - name: Verify limb arithmetic (CBMC)
+        env:
+          NEX_CBMC_REQUIRE: "1"
+        run: sh scripts/verify-cbmc.sh
+
+  # OpenCL 实验：PoCL CPU 设备只做正确性（不跑性能断言）
+  linux-opencl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenCL (PoCL CPU runtime)
+        run: sudo apt-get update && sudo apt-get install -y ocl-icd-opencl-dev pocl-opencl-icd
+      - name: Build (contrib OpenCL)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEX_ENABLE_OPENCL=ON
+          cmake --build build --parallel
+      - name: Test (PoCL CPU)
+        env:
+          NEX_OPENCL_REQUIRE: "1"
+        run: ctest --test-dir build --output-on-failure -R nex_opencl
 
   # 覆盖率门槛（Linux）：库行覆盖率 ≥ 80%
   linux-coverage:
@@ -324,9 +397,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc
+      - name: Install pandoc (pinned 3.8.2.1)
+        run: |
+          curl -fsSL -o /tmp/pandoc.deb \
+            https://github.com/jgm/pandoc/releases/download/3.8.2.1/pandoc-3.8.2.1-1-amd64.deb
+          sudo dpkg -i /tmp/pandoc.deb
+          pandoc --version | head -1
+      - name: Check doc references
+        run: python3 scripts/check-docs.py
       - name: Build manual
         run: sh scripts/docs.sh
       - name: Verify generated docs are up to date
-        run: git diff --exit-code -- docs/manual docs/modules.md
+        run: git diff --exit-code -- docs/manual docs/manual.html \
+             docs/contrib-manual docs/contrib-manual.html \
+             docs/modules.md docs/benchmark-suites.md docs/contrib-modules.md

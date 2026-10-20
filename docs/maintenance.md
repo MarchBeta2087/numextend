@@ -66,8 +66,9 @@ sh scripts/coverage.sh                # 不低于 CI 门槛 80%（约 89%，见 
 ### 3.1 夜间基准与趋势基线
 
 - `.github/workflows/benchmark.yml` 每日 04:00 UTC 在**默认分支**（当前为
-  `main`）运行 `bench_math --preset ci`，产物为 `performance-report`
-  artifact（含 `bench-math-ci.json`）。
+  `main`）运行统一入口 `python3 scripts/bench.py --all --profile ci`（内含
+  `bench_math --preset ci`），产物为 `performance-report` artifact（含
+  `bench-ci.json/md`、`build/bench/core.math.ci.json` 与各 suite 日志）。
 - 基线文件：`bench/baseline/bench-math-ci.json`，必须来自同一 runner
   （固定 `ubuntu-24.04`，避免 `ubuntu-latest` 迁移漂移）；**不要**用
   本地/其他机器的结果。
@@ -108,9 +109,11 @@ git merge main && git push
 - [ ] `README.md`：能力矩阵、兼容性表、性能数字；
 - [ ] `docs/manual/`：手写页（`00-index` / `01-introduction` / `02-conventions` /
       `03-install` / `04-examples`）随能力与用法更新；
-- [ ] **重新生成手册**：`sh scripts/docs.sh`（从公开头文件生成 API 页 + Pandoc
-      合成 `docs/manual.html`），提交生成物；CI `docs` job 会以
-      `git diff --exit-code -- docs/manual` 校验一致性；
+- [ ] **重新生成文档**：`sh scripts/docs.sh`（核心/contrib API 页、
+      `docs/manual.html`、`docs/contrib-manual.html`、`docs/modules.md`、
+      `docs/benchmark-suites.md`、`docs/contrib-modules.md`），提交生成物；
+      CI `docs` job 以 `git diff --exit-code` 校验以上全部路径；
+      并运行 `python3 scripts/check-docs.py`（路径/preset/相对链接）。
 - [ ] `coding_standard.md`：规则变更记修订记录；新前缀登记附录 A；
 - [ ] `TODO.md`：勾选完成项、更新规划状态；
 - [ ] `.github/CONTRIBUTING.md`：“完成”定义若变化同步更新。
@@ -133,6 +136,10 @@ git push -u origin hotfix/<name>
 | 回滚已发版 main | `git revert` + patch 版本；不 rewrite 已推送历史 |
 | 查看发布历史 | `git log main --oneline`、`git tag -n` |
 | 本地强制验证 MSVC | `scripts/build-msvc-debug.bat` → `cd build-dbg\tests && runall.bat` |
+| 用预设构建 | `cmake --preset opencl && cmake --build build/opencl`（需 CMake ≥3.19 + Ninja） |
+| 清理构建/产物 | `python3 scripts/clean.py --builds --installs`（默认 dry-run；加 `--yes` 删除） |
+| 查过期构建目录 | `python3 scripts/clean.py --builds --stale` |
+| HTML 测试报告 | `python3 scripts/test-report.py --build-dir build/default`（输出 `build/test-report.html`） |
 
 ## 7. 纪律提醒
 
@@ -145,8 +152,18 @@ git push -u origin hotfix/<name>
 
 ## 8. 本地开发环境与基准纪律
 
-- **构建目录**：`build/`（本地主构建）；`scripts/build-msvc-debug.bat` 生成
+- **构建目录**：推荐 `cmake --preset <name>` → `build/<preset>`（`default` /
+  `debug` / `asan` / `tsan` / `cov` / `clang` / `opencl` / `opencl-cpu` /
+  `thread` / `bignum` / `fuzz` / `bench` / `amalgam`；需 CMake ≥3.19 + Ninja，
+  见 `CMakePresets.json`）。不用预设时 `cmake -B build/xxx` 亦可（最低 CMake
+  仍为 3.16）。历史根目录 `build-*` 用 `python3 scripts/clean.py --builds
+  --legacy` 清理（默认 dry-run，`--yes` 才删除；`--stale` 只列 CMakeCache
+  源目录与当前仓库不一致的目录）。`scripts/build-msvc-debug.bat` 仍生成
   `build-dbg/`（MSVC Debug + CRT 调试堆）。
+- **文档生成**：`sh scripts/docs.sh` 生成核心 API 页、contrib API 页、`docs/modules.md`、
+  `docs/benchmark-suites.md`、`docs/contrib-modules.md` 与 `docs/manual.html`；
+  HTML 由 CI 固定的 **pandoc 3.8.2.1** 生成（其他版本可能产生字节差异），
+  `docs` job 会校验 `docs/manual.html` 与源 Markdown 同步。
 - **默认优化级别**：`CMakeLists.txt` 在未指定 `CMAKE_BUILD_TYPE` 时默认
   `RelWithDebInfo`（`-O2 -g`）。历史/手工构建目录若显式配成空 build type 会是
   `-O0`（性能差数倍）。

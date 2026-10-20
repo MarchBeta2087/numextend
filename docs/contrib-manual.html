@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Numextend contrib 参考手册</title>
+  <style>
+
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">
+html {
+max-width: 60rem;
+margin: 0 auto;
+padding: 1.5rem 1.25rem 4rem;
+font-family: -apple-system, "Segoe UI", "Noto Sans CJK SC",
+"Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+line-height: 1.65;
+color: #1f2328;
+}
+body { margin: 0; }
+h1, h2, h3 { line-height: 1.3; }
+h1 { border-bottom: 2px solid #d0d7de; padding-bottom: .3rem; }
+h2 { border-bottom: 1px solid #d8dee4; padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.6rem; }
+code, pre {
+font-family: "Cascadia Code", "JetBrains Mono", Consolas,
+"Liberation Mono", monospace;
+font-size: .9em;
+}
+code { background: #f6f8fa; padding: .15em .35em; border-radius: 4px; }
+pre {
+background: #f6f8fa;
+border: 1px solid #d8dee4;
+border-radius: 6px;
+padding: .8rem 1rem;
+overflow-x: auto;
+}
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+th, td { border: 1px solid #d0d7de; padding: .4rem .7rem; text-align: left; }
+th { background: #f6f8fa; }
+blockquote {
+margin: 1rem 0;
+padding: .2rem 1rem;
+border-left: 4px solid #d0d7de;
+color: #57606a;
+background: #f6f8fa;
+}
+#TOC { background: #f6f8fa; border: 1px solid #d8dee4; border-radius: 6px;
+padding: .5rem 1.2rem; margin-bottom: 2rem; }
+#TOC ul { margin: .3rem 0; }
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Numextend contrib 参考手册</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#contrib-参考手册" id="toc-contrib-参考手册">contrib
+参考手册</a></li>
+<li><a href="#nex_thread" id="toc-nex_thread">nex_thread</a>
+<ul>
+<li><a href="#void" id="toc-void"><code>void</code></a></li>
+<li><a href="#nex_thread_pool_create" id="toc-nex_thread_pool_create"><code>nex_thread_pool_create</code></a></li>
+<li><a href="#nex_thread_pool_destroy" id="toc-nex_thread_pool_destroy"><code>nex_thread_pool_destroy</code></a></li>
+<li><a href="#nex_thread_pool_count" id="toc-nex_thread_pool_count"><code>nex_thread_pool_count</code></a></li>
+<li><a href="#nex_thread_pool_run" id="toc-nex_thread_pool_run"><code>nex_thread_pool_run</code></a></li>
+</ul></li>
+<li><a href="#nex_parallel--nex_parallel_ntt_parh" id="toc-nex_parallel--nex_parallel_ntt_parh">nex_parallel ——
+nex_parallel_ntt_par.h</a>
+<ul>
+<li><a href="#nex_par_ntt_pw_ty" id="toc-nex_par_ntt_pw_ty"><code>nex_par_ntt_pw_ty</code></a></li>
+<li><a href="#nex_par_ntt_forward_multi" id="toc-nex_par_ntt_forward_multi"><code>nex_par_ntt_forward_multi</code></a></li>
+<li><a href="#nex_par_ntt_inverse_multi" id="toc-nex_par_ntt_inverse_multi"><code>nex_par_ntt_inverse_multi</code></a></li>
+<li><a href="#nex_par_ntt_pointwise_multi" id="toc-nex_par_ntt_pointwise_multi"><code>nex_par_ntt_pointwise_multi</code></a></li>
+<li><a href="#nex_par_ntt_forward" id="toc-nex_par_ntt_forward"><code>nex_par_ntt_forward</code></a></li>
+<li><a href="#nex_par_ntt_inverse" id="toc-nex_par_ntt_inverse"><code>nex_par_ntt_inverse</code></a></li>
+<li><a href="#nex_par_ntt_pointwise" id="toc-nex_par_ntt_pointwise"><code>nex_par_ntt_pointwise</code></a></li>
+</ul></li>
+<li><a href="#nex_parallel" id="toc-nex_parallel">nex_parallel</a>
+<ul>
+<li><a href="#nex_parallel_bin_mul_ntt" id="toc-nex_parallel_bin_mul_ntt"><code>nex_parallel_bin_mul_ntt</code></a></li>
+</ul></li>
+<li><a href="#nex_bigint_block" id="toc-nex_bigint_block">nex_bigint_block</a>
+<ul>
+<li><a href="#nex_block_bin_mul" id="toc-nex_block_bin_mul"><code>nex_block_bin_mul</code></a></li>
+</ul></li>
+<li><a href="#nex_ssa" id="toc-nex_ssa">nex_ssa</a>
+<ul>
+<li><a href="#nex_ssa_mul" id="toc-nex_ssa_mul"><code>nex_ssa_mul</code></a></li>
+</ul></li>
+<li><a href="#nex_ooc" id="toc-nex_ooc">nex_ooc</a>
+<ul>
+<li><a href="#type" id="toc-type"><code>type</code></a></li>
+<li><a href="#nex_ooc_err_oom_e" id="toc-nex_ooc_err_oom_e"><code>NEX_OOC_ERR_OOM_E,</code></a></li>
+<li><a href="#nex_ooc_err_io_e" id="toc-nex_ooc_err_io_e"><code>NEX_OOC_ERR_IO_E,</code></a></li>
+<li><a href="#nex_ooc_err_unsupported_e" id="toc-nex_ooc_err_unsupported_e"><code>NEX_OOC_ERR_UNSUPPORTED_E</code></a></li>
+<li><a href="#-nex_ooc_err_ty" id="toc--nex_ooc_err_ty"><code>} nex_ooc_err_ty;</code></a></li>
+<li><a href="#const-char-scratch_dir" id="toc-const-char-scratch_dir"><code>const char *scratch_dir;</code></a></li>
+<li><a href="#int-keep_temps" id="toc-int-keep_temps"><code>int keep_temps;</code></a></li>
+<li><a href="#-nex_ooc_opts_ty" id="toc--nex_ooc_opts_ty"><code>} nex_ooc_opts_ty;</code></a></li>
+<li><a href="#size_t-blocks_a" id="toc-size_t-blocks_a"><code>size_t blocks_a;</code></a></li>
+<li><a href="#size_t-blocks_b" id="toc-size_t-blocks_b"><code>size_t blocks_b;</code></a></li>
+<li><a href="#size_t-block_pairs" id="toc-size_t-block_pairs"><code>size_t block_pairs;</code></a></li>
+<li><a href="#uint64_t-bytes_read" id="toc-uint64_t-bytes_read"><code>uint64_t bytes_read;</code></a></li>
+<li><a href="#uint64_t-bytes_written" id="toc-uint64_t-bytes_written"><code>uint64_t bytes_written;</code></a></li>
+<li><a href="#uint64_t-result_limbs" id="toc-uint64_t-result_limbs"><code>uint64_t result_limbs;</code></a></li>
+<li><a href="#double-seconds" id="toc-double-seconds"><code>double seconds;</code></a></li>
+<li><a href="#-nex_ooc_stats_ty" id="toc--nex_ooc_stats_ty"><code>} nex_ooc_stats_ty;</code></a></li>
+<li><a href="#nex_ooc_mul_files" id="toc-nex_ooc_mul_files"><code>nex_ooc_mul_files</code></a></li>
+<li><a href="#nex_ooc_bin_mul" id="toc-nex_ooc_bin_mul"><code>nex_ooc_bin_mul</code></a></li>
+<li><a href="#nex_ooc_estimate_peak_bytes" id="toc-nex_ooc_estimate_peak_bytes"><code>nex_ooc_estimate_peak_bytes</code></a></li>
+<li><a href="#nex_ooc_strerror" id="toc-nex_ooc_strerror"><code>nex_ooc_strerror</code></a></li>
+</ul></li>
+<li><a href="#nex_opencl" id="toc-nex_opencl">nex_opencl</a>
+<ul>
+<li><a href="#nex_opencl_create" id="toc-nex_opencl_create"><code>nex_opencl_create</code></a></li>
+<li><a href="#nex_opencl_destroy" id="toc-nex_opencl_destroy"><code>nex_opencl_destroy</code></a></li>
+<li><a href="#nex_opencl_device_name" id="toc-nex_opencl_device_name"><code>nex_opencl_device_name</code></a></li>
+<li><a href="#nex_opencl_error" id="toc-nex_opencl_error"><code>nex_opencl_error</code></a></li>
+<li><a href="#nex_opencl_limbs" id="toc-nex_opencl_limbs"><code>nex_opencl_limbs</code></a></li>
+<li><a href="#nex_opencl_out_limbs" id="toc-nex_opencl_out_limbs"><code>nex_opencl_out_limbs</code></a></li>
+<li><a href="#nex_opencl_madd" id="toc-nex_opencl_madd"><code>nex_opencl_madd</code></a></li>
+<li><a href="#nex_opencl_dot" id="toc-nex_opencl_dot"><code>nex_opencl_dot</code></a></li>
+<li><a href="#nex_opencl_matmul_subset" id="toc-nex_opencl_matmul_subset"><code>nex_opencl_matmul_subset</code></a></li>
+<li><a href="#type-1" id="toc-type-1"><code>type</code></a></li>
+<li><a href="#const-uint32_t-col_idx" id="toc-const-uint32_t-col_idx"><code>const uint32_t *col_idx;</code></a></li>
+<li><a href="#const-uint32_t-values" id="toc-const-uint32_t-values"><code>const uint32_t *values;</code></a></li>
+<li><a href="#-nex_opencl_csr_ty" id="toc--nex_opencl_csr_ty"><code>} nex_opencl_csr_ty;</code></a></li>
+<li><a href="#const-uint32_t-row_idx" id="toc-const-uint32_t-row_idx"><code>const uint32_t *row_idx;</code></a></li>
+<li><a href="#const-uint32_t-values-1" id="toc-const-uint32_t-values-1"><code>const uint32_t *values;</code></a></li>
+<li><a href="#-nex_opencl_csc_ty" id="toc--nex_opencl_csc_ty"><code>} nex_opencl_csc_ty;</code></a></li>
+<li><a href="#nex_opencl_matmul_sparse" id="toc-nex_opencl_matmul_sparse"><code>nex_opencl_matmul_sparse</code></a></li>
+<li><a href="#nex_opencl_pack_bin" id="toc-nex_opencl_pack_bin"><code>nex_opencl_pack_bin</code></a></li>
+<li><a href="#nex_opencl_unpack_bin" id="toc-nex_opencl_unpack_bin"><code>nex_opencl_unpack_bin</code></a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="contrib-参考手册">contrib 参考手册</h1>
+<blockquote>
+<p><strong>非核心 API</strong>：以下模块默认不构建，不进入
+<code>libnex</code> / 子集闭包 / amalgam（design §14、TODO
+§F1）。启用方式见各模块 <code>flag</code> 列。 机器可读索引：<a href="../contrib-modules.md"><code>docs/contrib-modules.md</code></a>；
+各模块的算法、参数与实测见
+<code>contrib/&lt;模块&gt;/README.md</code>。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>依赖</th>
+<th>开关</th>
+<th>preset</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nex_thread</code></td>
+<td>nex_alloc</td>
+<td><code>NEX_ENABLE_THREAD</code></td>
+<td><code>thread</code></td>
+<td>可用（TSan CI）</td>
+</tr>
+<tr>
+<td><code>nex_parallel</code></td>
+<td>nex_thread, ntt, bigint_bin</td>
+<td><code>NEX_ENABLE_THREAD</code></td>
+<td><code>thread</code></td>
+<td>可用（并行 NTT / 批量向量）</td>
+</tr>
+<tr>
+<td><code>nex_bigint_block</code></td>
+<td>bigint_bin, ntt, fft</td>
+<td><code>NEX_ENABLE_BIGNUM</code></td>
+<td><code>bignum</code></td>
+<td>可用（1e9 位 2403 s / 6.24 GB）</td>
+</tr>
+<tr>
+<td><code>nex_ssa</code></td>
+<td>bigint_bin, ntt</td>
+<td><code>NEX_ENABLE_SSA</code></td>
+<td><code>bignum</code></td>
+<td>冻结（M1 原型，不再排期）</td>
+</tr>
+<tr>
+<td><code>nex_ooc</code></td>
+<td>bigint_bin, ntt</td>
+<td><code>NEX_ENABLE_BIGNUM</code></td>
+<td><code>bignum</code></td>
+<td>冻结（M1 原型，实用上限 1e9 位级）</td>
+</tr>
+<tr>
+<td><code>nex_opencl</code></td>
+<td>bigint_bin</td>
+<td><code>NEX_ENABLE_OPENCL</code></td>
+<td><code>opencl</code></td>
+<td>M1–M3（GPU 10.3×，P4 保持实验）</td>
+</tr>
+</tbody>
+</table>
+<h1 id="nex_thread">nex_thread</h1>
+<p>nex_thread：contrib 层的跨平台线程池（pthread / Win32）。</p>
+<p>设计边界（TODO §F）：</p>
+<ul>
+<li>不进入核心 libnex、不进 nex_modules.txt / amalgam / 子集闭包；</li>
+<li>调用方驱动：池由调用方创建/销毁，库内无全局状态、无锁；</li>
+<li>每个 job 由唯一 index 标识；job 之间必须相互独立（写不同输出），
+执行顺序与线程数不影响结果；</li>
+<li>错误传播由调用方负责（job 把错误写入自己的上下文）。</li>
+</ul>
+<p>构建：-DNEX_ENABLE_THREAD=ON（默认 OFF），仅完整构建。</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> nex_thread_pool nex_thread_pool_ty<span class="op">;</span></span></code></pre></div>
+<h3 id="void"><code>void</code></h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="dt">void</span> <span class="op">(*</span>nex_thread_job_fn<span class="op">)(</span><span class="dt">void</span> <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">size_t</span> index<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：job 函数：ctx 为调用方上下文，index ∈ [0,
+njobs)</p>
+<h3 id="nex_thread_pool_create"><code>nex_thread_pool_create</code></h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>nex_thread_pool_ty <span class="op">*</span>nex_thread_pool_create<span class="op">(</span><span class="dt">unsigned</span> threads<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：创建线程池</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>threads</code>：工作线程数；0 表示按硬件并发数（上限 64）</li>
+</ul>
+<p><strong>返回</strong>：成功返回池；内存不足/线程创建失败返回 NULL</p>
+<h3 id="nex_thread_pool_destroy"><code>nex_thread_pool_destroy</code></h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> nex_thread_pool_destroy<span class="op">(</span>nex_thread_pool_ty <span class="op">*</span>pool<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：销毁线程池（等待并回收全部工作线程）</p>
+<h3 id="nex_thread_pool_count"><code>nex_thread_pool_count</code></h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">unsigned</span> nex_thread_pool_count<span class="op">(</span><span class="dt">const</span> nex_thread_pool_ty <span class="op">*</span>pool<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：工作线程数</p>
+<h3 id="nex_thread_pool_run"><code>nex_thread_pool_run</code></h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> nex_thread_pool_run<span class="op">(</span>nex_thread_pool_ty <span class="op">*</span>pool<span class="op">,</span> <span class="dt">size_t</span> njobs<span class="op">,</span> nex_thread_job_fn fn<span class="op">,</span> <span class="dt">void</span> <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：执行 njobs 个独立 job（阻塞至全部完成）</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>pool</code>：线程池；为 NULL
+时在当前线程顺序执行（便于对照/降级）</li>
+<li><code>njobs</code>：job 数；为 0 直接返回</li>
+<li><code>fn</code>：job 函数；为 NULL 直接返回</li>
+<li><code>ctx</code>：传给 fn 的上下文</li>
+</ul>
+<p><strong>备注</strong>：同一池上的 run
+调用由调用方串行化；不同池可并发使用</p>
+<h1 id="nex_parallel--nex_parallel_ntt_parh">nex_parallel ——
+nex_parallel_ntt_par.h</h1>
+<p>一个待变换的缓冲区及其模数</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> <span class="op">*</span>buf<span class="op">;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> nex_par_ntt_buf_ty<span class="op">;</span></span></code></pre></div>
+<h3 id="nex_par_ntt_pw_ty"><code>nex_par_ntt_pw_ty</code></h3>
+<p><strong>说明</strong>：一个点乘三元组</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="dt">uint32_t</span> <span class="op">*</span>dst<span class="op">;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>lhs<span class="op">;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>rhs<span class="op">;</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> nex_par_ntt_pw_ty<span class="op">;</span></span></code></pre></div>
+<h3 id="nex_par_ntt_forward_multi"><code>nex_par_ntt_forward_multi</code></h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> nex_par_ntt_forward_multi<span class="op">(</span>nex_par_ntt_buf_ty <span class="op">*</span>bufs<span class="op">,</span> <span class="dt">size_t</span> count<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> nex_thread_pool_ty <span class="op">*</span>pool<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：多缓冲区阶段级并行 NTT：所有缓冲区共享同一
+log2n；每个 stage 只做一次 barrier，把 count
+个缓冲区的蝶形单元一起分给线程池。结果与 nex_ntt 逐位一致。pool==NULL
+或单线程时逐缓冲区调用核心实现。</p>
+<h3 id="nex_par_ntt_inverse_multi"><code>nex_par_ntt_inverse_multi</code></h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> nex_par_ntt_inverse_multi<span class="op">(</span>nex_par_ntt_buf_ty <span class="op">*</span>bufs<span class="op">,</span> <span class="dt">size_t</span> count<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> nex_thread_pool_ty <span class="op">*</span>pool<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：多缓冲区逆向 NTT（含 N^-1 归一化），语义同
+forward_multi。</p>
+<h3 id="nex_par_ntt_pointwise_multi"><code>nex_par_ntt_pointwise_multi</code></h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> nex_par_ntt_pointwise_multi<span class="op">(</span>nex_par_ntt_pw_ty <span class="op">*</span>jobs<span class="op">,</span> <span class="dt">size_t</span> count<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">,</span> nex_thread_pool_ty <span class="op">*</span>pool<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：批量频域点乘：jobs[i] 相互独立；len
+为每个变换长度。</p>
+<h3 id="nex_par_ntt_forward"><code>nex_par_ntt_forward</code></h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> nex_par_ntt_forward<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">,</span> nex_thread_pool_ty <span class="op">*</span>pool<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：正向 NTT：coeffs 长度 2^log2n；pool 可为
+NULL（顺序执行）。</p>
+<h3 id="nex_par_ntt_inverse"><code>nex_par_ntt_inverse</code></h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> nex_par_ntt_inverse<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>coeffs<span class="op">,</span> <span class="dt">uint32_t</span> log2n<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">,</span> nex_thread_pool_ty <span class="op">*</span>pool<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：逆向 NTT（含 N^-1 归一化）；pool 可为
+NULL（顺序执行）。</p>
+<h3 id="nex_par_ntt_pointwise"><code>nex_par_ntt_pointwise</code></h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> nex_par_ntt_pointwise<span class="op">(</span><span class="dt">uint32_t</span> <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">size_t</span> len<span class="op">,</span> <span class="dt">const</span> ntt_mod_ty <span class="op">*</span>mod<span class="op">,</span> nex_thread_pool_ty <span class="op">*</span>pool<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：频域点乘 dst = lhs·rhs mod p（逐元素，允许 dst
+与输入别名）。</p>
+<h1 id="nex_parallel">nex_parallel</h1>
+<p>nex_parallel_bin_mul_ntt：contrib 层的并行多模数 CRT NTT
+乘法实验。</p>
+<p>与核心 bigint_bin_mul 的关系：</p>
+<ul>
+<li>不修改核心；复用公开的 nex_ntt 与 bigint_bin 类型/API；</li>
+<li>强制使用双模数 CRT NTT（不按 Toom/NTT 阈值分派），要求
+len(lhs)+len(rhs) ≤ 2^26（与核心 NTT 上限一致）；</li>
+<li>并行阶段：两个模数的 forward(a)/forward(b) 共 4 个独立 task， 点乘 2
+个 task，逆变换 2 个 task；CRT/进位串行；</li>
+<li>结果与核心 NTT 路径逐位一致（同一模数、同一变换、同一 CRT）。</li>
+</ul>
+<p>pool 为 NULL 时在调用线程顺序执行（用于对照/降级）。</p>
+<h3 id="nex_parallel_bin_mul_ntt"><code>nex_parallel_bin_mul_ntt</code></h3>
+<div class="sourceCode" id="cb15"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>bigint_err_ty nex_parallel_bin_mul_ntt<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>rhs<span class="op">,</span> nex_thread_pool_ty <span class="op">*</span>pool<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：并行多模数 CRT NTT 乘法：dst = lhs × rhs</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>dst</code>：目标（已初始化）</li>
+<li><code>lhs/rhs</code>：非负操作数；len(lhs)+len(rhs) ≤ 2^26</li>
+<li><code>pool</code>：线程池；NULL 表示在调用线程顺序执行</li>
+</ul>
+<p><strong>返回</strong>：BIGINT_OK_E /
+BIGINT_ERR_*（与核心乘法一致）</p>
+<p><strong>备注</strong>：结果与核心 NTT
+路径逐位一致；不改变核心分派</p>
+<h1 id="nex_bigint_block">nex_bigint_block</h1>
+<p>nex_bigint_block：contrib 层递归分块 NTT 乘法（P1b，issue #98）。</p>
+<p>递归折半直到单块 max_len ≤ 2^26（直接 NTT 的 s ≤ 2^27）： a = a0 +
+a1·B^L, b = b0 + b1·B^L a·b = c0 + (sa·sb − c0 − c2)·B^L + c2·B^(2L)
+其中 c0=a0·b0、c2=a1·b1、sa=a0+a1、sb=b0+b1；三个子积递归。 10^9
+位约一层；10^10 位约四层（81 个基础积）。</p>
+<p>限制：10^10 位的分块/SSA 内存模型约 64–114 GB；34 GB 机器会在
+递归合并阶段 OOM（本实验实测）。更大规模需要 ≥256 GB 或
+out-of-core。</p>
+<h3 id="nex_block_bin_mul"><code>nex_block_bin_mul</code></h3>
+<div class="sourceCode" id="cb16"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>bigint_err_ty nex_block_bin_mul<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：分块 NTT 乘法：dst = lhs × rhs（突破直接 NTT
+上限）</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>dst</code>：目标（已初始化；允许别名）</li>
+<li><code>lhs/rhs</code>：非负操作数</li>
+</ul>
+<p><strong>返回</strong>：BIGINT_OK_E；规模/内存不满足时返回错误码</p>
+<p><strong>备注</strong>：结果精确；1e9 位实测 2403 s / 6.24 GB；1e10
+位需 ≥256 GB 或 OOC</p>
+<h1 id="nex_ssa">nex_ssa</h1>
+<p>nex_ssa：Schönhage–Strassen 原型（P1b-SSA，issue #102）。</p>
+<p>参数：N bit → n=m=2^(k−1) 块、L=2n、环 Z/(2^L±1)；用两个环的循环 卷积
++ CRT 恢复精确系数，再按 base 2^m 进位。 仅 contrib
+实验；失败/规模过小时返回 UNSUPPORTED 或回退直接乘法。</p>
+<h3 id="nex_ssa_mul"><code>nex_ssa_mul</code></h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>bigint_err_ty nex_ssa_mul<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>rhs<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：SSA 原型乘法：dst = lhs × rhs（仅 contrib
+实验）</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>dst</code>：目标（已初始化；允许与 lhs/rhs 别名）</li>
+<li><code>lhs/rhs</code>：非负操作数</li>
+</ul>
+<p><strong>返回</strong>：BIGINT_OK_E；规模过小或环参数不支持时返回
+BIGINT_ERR_UNSUPPORTED_E</p>
+<p><strong>备注</strong>：结果为精确值；1e6–1e8 位原型阶段，M2/M3
+已冻结（TODO §K2）</p>
+<h1 id="nex_ooc">nex_ooc</h1>
+<p>nex_ooc：out-of-core 分块乘法原型（P1b-OOC，issue #104）。</p>
+<p>把操作数视为「肢文件」（小端 32-bit 肢序列，无头），按块长 L
+切分：</p>
+<p>a = Σ a_i·B^(iL)，b = Σ b_j·B^(jL)，B = 2^32 a·b = Σ_k B^(kL)·(
+Σ_{i+j=k} a_i·b_j )</p>
+<p>输出按 k 升序生成：块 k 的累加器只保留 2L+2 肢，算完立即写盘，高位
+作为进位带入块 k+1。因此<strong>峰值内存
+O(L)，与操作数规模无关</strong>，代价是 每个 a_i / b_j
+块被重复读取（块对总数 na·nb，I/O 约 O(n·nb)）。</p>
+<p>与内存内算法（<code>bigint_bin_mul</code> /
+<code>contrib/nex_bigint_block</code>）逐位一致； 块对乘法直接复用核心
+AUTO 分派（块内为 Karatsuba/Toom-3/CRT NTT）。</p>
+<p>限制：M1 只用单线程顺序 I/O，未做块缓存、并行块对、块级 FFT；这些是
+issue #104 的 M3 项。10^10 位的块数约 32（L=2^25 时），I/O 量约 数百
+GB，需 M2 实测磁盘带宽。</p>
+<h3 id="type"><code>type</code></h3>
+<p><strong>说明</strong>：错误码：本 contrib 模块自带 I/O
+错误，避免污染核心 bigint_err_ty</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>NEX_OOC_OK_E <span class="op">=</span> <span class="dv">0</span><span class="op">,</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>NEX_OOC_ERR_INVALID_E<span class="op">,</span></span></code></pre></div>
+<h3 id="nex_ooc_err_oom_e"><code>NEX_OOC_ERR_OOM_E,</code></h3>
+<div class="sourceCode" id="cb19"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>NEX_OOC_ERR_OOM_E<span class="op">,</span></span></code></pre></div>
+<p><strong>说明</strong>：空指针 / 非法块长 / 打不开文件</p>
+<h3 id="nex_ooc_err_io_e"><code>NEX_OOC_ERR_IO_E,</code></h3>
+<div class="sourceCode" id="cb20"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>NEX_OOC_ERR_IO_E<span class="op">,</span></span></code></pre></div>
+<p><strong>说明</strong>：内存不足</p>
+<h3 id="nex_ooc_err_unsupported_e"><code>NEX_OOC_ERR_UNSUPPORTED_E</code></h3>
+<div class="sourceCode" id="cb21"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>NEX_OOC_ERR_UNSUPPORTED_E</span></code></pre></div>
+<p><strong>说明</strong>：读/写/定位/截断失败</p>
+<h3 id="-nex_ooc_err_ty"><code>} nex_ooc_err_ty;</code></h3>
+<div class="sourceCode" id="cb22"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> nex_ooc_err_ty<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：块对乘法返回 UNSUPPORTED（规模越界）</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> block_limbs<span class="op">;</span></span></code></pre></div>
+<h3 id="const-char-scratch_dir"><code>const char *scratch_dir;</code></h3>
+<div class="sourceCode" id="cb24"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>scratch_dir<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：块长（肢）；0 →
+NEX_OOC_DEFAULT_BLOCK_LIMBS</p>
+<h3 id="int-keep_temps"><code>int keep_temps;</code></h3>
+<div class="sourceCode" id="cb25"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> keep_temps<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：临时文件目录；NULL → 当前目录</p>
+<h3 id="-nex_ooc_opts_ty"><code>} nex_ooc_opts_ty;</code></h3>
+<div class="sourceCode" id="cb26"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> nex_ooc_opts_ty<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：非零：保留临时文件（调试用）</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> block_limbs<span class="op">;</span></span></code></pre></div>
+<h3 id="size_t-blocks_a"><code>size_t blocks_a;</code></h3>
+<div class="sourceCode" id="cb28"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> blocks_a<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：实际使用的块长</p>
+<h3 id="size_t-blocks_b"><code>size_t blocks_b;</code></h3>
+<div class="sourceCode" id="cb29"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> blocks_b<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：a 的块数</p>
+<h3 id="size_t-block_pairs"><code>size_t block_pairs;</code></h3>
+<div class="sourceCode" id="cb30"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> block_pairs<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：b 的块数</p>
+<h3 id="uint64_t-bytes_read"><code>uint64_t bytes_read;</code></h3>
+<div class="sourceCode" id="cb31"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint64_t</span> bytes_read<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：实际执行的块对乘法数</p>
+<h3 id="uint64_t-bytes_written"><code>uint64_t bytes_written;</code></h3>
+<div class="sourceCode" id="cb32"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint64_t</span> bytes_written<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：从 a/b 读入的字节数</p>
+<h3 id="uint64_t-result_limbs"><code>uint64_t result_limbs;</code></h3>
+<div class="sourceCode" id="cb33"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="dt">uint64_t</span> result_limbs<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：写入结果的字节数（含尾部裁剪前的冗余）</p>
+<h3 id="double-seconds"><code>double seconds;</code></h3>
+<div class="sourceCode" id="cb34"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="dt">double</span> seconds<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：结果肢数（裁剪后）</p>
+<h3 id="-nex_ooc_stats_ty"><code>} nex_ooc_stats_ty;</code></h3>
+<div class="sourceCode" id="cb35"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> nex_ooc_stats_ty<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：挂钟时间</p>
+<h3 id="nex_ooc_mul_files"><code>nex_ooc_mul_files</code></h3>
+<div class="sourceCode" id="cb36"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>nex_ooc_err_ty nex_ooc_mul_files<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>dst_path<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>a_path<span class="op">,</span> <span class="dt">size_t</span> a_limbs<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>b_path<span class="op">,</span> <span class="dt">size_t</span> b_limbs<span class="op">,</span> <span class="dt">const</span> nex_ooc_opts_ty <span class="op">*</span>opts<span class="op">,</span> nex_ooc_stats_ty <span class="op">*</span>stats<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：文件到文件的乘法（操作数为纯肢体文件，不含符号/长度头）</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>dst_path</code>：结果文件路径（覆盖写；小端 32-bit
+肢体，无头）</li>
+<li><code>a_path</code>：/ a_limbs 操作数 a 的路径与肢数</li>
+<li><code>b_path</code>：/ b_limbs 操作数 b 的路径与肢数</li>
+<li><code>opts</code>：选项，可为 NULL</li>
+<li><code>stats</code>：统计输出，可为 NULL</li>
+</ul>
+<p><strong>返回</strong>：NEX_OOC_OK_E 成功；否则见 nex_ooc_err_ty</p>
+<p><strong>备注</strong>：结果取幅值（符号由调用方处理）；任一操作数为零时生成空文件</p>
+<h3 id="nex_ooc_bin_mul"><code>nex_ooc_bin_mul</code></h3>
+<div class="sourceCode" id="cb37"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>nex_ooc_err_ty nex_ooc_bin_mul<span class="op">(</span>bigint_bin_ty <span class="op">*</span>dst<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>lhs<span class="op">,</span> <span class="dt">const</span> bigint_bin_ty <span class="op">*</span>rhs<span class="op">,</span> <span class="dt">const</span> nex_ooc_opts_ty <span class="op">*</span>opts<span class="op">,</span> nex_ooc_stats_ty <span class="op">*</span>stats<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：内存大整数乘法，内部经临时文件走 out-of-core
+路径</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>dst</code>：结果；lhs / rhs
+操作数（允许别名，符号按常规规则）</li>
+<li><code>opts</code>：/ stats 同上</li>
+</ul>
+<p><strong>返回</strong>：NEX_OOC_OK_E 成功；否则见 nex_ooc_err_ty</p>
+<p><strong>备注</strong>：仅用于验证与中小规模使用；大输入本身已在内存中，省不了内存</p>
+<h3 id="nex_ooc_estimate_peak_bytes"><code>nex_ooc_estimate_peak_bytes</code></h3>
+<div class="sourceCode" id="cb38"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> nex_ooc_estimate_peak_bytes<span class="op">(</span><span class="dt">size_t</span> block_limbs<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：峰值内存的经验估计（字节），用于选定块长</p>
+<p><strong>参数</strong></p>
+<ul>
+<li><code>block_limbs</code>：块长；0 表示默认块长</li>
+</ul>
+<p><strong>返回</strong>：估计的峰值字节数（工作缓冲区 + NTT
+内部估算）</p>
+<h3 id="nex_ooc_strerror"><code>nex_ooc_strerror</code></h3>
+<div class="sourceCode" id="cb39"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>nex_ooc_strerror<span class="op">(</span>nex_ooc_err_ty err<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：错误码名称（用于日志/基准输出）</p>
+<h1 id="nex_opencl">nex_opencl</h1>
+<p>nex_opencl.h：contrib OpenCL 批量大整数实验（issue #98 P3）。</p>
+<p>默认不构建；-DNEX_ENABLE_OPENCL=ON 时作为独立库 nex_opencl， 不进
+libnex / amalgam / 子集闭包，也不改核心 API/ABI。</p>
+<p>数据表示：调用方提供「按元素连续存放」的无符号大整数数组， 每个数固定
+limbs 个 32-bit limb（小端），不足高位补零。 例：1000 位十进制 ≈ 104
+limb（3328 bit）。</p>
+<p>当前覆盖：</p>
+<ul>
+<li>nex_opencl_madd：out[i] = a[i]*b[i] + c[i]（逐元素）</li>
+<li>nex_opencl_dot ：out = Σ a[i]*b[i]（一批点积） 矩阵×矩阵子集见
+nex_opencl_matmul_subset（M2，contrib/nex_opencl/README.md）。</li>
+</ul>
+<div class="sourceCode" id="cb40"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> nex_opencl_ctx nex_opencl_ctx_ty<span class="op">;</span></span></code></pre></div>
+<h3 id="nex_opencl_create"><code>nex_opencl_create</code></h3>
+<div class="sourceCode" id="cb41"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>nex_opencl_ctx_ty <span class="op">*</span>nex_opencl_create<span class="op">(</span><span class="dt">size_t</span> limbs<span class="op">,</span> <span class="dt">char</span> <span class="op">*</span>err<span class="op">,</span> <span class="dt">size_t</span> err_size<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：创建上下文：编译针对 limbs 特化的 kernel；优先
+GPU，其次 CPU。 失败返回 NULL；err 非空时写入原因。</p>
+<h3 id="nex_opencl_destroy"><code>nex_opencl_destroy</code></h3>
+<div class="sourceCode" id="cb42"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> nex_opencl_destroy<span class="op">(</span>nex_opencl_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：释放上下文（可传 NULL）。</p>
+<h3 id="nex_opencl_device_name"><code>nex_opencl_device_name</code></h3>
+<div class="sourceCode" id="cb43"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>nex_opencl_device_name<span class="op">(</span><span class="dt">const</span> nex_opencl_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：当前设备名（创建时选定，生命周期同 ctx）。</p>
+<h3 id="nex_opencl_error"><code>nex_opencl_error</code></h3>
+<div class="sourceCode" id="cb44"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>nex_opencl_error<span class="op">(</span><span class="dt">const</span> nex_opencl_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：最近一次失败的原因字符串（成功调用后不保证清空）。</p>
+<h3 id="nex_opencl_limbs"><code>nex_opencl_limbs</code></h3>
+<div class="sourceCode" id="cb45"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> nex_opencl_limbs<span class="op">(</span><span class="dt">const</span> nex_opencl_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：输入 limb 数（创建时指定）。</p>
+<h3 id="nex_opencl_out_limbs"><code>nex_opencl_out_limbs</code></h3>
+<div class="sourceCode" id="cb46"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> nex_opencl_out_limbs<span class="op">(</span><span class="dt">const</span> nex_opencl_ctx_ty <span class="op">*</span>ctx<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：结果 limb 数：2<em>limbs + 1（乘积
+2</em>limbs，+1 保证进位/和余量）。</p>
+<h3 id="nex_opencl_madd"><code>nex_opencl_madd</code></h3>
+<div class="sourceCode" id="cb47"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> nex_opencl_madd<span class="op">(</span>nex_opencl_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>a<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>b<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>c<span class="op">,</span> <span class="dt">uint32_t</span> <span class="op">*</span>out<span class="op">,</span> <span class="dt">size_t</span> n<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：out[i] = a[i]<em>b[i] + c[i]，i ∈ [0, n)。
+a/b/c 各 n</em>limbs 个 uint32_t；out 需 n*out_limbs 个。 返回 0
+成功，-1 失败（错误见 nex_opencl_error）。</p>
+<h3 id="nex_opencl_dot"><code>nex_opencl_dot</code></h3>
+<div class="sourceCode" id="cb48"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> nex_opencl_dot<span class="op">(</span>nex_opencl_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>a<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>b<span class="op">,</span> <span class="dt">uint32_t</span> <span class="op">*</span>out<span class="op">,</span> <span class="dt">size_t</span> n<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：out = Σ_{i&lt;n} a[i]<em>b[i]，out 需
+out_limbs 个 uint32_t。 n 上限 2^32（和的高位余量按 2</em>limbs+1
+预留）。</p>
+<h3 id="nex_opencl_matmul_subset"><code>nex_opencl_matmul_subset</code></h3>
+<div class="sourceCode" id="cb49"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> nex_opencl_matmul_subset<span class="op">(</span>nex_opencl_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>A<span class="op">,</span> <span class="dt">size_t</span> lda<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>B<span class="op">,</span> <span class="dt">size_t</span> ldb<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>rows<span class="op">,</span> <span class="dt">size_t</span> nrows<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>cols<span class="op">,</span> <span class="dt">size_t</span> ncols<span class="op">,</span> <span class="dt">uint32_t</span> <span class="op">*</span>C<span class="op">,</span> <span class="dt">size_t</span> ldc<span class="op">,</span> <span class="dt">size_t</span> k<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：子矩阵乘：C[i,j] = Σ_{p&lt;k} A[rows[i],p] *
+B[p,cols[j]]。 A 为 m×k、B 为 k×n 的行主序定长 limb 数组（lda/ldb 为每行
+limb 数）， C 为 nrows×ncols、每行 ldc 个 limb；输出每元素 out_limbs。
+内部按 tile 在 RAM/VRAM 间搬运，适合 4k×4k、只取部分行/列的场景。 返回 0
+成功，-1 失败。</p>
+<h3 id="type-1"><code>type</code></h3>
+<p><strong>说明</strong>：稀疏矩阵（CSR / CSC）：索引按升序，values 为
+nnz×limbs 的 limb 数组。 A 用 CSR（行主序），B 用 CSC（按列），便于
+C[rows,cols] 的索引归并。</p>
+<div class="sourceCode" id="cb50"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> rows<span class="op">;</span></span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> nnz<span class="op">;</span></span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>row_ptr<span class="op">;</span></span></code></pre></div>
+<h3 id="const-uint32_t-col_idx"><code>const uint32_t *col_idx;</code></h3>
+<div class="sourceCode" id="cb51"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>col_idx<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：rows+1</p>
+<h3 id="const-uint32_t-values"><code>const uint32_t *values;</code></h3>
+<div class="sourceCode" id="cb52"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>values<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：nnz，升序</p>
+<h3 id="-nex_opencl_csr_ty"><code>} nex_opencl_csr_ty;</code></h3>
+<div class="sourceCode" id="cb53"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> nex_opencl_csr_ty<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：nnz × limbs</p>
+<div class="sourceCode" id="cb54"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> cols<span class="op">;</span></span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a><span class="dt">size_t</span> nnz<span class="op">;</span></span>
+<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>col_ptr<span class="op">;</span></span></code></pre></div>
+<h3 id="const-uint32_t-row_idx"><code>const uint32_t *row_idx;</code></h3>
+<div class="sourceCode" id="cb55"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>row_idx<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：cols+1</p>
+<h3 id="const-uint32_t-values-1"><code>const uint32_t *values;</code></h3>
+<div class="sourceCode" id="cb56"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>values<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：nnz，升序</p>
+<h3 id="-nex_opencl_csc_ty"><code>} nex_opencl_csc_ty;</code></h3>
+<div class="sourceCode" id="cb57"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> nex_opencl_csc_ty<span class="op">;</span></span></code></pre></div>
+<p><strong>说明</strong>：nnz × limbs</p>
+<h3 id="nex_opencl_matmul_sparse"><code>nex_opencl_matmul_sparse</code></h3>
+<div class="sourceCode" id="cb58"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> nex_opencl_matmul_sparse<span class="op">(</span>nex_opencl_ctx_ty <span class="op">*</span>ctx<span class="op">,</span> <span class="dt">const</span> nex_opencl_csr_ty <span class="op">*</span>A<span class="op">,</span> <span class="dt">const</span> nex_opencl_csc_ty <span class="op">*</span>B<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>rows<span class="op">,</span> <span class="dt">size_t</span> nrows<span class="op">,</span> <span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>cols<span class="op">,</span> <span class="dt">size_t</span> ncols<span class="op">,</span> <span class="dt">uint32_t</span> <span class="op">*</span>C<span class="op">,</span> <span class="dt">size_t</span> ldc<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：稀疏子矩阵乘：只遍历 A 行非零与 B
+列非零的交集。 语义同 nex_opencl_matmul_subset；density=1
+时建议走稠密接口。</p>
+<h3 id="nex_opencl_pack_bin"><code>nex_opencl_pack_bin</code></h3>
+<div class="sourceCode" id="cb59"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> nex_opencl_pack_bin<span class="op">(</span><span class="dt">const</span> bigint_bin_ty <span class="op">*</span>v<span class="op">,</span> <span class="dt">uint32_t</span> <span class="op">*</span>out<span class="op">,</span> <span class="dt">size_t</span> limbs<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：把非负 bigint_bin 打包为定长 limb
+数组：v-&gt;len 必须 ≤ limbs， 不足高位补零；out 需 limbs 个
+uint32_t。返回 0 成功，-1 失败。</p>
+<h3 id="nex_opencl_unpack_bin"><code>nex_opencl_unpack_bin</code></h3>
+<div class="sourceCode" id="cb60"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> nex_opencl_unpack_bin<span class="op">(</span><span class="dt">const</span> <span class="dt">uint32_t</span> <span class="op">*</span>limbs<span class="op">,</span> <span class="dt">size_t</span> count<span class="op">,</span> bigint_bin_ty <span class="op">*</span>v<span class="op">);</span></span></code></pre></div>
+<p><strong>说明</strong>：解包：从 count 个 limb 还原
+bigint_bin，裁剪前导零并置正/零符号； v 须已用
+bigint_bin_init()/init_cap() 初始化。返回 0 成功，-1 失败。</p>
+</body>
+</html>

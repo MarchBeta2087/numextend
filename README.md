@@ -28,6 +28,11 @@
 ```sh
 cmake -S . -B build && cmake --build build      # 库 + 测试 + demo
 ctest --test-dir build                          # 全部测试（GCC）
+
+# 或使用 CMake 预设（需 CMake ≥3.19 + Ninja），产物统一在 build/<preset>：
+cmake --preset default && cmake --build build/default
+cmake --preset opencl  && cmake --build build/opencl    # 其余见 docs/maintenance.md §8
+python3 scripts/clean.py --list                 # 构建/产物清理（默认 dry-run）
 # sanitizer 构建（CI 亦用）：GCC/Clang 用 -DNEX_SANITIZE=address,undefined；
 # MSVC 用 -DNEX_SANITIZE=address（MSVC 无 UBSan）
 scripts/build-msvc-debug.bat                    # MSVC Debug + CRT 调试堆检查
@@ -62,6 +67,13 @@ target_link_libraries(app PRIVATE nex::nex)
 覆盖率：`sh scripts/coverage.sh [阈值]`（gcovr，默认 80%；CI `linux-coverage`
 强制该阈值）。公开 API 审计：`sh scripts/api_audit.sh`（头文件自包含 +
 声明/定义一致性；CI 每次运行）。
+
+HTML 测试报告（自包含，无外部资源）：
+
+```sh
+python3 scripts/test-report.py --build-dir build/default   # -> build/test-report.html
+python3 scripts/test-report.py --build-dir build/opencl -R 'bigint|ntt'
+```
 
 黄金对拍参考实现位于 `tests/golden_*.py`（`fractions.Fraction` / `decimal` 精确
 复刻各类型语义），随机种子可配置：`NEX_GOLDEN_SEED=... ctest -R golden`。
@@ -147,6 +159,22 @@ sh scripts/bench-math.sh ci all 300        # CI 缩减档
 部分：`trans`（所有公开超越函数 × 多种精度）、`const`（π/e/ζ(3)/γ 的多种
 表达式 × 多种精度）、`throughput`（各规模运算的 ops/s）。`--json` 输出供
 夜间趋势收集。完整结果见 [`docs/bench-math.md`](docs/bench-math.md)。
+
+统一入口（推荐）：`scripts/bench.py` 可任意组合 nex 模块与 `contrib`，并带
+时间/内存预算：
+
+```sh
+python3 scripts/bench.py --list                        # suite 清单
+python3 scripts/bench.py --profile ci                  # CI 档，约 2–5 分钟
+python3 scripts/bench.py --modules bigint_bin,ntt      # 只跑相关模块
+python3 scripts/bench.py --all --include-frozen --profile quick   # 本地 20 分钟
+python3 scripts/bench.py --profile ci --html-out build/bench-report.html
+```
+
+详见 [`docs/benchmarking.md`](docs/benchmarking.md) 与自动生成的
+[`docs/benchmark-suites.md`](docs/benchmark-suites.md)。2026-10-20 的完整单机实测
+（nex + contrib，8 个 suite，约 2 h）见
+[`docs/bench-full-2026-10-20.md`](docs/bench-full-2026-10-20.md)。
 
 本机 full 档实测（WSL2 / Ubuntu 24.04 / GCC 13.3.0 / i5-13500H，-O2；
 预算 7200 s；v1.7 加入 32768 bit 吞吐档后约 98 min，此前为 96.5 min）：

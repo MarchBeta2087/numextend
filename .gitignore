@@ -29,3 +29,6 @@ Thumbs.db
 
 # 基准报告（CI 产物）
 docs/performance-ci.md
+
+# docs.sh 的临时 CSS（正常会自动删除）
+docs/.manual-lf.css

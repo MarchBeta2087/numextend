@@ -1,0 +1,32 @@
+# contrib/nex_opencl：OpenCL 批量大整数实验（issue #98 P3，默认 OFF）。
+add_library(nex_opencl STATIC nex_opencl.c)
+target_include_directories(nex_opencl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(nex_opencl PUBLIC nex ${CMAKE_DL_LIBS})
+
+if(MSVC)
+    target_compile_options(nex_opencl PRIVATE /W4)
+else()
+    target_compile_options(nex_opencl PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_executable(nex_opencl_test nex_opencl_test.c)
+target_link_libraries(nex_opencl_test PRIVATE nex_opencl)
+if(MSVC)
+    target_compile_options(nex_opencl_test PRIVATE /W4)
+else()
+    target_compile_options(nex_opencl_test PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME nex_opencl_test COMMAND nex_opencl_test)
+
+add_executable(nex_opencl_bench nex_opencl_bench.c)
+target_link_libraries(nex_opencl_bench PRIVATE nex_opencl)
+# 可选："--cpu" 真实多线程 CPU 基线（需同时 -DNEX_ENABLE_THREAD=ON）。
+if(TARGET nex_thread)
+    target_link_libraries(nex_opencl_bench PRIVATE nex_thread)
+    target_compile_definitions(nex_opencl_bench PRIVATE NEX_OPENCL_HAVE_THREAD=1)
+endif()
+if(MSVC)
+    target_compile_options(nex_opencl_bench PRIVATE /W4)
+else()
+    target_compile_options(nex_opencl_bench PRIVATE -Wall -Wextra -Wpedantic)
+endif()

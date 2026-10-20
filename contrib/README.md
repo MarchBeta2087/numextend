@@ -1,6 +1,36 @@
-# contrib：线程池与并行 NTT 实验
+# contrib：实验目录索引
 
-本目录是 **TODO §F 的隔离实验**：跨平台线程池 + 两个消费方，用于回答
+本目录收录**默认不构建**的隔离实验。所有实验都**不进入**核心 `libnex`、
+`nex_modules.txt`、子集闭包与 amalgam，也**不为它们开核心规范特例**
+（design §14）。各自用显式 CMake 选项启用。
+
+## 索引
+
+| 目录 | 内容 | 跟踪 | 开关 | 状态 |
+|---|---|---|---|---|
+| `nex_thread` | 跨平台最小线程池（pthread / Win32 `CONDITION_VARIABLE`） | TODO §F | `-DNEX_ENABLE_THREAD=ON` | 可用，CI `linux-thread-tsan`（TSan） |
+| `nex_parallel` | 线程池的两个消费方：并行 NTT 乘法（A）与批量 `a*b+c`（B） | TODO §F | 同上 | 可用，收益已量化 |
+| `nex_bigint_block` | 分块 NTT 乘法：三分块（P1a）→ 递归多级分块（P1b），突破直接 NTT 上限 | issue #98 | `-DNEX_ENABLE_BIGNUM=ON` | 1e9 位 2403 s / 6.24 GB；2e9 位递归验证；1e10 位 OOM |
+| `nex_ssa` | Schönhage–Strassen 原型（`2^L+1` / `2^(L/2)+1` 双环 + CRT） | issue #102 | `-DNEX_ENABLE_SSA=ON` | M1 完成：1e6–1e8 位，1e8 位 1142–1318 s / 1.66 GB；**M2/M3 已决策不做**（2026-10-20） |
+| `nex_ooc` | out-of-core 分块乘法：肢体文件 + 按块落盘，峰值内存 O(块长) | issue #104 | `-DNEX_ENABLE_BIGNUM=ON` | M1 完成：1e9 位 164 MB 峰值逐位校验；1e8 大×大 227 s / 652 MB 与内存 NTT 一致；**M2/M3 已决策不做**，实用上限 1e9 位级 |
+| `nex_opencl` | OpenCL 批量大整数：逐元素 `a*b+c` + 点积（M1），矩阵×矩阵子集（M2） | issue #98 P3 | `-DNEX_ENABLE_OPENCL=ON` | M1 完成：10k×1000 位 madd ≈6.9 ms / dot ≈4.6 ms；M2 子矩阵乘 4k×4k 60+60 并集 327 s / 6.1×10⁶ big-MADD/s；M3 稀疏 d=0.1 4.8 s（RTX 4050），逐位一致；CI `linux-opencl` 用 PoCL 做正确性 |
+
+各目录另有自己的 `README.md`（算法、参数模型、实测表）。机器可读索引见
+[`contrib/modules.txt`](modules.txt)，渲染版为
+[`docs/contrib-modules.md`](../docs/contrib-modules.md)，API 手册为
+[`docs/contrib-manual.html`](../docs/contrib-manual.html)（均为自动生成）。
+规划状态见 `TODO.md` §K，里程碑与验收标准以 Issue 为准。
+
+CI 覆盖：`nex_thread` / `nex_parallel` 由 `linux-thread-tsan`（TSan）构建并跑
+`parallel_ntt` 自检；`nex_bigint_block` / `nex_ssa` / `nex_ooc` 由
+`linux-bignum` 构建并跑各目录自检；`nex_opencl` 由 `linux-opencl`（PoCL CPU）
+构建并跑正确性测试。
+
+---
+
+# 线程池与并行 NTT 实验（`nex_thread` / `nex_parallel`）
+
+本部分是 **TODO §F 的隔离实验**：跨平台线程池 + 两个消费方，用于回答
 “线程是否值得进入产品”。它**不进入**核心 `libnex`、`nex_modules.txt`、
 子集闭包或 amalgam；默认不构建。
 
@@ -90,8 +120,10 @@ cmake --build build-thread -j
 
 1. **不为 `contrib/` 开核心规范特例**：它保持独立可选目标，不进 `libnex`、
    `amalgam` 与子集闭包；核心“零依赖 / C99 / 单文件 / 不内部加锁”契约不变。
-2. 单次乘法并行收益有限（≤2.8×）且需要复制 NTT 内核，**不作为核心特性**。
+2. 单次乘法并行收益有限（≤4.9×，且仅 ≥256k bit 明显）且需要复制 NTT
+   内核，**不作为核心特性**。
 3. 批量并行收益明确，但通用线程池（OpenMP/TBB）已覆盖该需求；本 contrib
    的差异是 C99 + 确定性 + 双后端。要升级为一等能力，应独立仓库/包
-   （如 `libnex-thread`），并补 TSan CI 与稳定性承诺。
-4. 当前仍是实验：未接 CI、未承诺 API/ABI；`NEX_ENABLE_THREAD=ON` 显式启用。
+   （如 `libnex-thread`），并补稳定性承诺（TSan CI 已接入）。
+4. 当前仍是实验：未承诺 API/ABI；`NEX_ENABLE_THREAD=ON` 显式启用，
+   TSan CI 见 `linux-thread-tsan`。
