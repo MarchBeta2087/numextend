@@ -1,10 +1,13 @@
 /*
  * nex_opencl_bench.c：contrib OpenCL M1 基准。
  *
- * 用法：nex_opencl_bench [n] [limbs]
- * 默认 n=10000、limbs=104（约 1000 位十进制）。
+ * 用法：
+ *   nex_opencl_bench [n] [limbs]            madd/dot，默认 n=10000、limbs=104
+ *   nex_opencl_bench matmul m k n sr sc [--density d]
+ *   nex_opencl_bench matmul ... --cpu [--threads N]   （需 NEX_ENABLE_THREAD）
  *
- * 输出：CPU 单线程参考、GPU madd/dot（min of 5）、有效传输带宽。
+ * 输出：CPU 单线程参考、GPU madd/dot（min of 5）、有效传输带宽；
+ * matmul 打印 GPU（或 --cpu 时 16 线程 schoolbook）行/列两趟耗时与吞吐。
  */
 
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
@@ -12,6 +15,10 @@
 #endif
 
 #include "nex_opencl.h"
+
+#if defined(NEX_OPENCL_HAVE_THREAD)
+#include "nex_thread.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -169,6 +176,116 @@ static void bigint_dot_ref(const uint32_t *A, size_t lda,
     bigint_bin_free(&pv);
     bigint_bin_free(&sv);
 }
+
+#if defined(NEX_OPENCL_HAVE_THREAD)
+typedef struct {
+    const uint32_t *A;
+    const uint32_t *B;
+    const uint32_t *rows;
+    const uint32_t *cols;
+    size_t lda;
+    size_t ldb;
+    size_t k;
+    size_t limbs;
+    size_t ncols;
+    size_t stride;
+    uint32_t *out;
+    int rows_pass;
+} cpu_matmul_job_ty;
+
+static void cpu_matmul_job_fn(void *ctx, size_t index)
+{
+    cpu_matmul_job_ty *j = (cpu_matmul_job_ty *)ctx;
+    const size_t i = index / j->ncols;
+    const size_t q = index % j->ncols;
+    const size_t row = j->rows_pass ? j->rows[i] : i;
+    const size_t col = j->rows_pass ? q : j->cols[q];
+    bigint_dot_ref(j->A, j->lda, j->B, j->ldb, row, col, j->k, j->limbs,
+            j->out + index * j->stride);
+}
+
+/* 真实 CPU 多线程基线（同一 bigint_dot_ref 参考实现，非投影）。 */
+static int run_cpu_dense_bench(size_t m, size_t k, size_t n, size_t sel_r,
+        size_t sel_c, unsigned threads)
+{
+    const size_t limbs = 104u;
+    const size_t out_limbs = limbs * 2u + 1u;
+    const size_t lda = k * limbs;
+    const size_t ldb = n * limbs;
+    const size_t lda_bytes = m * lda * sizeof(uint32_t);
+    const size_t ldb_bytes = k * ldb * sizeof(uint32_t);
+    printf("matmul (CPU only): A=%zux%zu B=%zux%zu C union = %zu rows + %zu cols\n",
+            m, k, k, n, sel_r, sel_c);
+    printf("memory: A=%.2f GB B=%.2f GB\n",
+            (double)lda_bytes / 1e9, (double)ldb_bytes / 1e9);
+    uint32_t *A = (uint32_t *)malloc(lda_bytes);
+    uint32_t *B = (uint32_t *)malloc(ldb_bytes);
+    uint32_t *rows = (uint32_t *)malloc(sel_r * sizeof(uint32_t));
+    uint32_t *cols = (uint32_t *)malloc(sel_c * sizeof(uint32_t));
+    uint32_t *c_rows = (uint32_t *)malloc(sel_r * n * out_limbs
+            * sizeof(uint32_t));
+    uint32_t *c_cols = (uint32_t *)malloc(m * sel_c * out_limbs
+            * sizeof(uint32_t));
+    if (A == NULL || B == NULL || rows == NULL || cols == NULL
+            || c_rows == NULL || c_cols == NULL) {
+        fprintf(stderr, "OOM: 需要 %.1f GB（A+B+输出）\n",
+                (double)(lda_bytes + ldb_bytes) / 1e9);
+        free(A); free(B); free(rows); free(cols); free(c_rows); free(c_cols);
+        return 1;
+    }
+    fill_random(A, m * lda);
+    fill_random(B, k * ldb);
+    for (size_t i = 0; i < sel_r; i++) {
+        rows[i] = (uint32_t)((i * m) / sel_r);
+    }
+    for (size_t j = 0; j < sel_c; j++) {
+        cols[j] = (uint32_t)((j * n) / sel_c);
+    }
+
+    nex_thread_pool_ty *pool = nex_thread_pool_create(threads);
+    if (pool == NULL) {
+        fprintf(stderr, "线程池创建失败\n");
+        free(A); free(B); free(rows); free(cols); free(c_rows); free(c_cols);
+        return 1;
+    }
+    printf("cpu threads: %u\n", nex_thread_pool_count(pool));
+
+    cpu_matmul_job_ty job;
+    job.A = A;
+    job.B = B;
+    job.rows = rows;
+    job.cols = cols;
+    job.lda = lda;
+    job.ldb = ldb;
+    job.k = k;
+    job.limbs = limbs;
+    job.ncols = n;
+    job.stride = out_limbs;
+    job.out = c_rows;
+    job.rows_pass = 1;
+    const double t0 = now_ms();
+    nex_thread_pool_run(pool, sel_r * n, cpu_matmul_job_fn, &job);
+    const double rows_s = (now_ms() - t0) / 1000.0;
+
+    job.ncols = sel_c;
+    job.out = c_cols;
+    job.rows_pass = 0;
+    const double t1 = now_ms();
+    nex_thread_pool_run(pool, m * sel_c, cpu_matmul_job_fn, &job);
+    const double cols_s = (now_ms() - t1) / 1000.0;
+
+    const double outputs = (double)(sel_r * n + m * sel_c - sel_r * sel_c);
+    const double mults = outputs * (double)k;
+    printf("CPU rows (%zu x %zu): %.2f s\n", sel_r, n, rows_s);
+    printf("CPU cols (%zu x %zu): %.2f s\n", m, sel_c, cols_s);
+    printf("CPU total: %.2f s (%.2f min, %.3g big-MADD/s)\n",
+            rows_s + cols_s, (rows_s + cols_s) / 60.0, mults / (rows_s + cols_s));
+
+    nex_thread_pool_destroy(pool);
+    free(A); free(B); free(rows); free(cols); free(c_rows); free(c_cols);
+    return 0;
+}
+#endif /* NEX_OPENCL_HAVE_THREAD */
 
 static void sparse_dot_ref(const nex_opencl_csr_ty *A, size_t row,
         const nex_opencl_csc_ty *B, size_t col, size_t limbs, uint32_t *out)
@@ -447,10 +564,23 @@ static int run_matmul_bench(int argc, char **argv)
 {
     size_t pos[5];
     int np = 0;
+    int cpu_only = 0;
+    unsigned threads = 0u;
     double density = 1.0;
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--density") == 0 && i + 1 < argc) {
             density = strtod(argv[++i], NULL);
+            continue;
+        }
+        if (strcmp(argv[i], "--cpu") == 0) {
+            cpu_only = 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--threads") == 0 && i + 1 < argc) {
+            threads = (unsigned)strtoul(argv[++i], NULL, 10);
+            continue;
+        }
+        if (argv[i][0] == '-' && argv[i][1] == '-') {
             continue;
         }
         if (np < 5) {
@@ -467,6 +597,10 @@ static int run_matmul_bench(int argc, char **argv)
         return 2;
     }
     if (density < 0.999) {
+        if (cpu_only) {
+            fprintf(stderr, "--cpu 仅支持稠密路径（--density 1.0）\n");
+            return 2;
+        }
         if (m == 0u || k == 0u || n == 0u || sel_r == 0u || sel_c == 0u
                 || sel_r > m || sel_c > n) {
             fprintf(stderr, "用法: %s matmul [m] [k] [n] [sel_rows] [sel_cols] [--density d]\n",
@@ -478,9 +612,18 @@ static int run_matmul_bench(int argc, char **argv)
     const size_t limbs = 104u;
     if (m == 0u || k == 0u || n == 0u || sel_r == 0u || sel_c == 0u
             || sel_r > m || sel_c > n) {
-        fprintf(stderr, "用法: %s matmul [m] [k] [n] [sel_rows] [sel_cols]\n",
-                argv[0]);
+        fprintf(stderr, "用法: %s matmul [m] [k] [n] [sel_rows] [sel_cols]"
+                " [--cpu [--threads N]]\n", argv[0]);
         return 2;
+    }
+    if (cpu_only) {
+#if defined(NEX_OPENCL_HAVE_THREAD)
+        return run_cpu_dense_bench(m, k, n, sel_r, sel_c, threads);
+#else
+        (void)threads;
+        fprintf(stderr, "--cpu 需要 -DNEX_ENABLE_THREAD=ON 构建\n");
+        return 2;
+#endif
     }
     char err[512];
     nex_opencl_ctx_ty *ctx = nex_opencl_create(limbs, err, sizeof(err));

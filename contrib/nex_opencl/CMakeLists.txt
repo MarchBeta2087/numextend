@@ -20,6 +20,11 @@ add_test(NAME nex_opencl_test COMMAND nex_opencl_test)
 
 add_executable(nex_opencl_bench nex_opencl_bench.c)
 target_link_libraries(nex_opencl_bench PRIVATE nex_opencl)
+# 可选："--cpu" 真实多线程 CPU 基线（需同时 -DNEX_ENABLE_THREAD=ON）。
+if(TARGET nex_thread)
+    target_link_libraries(nex_opencl_bench PRIVATE nex_thread)
+    target_compile_definitions(nex_opencl_bench PRIVATE NEX_OPENCL_HAVE_THREAD=1)
+endif()
 if(MSVC)
     target_compile_options(nex_opencl_bench PRIVATE /W4)
 else()
