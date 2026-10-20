@@ -1329,7 +1329,11 @@ int nex_opencl_matmul_sparse(nex_opencl_ctx_ty *ctx,
     const int rows_outer = (nrows <= ncols);
     cl_int rc = CL_SUCCESS;
 
-    /* 先处理行外循环或列外循环；每 tile 重新分配 host 缓冲。 */
+    /* 先处理行外循环或列外循环；每 tile 重新分配 host 缓冲。
+     * 注意：稀疏路径的 packed 缓冲在 enqueue 后立即 free，因此写缓冲必须
+     * 用阻塞模式（CL_TRUE）。非阻塞写只登记命令，实现可以在稍后读取主机
+     * 内存（PoCL CPU 即如此），此时缓冲已释放 → 读到脏数据；NVIDIA 驱动
+     * 通常立即拷贝，掩盖了该 UB。 */
     for (size_t outer = 0; outer < (rows_outer ? nrows : ncols); outer += (rows_outer ? rt : ct)) {
         const int is_rows = rows_outer;
         const size_t o_count = is_rows ? nrows : ncols;
@@ -1357,14 +1361,14 @@ int nex_opencl_matmul_sparse(nex_opencl_ctx_ty *ctx,
                 free(a_ptr); free(a_idx); free(a_val);
                 return -1;
             }
-            rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_ptr, CL_FALSE, 0,
+            rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_ptr, CL_TRUE, 0,
                     (nr + 1u) * sizeof(uint32_t), a_ptr, 0, NULL, NULL);
             if (rc == CL_SUCCESS) {
-                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_idx, CL_FALSE, 0,
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_idx, CL_TRUE, 0,
                         nnz_a * sizeof(uint32_t), a_idx, 0, NULL, NULL);
             }
             if (rc == CL_SUCCESS) {
-                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_val, CL_FALSE, 0,
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_val, CL_TRUE, 0,
                         nnz_a * ctx->limbs * sizeof(uint32_t), a_val, 0, NULL, NULL);
             }
             free(a_ptr); free(a_idx); free(a_val);
@@ -1395,14 +1399,14 @@ int nex_opencl_matmul_sparse(nex_opencl_ctx_ty *ctx,
                     free(b_ptr); free(b_idx); free(b_val); free(c_pack);
                     return -1;
                 }
-                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_ptr, CL_FALSE, 0,
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_ptr, CL_TRUE, 0,
                         (nc + 1u) * sizeof(uint32_t), b_ptr, 0, NULL, NULL);
                 if (rc == CL_SUCCESS) {
-                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_idx, CL_FALSE, 0,
+                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_idx, CL_TRUE, 0,
                             nnz_b * sizeof(uint32_t), b_idx, 0, NULL, NULL);
                 }
                 if (rc == CL_SUCCESS) {
-                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_val, CL_FALSE, 0,
+                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_val, CL_TRUE, 0,
                             nnz_b * ctx->limbs * sizeof(uint32_t), b_val, 0, NULL, NULL);
                 }
                 free(b_ptr); free(b_idx); free(b_val);
@@ -1460,14 +1464,14 @@ int nex_opencl_matmul_sparse(nex_opencl_ctx_ty *ctx,
                 free(b_ptr); free(b_idx); free(b_val);
                 return -1;
             }
-            rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_ptr, CL_FALSE, 0,
+            rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_ptr, CL_TRUE, 0,
                     (nc + 1u) * sizeof(uint32_t), b_ptr, 0, NULL, NULL);
             if (rc == CL_SUCCESS) {
-                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_idx, CL_FALSE, 0,
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_idx, CL_TRUE, 0,
                         nnz_b * sizeof(uint32_t), b_idx, 0, NULL, NULL);
             }
             if (rc == CL_SUCCESS) {
-                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_val, CL_FALSE, 0,
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_b_val, CL_TRUE, 0,
                         nnz_b * ctx->limbs * sizeof(uint32_t), b_val, 0, NULL, NULL);
             }
             free(b_ptr); free(b_idx); free(b_val);
@@ -1497,14 +1501,14 @@ int nex_opencl_matmul_sparse(nex_opencl_ctx_ty *ctx,
                     free(a_ptr); free(a_idx); free(a_val); free(c_pack);
                     return -1;
                 }
-                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_ptr, CL_FALSE, 0,
+                rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_ptr, CL_TRUE, 0,
                         (nr + 1u) * sizeof(uint32_t), a_ptr, 0, NULL, NULL);
                 if (rc == CL_SUCCESS) {
-                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_idx, CL_FALSE, 0,
+                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_idx, CL_TRUE, 0,
                             nnz_a * sizeof(uint32_t), a_idx, 0, NULL, NULL);
                 }
                 if (rc == CL_SUCCESS) {
-                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_val, CL_FALSE, 0,
+                    rc = ctx->api.write_buffer(ctx->queue, ctx->b_sp_a_val, CL_TRUE, 0,
                             nnz_a * ctx->limbs * sizeof(uint32_t), a_val, 0, NULL, NULL);
                 }
                 free(a_ptr); free(a_idx); free(a_val);
