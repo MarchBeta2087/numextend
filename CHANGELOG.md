@@ -62,6 +62,26 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   意义，且 1e10 位无需求方；测量保留为门槛数据，重启条件见 issue #104。
   当前实用上限为 1e9 位级（~1–2 h、≤4.6 GB）。
 
+### 评估与决策
+
+- **超大位宽乘法收口（2026-10-20，#98 / #102 / #104）**：SSA M2/M3
+  （递归环变换、10¹⁰ 位）与 OOC M2/M3（1e10 位、块级提速）**一并冻结**。
+  依据：1e9 位已由分块 NTT（2403 s / 6.24 GB）与 OOC（111 min / 2.7 GB）
+  覆盖；SSA M2 原目标（RSS <16 GB、不劣于 2403 s）相对现状没有增量，
+  且 1e10 位无需求方。`contrib/nex_ssa` 与 `contrib/nex_ooc` 保留为原型与
+  门槛数据，重启条件见 `TODO.md` §K2 / 各自 README。
+- **#98 P2–P4 立项门槛**：`TODO.md` 新增 §K4，要求 Lean 4 形式化、
+  OpenCL、进核心 AUTO 在启动前先定义验证边界、toolchain/设备范围、
+  GPU CI 与验收指标（≥2× 且逐位一致）；当前无候选满足 P4。
+
+### 测试与 CI
+
+- **线程池 TSan（TODO §F F3）**：新增 CI job `linux-thread-tsan`
+  （`-DNEX_ENABLE_THREAD=ON -DNEX_SANITIZE=thread`），只跑 `parallel_ntt`
+  相关测试；与 ASan job 分离，MSVC 不覆盖。测试命令用
+  `setarch $(uname -m) -R` 关闭 ASLR（高熵 ASLR 会触发 TSan 的
+  "unexpected memory mapping"）；本地 WSL（GCC 13.3）已验证通过。
+
 ## [1.7.0] - 2026-10-19
 
 ### 新增

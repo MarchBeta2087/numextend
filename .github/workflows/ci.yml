@@ -263,6 +263,20 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  # 线程池 / 并行 NTT + TSan（TODO §F F3）：与 ASan job 分开（TSan 不能与 ASan 同编）
+  linux-thread-tsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (TSan, thread pool)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+                -DNEX_ENABLE_THREAD=ON -DNEX_SANITIZE=thread
+          cmake --build build --parallel
+      # 高熵 ASLR 会触发 TSan "unexpected memory mapping"；setarch -R 关闭即可
+      - name: Test (thread pool / parallel NTT)
+        run: setarch "$(uname -m)" -R ctest --test-dir build --output-on-failure -R parallel_ntt
+
   # 覆盖率门槛（Linux）：库行覆盖率 ≥ 80%
   linux-coverage:
     runs-on: ubuntu-latest
