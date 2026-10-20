@@ -12,7 +12,8 @@ python3 scripts/bench.py --profile ci              # CI 档，约 2–5 分钟
 python3 scripts/bench.py --profile quick           # 本地快速档，默认 20 分钟
 python3 scripts/bench.py --modules bigint_bin,ntt  # 只跑相关模块
 python3 scripts/bench.py --profile quick \
-    --json build/bench/quick.json --markdown-out build/bench/quick.md
+    --json build/bench/quick.json --markdown-out build/bench/quick.md \
+    --html-out build/bench-report.html
 ```
 
 首次运行会按需构建（`cmake --preset <preset>` → `build/<preset>`）。
@@ -87,6 +88,8 @@ suite 的 `preset` 决定构建配置：
 - `--json FILE`：`{"profile","budget_s","results":[...]}`，每项含
   `suite/status/seconds/peak_rss_mb/rc/log/json/reason`。
 - `--markdown-out FILE`：结果表，可直接贴 PR/issue。
+- `--html-out FILE`：自包含 HTML 报告（摘要卡片、环境、suite 表、
+  日志路径），适合本地归档或作为 CI artifact。
 - 单 suite 的 stdout/stderr：`build/bench/<suite>.log`。
 - `--json` 标记的 suite（`bench_math`）额外生成
   `build/bench/<suite>.json`（供趋势对比）。

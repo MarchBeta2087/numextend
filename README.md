@@ -168,6 +168,7 @@ python3 scripts/bench.py --list                        # suite 清单
 python3 scripts/bench.py --profile ci                  # CI 档，约 2–5 分钟
 python3 scripts/bench.py --modules bigint_bin,ntt      # 只跑相关模块
 python3 scripts/bench.py --all --include-frozen --profile quick   # 本地 20 分钟
+python3 scripts/bench.py --profile ci --html-out build/bench-report.html
 ```
 
 详见 [`docs/benchmarking.md`](docs/benchmarking.md) 与自动生成的

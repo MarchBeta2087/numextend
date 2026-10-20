@@ -106,6 +106,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `docs.sh` 用同一份 CSS/pandoc 合成 `docs/contrib-manual.html`；纳入 docs CI
   漂移检查。补齐 `nex_opencl` / `nex_parallel` / `nex_ssa` / `nex_bigint_block`
   的函数注释（生成器零告警）。
+- **HTML 性能报告**：`scripts/bench.py` 新增 `--html-out`
+  （自包含 HTML：摘要卡片、环境、suite 表与日志路径），与
+  `--json`/`--markdown-out` 共用同一份结果。
 - **HTML 测试报告**：新增 `scripts/test-report.py`：运行 CTest
   （`--output-junit`）并生成自包含 HTML（摘要卡片、环境/构建信息、失败
   详情、全部用例表）；退出码与 ctest 一致。用法见 README/maintenance §6。
