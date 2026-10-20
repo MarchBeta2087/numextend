@@ -109,9 +109,11 @@ git merge main && git push
 - [ ] `README.md`：能力矩阵、兼容性表、性能数字；
 - [ ] `docs/manual/`：手写页（`00-index` / `01-introduction` / `02-conventions` /
       `03-install` / `04-examples`）随能力与用法更新；
-- [ ] **重新生成手册**：`sh scripts/docs.sh`（从公开头文件生成 API 页 + Pandoc
-      合成 `docs/manual.html`），提交生成物；CI `docs` job 会以
-      `git diff --exit-code -- docs/manual` 校验一致性；
+- [ ] **重新生成文档**：`sh scripts/docs.sh`（核心/contrib API 页、
+      `docs/manual.html`、`docs/contrib-manual.html`、`docs/modules.md`、
+      `docs/benchmark-suites.md`、`docs/contrib-modules.md`），提交生成物；
+      CI `docs` job 以 `git diff --exit-code` 校验以上全部路径；
+      并运行 `python3 scripts/check-docs.py`（路径/preset/相对链接）。
 - [ ] `coding_standard.md`：规则变更记修订记录；新前缀登记附录 A；
 - [ ] `TODO.md`：勾选完成项、更新规划状态；
 - [ ] `.github/CONTRIBUTING.md`：“完成”定义若变化同步更新。

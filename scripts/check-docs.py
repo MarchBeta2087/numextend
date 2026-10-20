@@ -32,6 +32,7 @@ GENERATED_PREFIXES = ("build/", "build-", "_install", "docs/manual/api-")
 
 TOKEN_RE = re.compile(r"^(?:\./)?([A-Za-z0-9_][A-Za-z0-9_./+-]*)$")
 PRESET_RE = re.compile(r"--preset\s+([A-Za-z0-9_-]+)")
+LINK_RE = re.compile(r"\]\(([^)\s]+)")
 
 
 def doc_files() -> list[Path]:
@@ -42,6 +43,36 @@ def doc_files() -> list[Path]:
               ROOT / "tests" / "fuzz" / "README.md",
               ROOT / "verify" / "cbmc" / "README.md"]
     return [p for p in files if p.is_file()]
+
+
+def all_md_files() -> list[Path]:
+    out = []
+    for p in ROOT.rglob("*.md"):
+        if ".git" in p.parts or "build" in p.parts:
+            continue
+        out.append(p)
+    return sorted(out)
+
+
+def check_links() -> list[str]:
+    import urllib.parse
+    bad = []
+    for path in all_md_files():
+        rel = path.relative_to(ROOT).as_posix()
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for m in LINK_RE.finditer(text):
+            target = m.group(1)
+            if target.startswith(("http://", "https://", "mailto:", "#",
+                                  "file://", "/")):
+                continue
+            if any(ch in target for ch in "<>{}"):
+                continue
+            target = urllib.parse.unquote(target.split("#", 1)[0])
+            if not target:
+                continue
+            if not (path.parent / target).exists():
+                bad.append(f"{rel}: {m.group(1)}")
+    return bad
 
 
 def load_allow() -> list[str]:
@@ -124,16 +155,21 @@ def main(argv: list[str]) -> int:
                 if name not in valid_presets:
                     bad_presets.append(f"{rel}:{lineno}: --preset {name}")
 
+    broken_links = check_links()
     if verbose:
         print(f"checked {checked} path tokens in {len(doc_files())} files")
     for item in missing:
         print("MISSING:", item)
     for item in bad_presets:
         print("BAD PRESET:", item)
-    if missing or bad_presets:
-        print(f"FAIL: {len(missing)} missing path(s), {len(bad_presets)} bad preset(s)")
+    for item in broken_links:
+        print("BROKEN LINK:", item)
+    if missing or bad_presets or broken_links:
+        print(f"FAIL: {len(missing)} missing path(s), {len(bad_presets)} bad preset(s), "
+              f"{len(broken_links)} broken link(s)")
         return 1
-    print(f"OK: docs references valid（{checked} 个路径 token）")
+    print(f"OK: docs references valid（{checked} 个路径 token，"
+          f"{len(all_md_files())} 个 Markdown 文件链接可用）")
     return 0
 
 

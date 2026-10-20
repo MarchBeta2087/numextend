@@ -129,8 +129,9 @@ suite 的 `preset` 决定构建配置：
 - `build/bench/*.log`、`build/bench/core.math.ci.json`
 - `bench-math-compare.md`
 
-PR 不跑性能门禁（runner 噪声大）；`docs` job 只校验
-`docs/benchmark-suites.md` 与清单一致（漂移即失败）。
+PR 不跑性能门禁（runner 噪声大）；`docs` job 校验所有生成文档
+（核心/contrib 手册与 HTML、`docs/modules.md`、`docs/benchmark-suites.md`、
+`docs/contrib-modules.md`）与源码一致，漂移即失败。
 
 ## 9. 新增一个 suite
 
