@@ -106,6 +106,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   `docs.sh` 用同一份 CSS/pandoc 合成 `docs/contrib-manual.html`；纳入 docs CI
   漂移检查。补齐 `nex_opencl` / `nex_parallel` / `nex_ssa` / `nex_bigint_block`
   的函数注释（生成器零告警）。
+- **HTML 测试报告**：新增 `scripts/test-report.py`：运行 CTest
+  （`--output-junit`）并生成自包含 HTML（摘要卡片、环境/构建信息、失败
+  详情、全部用例表）；退出码与 ctest 一致。用法见 README/maintenance §6。
 - **文档漂移加固**：`docs` CI 现在固定 pandoc **3.8.2.1** 生成并校验
   `docs/manual.html`，同时运行 `scripts/check-docs.py`（校验 Markdown 中
   引用的仓库路径与 CMake preset 名，跳过生成物/占位符）。

@@ -137,6 +137,7 @@ git push -u origin hotfix/<name>
 | 用预设构建 | `cmake --preset opencl && cmake --build build/opencl`（需 CMake ≥3.19 + Ninja） |
 | 清理构建/产物 | `python3 scripts/clean.py --builds --installs`（默认 dry-run；加 `--yes` 删除） |
 | 查过期构建目录 | `python3 scripts/clean.py --builds --stale` |
+| HTML 测试报告 | `python3 scripts/test-report.py --build-dir build/default`（输出 `build/test-report.html`） |
 
 ## 7. 纪律提醒
 
