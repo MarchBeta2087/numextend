@@ -6,7 +6,7 @@
  *
  * 算法分派：
  *   - AUTO：按肢数阈值自动选择（< 32 肢 schoolbook；32..TOOM_CUTOFF 切
- *     Karatsuba；≥ TOOM_CUTOFF 切 Toom-3；≥ NTT_CUTOFF 且长度和 ≤ 2^26
+ *     Karatsuba；≥ TOOM_CUTOFF 切 Toom-3；≥ NTT_CUTOFF 且长度和 ≤ 2^27
  *     切多模数 CRT NTT；浮点 FFT 实测仅窄带占优，不参与 AUTO，§4.3）；
  *   - SCHOOLBOOK / KARATSUBA：强制对应算法（params 同前）；
  *   - FLOAT_COMPLEX_FFT：强制浮点 FFT（chunk_bits 0/8/16，其余 INVALID）；
@@ -42,7 +42,7 @@
 /* Toom-3 乘法：AUTO 切换阈值，实测标定——Karatsuba 交叉点约 600 肢，
  * 取 512 留余量（-O2） */
 #define NEX_MUL_TOOM_CUTOFF 512U
-/* 长度和上限：保证 log2n ≤ 27（内置模数最大 c）；系数上界亦自动满足（见 mul_ntt） */
+/* 长度和上限：保证 log2n ≤ 28（内置模数最大 c）；系数上界亦自动满足（见 mul_ntt） */
 #define NEX_MUL_NTT_MAX_SUM (1U << 27U)
 
 /* ------------------------------------------------------------------ */
@@ -431,8 +431,8 @@ static void mul_ntt_pack(uint32_t *out, size_t n, const bigint_bin_ty *v)
 
 /*
  * brief: 幅值乘 dst = |lhs| × |rhs|（多模数 CRT NTT）
- * note: 双 30-bit 模数 + Garner 重构；要求 s = len(lhs)+len(rhs) ≤ 2^26
- *       （log2n ≤ 27）。系数上界 C ≤ 2·min(n,m)·(2^16−1)² ≤ 2^58 < Πp
+ * note: 双 30-bit 模数 + Garner 重构；要求 s = len(lhs)+len(rhs) ≤ 2^27
+ *       （log2n ≤ 28）。系数上界 C ≤ 2·min(n,m)·(2^16−1)² ≤ 2^58 < Πp
  *       （内置最小两模数之积 ≈ 2^59.8），CRT 重构唯一且全程 uint64 无回绕。
  *       dst 与 src 不别名（调用方保证）；零操作数自然退化为零结果
  */

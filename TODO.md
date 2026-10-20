@@ -2,7 +2,7 @@
 
 > **活文档**：v1.0.0 – v1.4.0 已发布，本文件记录 **v1.4 之后的规划**。只收录已评估、
 > 可执行的方向；未决/否定的候选集中列在文末。优先级见 §0。
-> 最后更新：2026-10-20（v1.8.0 进行中：超大位宽乘法 §K 已立项跟踪）
+> 最后更新：2026-10-20（v1.8.0 进行中：超大位宽乘法 §K 已收口，实用上限 10⁹ 位级）
 
 ---
 
@@ -348,8 +348,11 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 仅保留门槛数据）。**当前全部是 `contrib/` 实验**，默认 OFF，不进入核心
 `bigint_bin` 的 AUTO 分派、amalgam 与子集闭包。
 跟踪以 Issue 为准（[#98](https://github.com/MarchBeta2087/numextend/issues/98)
-父项、[#102](https://github.com/MarchBeta2087/numextend/issues/102) SSA、
-[#104](https://github.com/MarchBeta2087/numextend/issues/104) out-of-core）。
+父项；[#102](https://github.com/MarchBeta2087/numextend/issues/102) SSA 与
+[#104](https://github.com/MarchBeta2087/numextend/issues/104) out-of-core 已
+关闭，保留记录与重启条件）。自检由 CI job `linux-bignum`
+（`-DNEX_ENABLE_BIGNUM=ON -DNEX_ENABLE_SSA=ON`）覆盖；线程实验由
+`linux-thread-tsan` 覆盖。
 
 ### K1 已完成（v1.8.0 进行中）
 

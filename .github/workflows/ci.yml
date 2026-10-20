@@ -277,6 +277,19 @@ jobs:
       - name: Test (thread pool / parallel NTT)
         run: setarch "$(uname -m)" -R ctest --test-dir build --output-on-failure -R parallel_ntt
 
+  # contrib 大数实验（分块 NTT / SSA / out-of-core）：默认 OFF，单独构建并跑自检
+  linux-bignum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (contrib big-number experiments)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DNEX_ENABLE_BIGNUM=ON -DNEX_ENABLE_SSA=ON
+          cmake --build build --parallel
+      - name: Test (block / ssa / ooc)
+        run: ctest --test-dir build --output-on-failure -R 'block_ntt_selfcheck|nex_ssa_test|nex_ooc_test'
+
   # 覆盖率门槛（Linux）：库行覆盖率 ≥ 80%
   linux-coverage:
     runs-on: ubuntu-latest
