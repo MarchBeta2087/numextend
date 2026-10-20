@@ -68,6 +68,13 @@ target_link_libraries(app PRIVATE nex::nex)
 强制该阈值）。公开 API 审计：`sh scripts/api_audit.sh`（头文件自包含 +
 声明/定义一致性；CI 每次运行）。
 
+HTML 测试报告（自包含，无外部资源）：
+
+```sh
+python3 scripts/test-report.py --build-dir build/default   # -> build/test-report.html
+python3 scripts/test-report.py --build-dir build/opencl -R 'bigint|ntt'
+```
+
 黄金对拍参考实现位于 `tests/golden_*.py`（`fractions.Fraction` / `decimal` 精确
 复刻各类型语义），随机种子可配置：`NEX_GOLDEN_SEED=... ctest -R golden`。
 
