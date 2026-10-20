@@ -441,7 +441,7 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
 - 任何时候不改变「零依赖 / C99 / 单文件组合 / 库内不加锁」契约。
 - 只有满足 ≥2× 且逐位一致、可复现、CI 可维护，才讨论进入正式支持面（#98 P4）。
 
-### K4 #98 P2–P4 立项门槛（未启动，先决策后实现）
+### K4 #98 P2–P4 立项门槛（P3 已启动，见 §K5）
 
 统一原则：**没有明确验证目标或需求方就不写代码**。任何一项启动前先在
 issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动前置」。
@@ -449,12 +449,25 @@ issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动�
 | 项 | 现状 | 启动前置（缺一不可） | 验收（若启动） |
 |---|---|---|---|
 | **P2 Lean 4 形式化** | 零代码 | ① 明确验证边界（仅肢级乘法/进位/规范化，还是含 NTT/CRT）；② 固定 toolchain（Lean/Mathlib 版本）与 CI 方式（自托管或 nightly）；③ 时间盒 ≤2 周的可行性 spike | spike 产出可编译定理清单 + 1 个端到端引理（如进位链） |
-| **P3 OpenCL** | `contrib/nex_opencl` 未建 | ① 最低 OpenCL 版本（建议 1.2）与设备范围（CPU/GPU、厂商）；② GPU CI 方案（自托管 runner，或 CI 只编译不跑）；③ 明确消费方（批量乘法而非单次大数） | 与 CPU 逐位一致；批量场景 ≥2×（与并行 NTT 同口径）；默认 OFF、不进核心 |
+| **P3 OpenCL** | M1 完成（madd/dot）；M2 矩阵流式待做（§K5） | ① 最低 OpenCL 版本（建议 1.2）与设备范围（CPU/GPU、厂商）；② GPU CI 方案（自托管 runner，或 CI 只编译不跑）；③ 明确消费方（批量乘法而非单次大数） | 与 CPU 逐位一致；批量场景 ≥2×（与并行 NTT 同口径）；默认 OFF、不进核心 |
 | **P4 提升进核心** | 无候选达标 | 目标规模 ≥2× 且逐位一致（对 NTT 基线）、可复现、CI 可维护、跨平台（含 32 位/大端）；不改变零依赖/C99/amalgam 契约 | 进核心 AUTO 分派 + 全量回归 + 文档/基准更新 |
 
 - 当前没有候选满足 P4：1e9 位分块 NTT 与 OOC 都只在 `contrib/`，且 OOC
   的收益是大规模/低内存而非 ≥2× 加速。
 - 硬件门槛（≥128–256 GB 单机 vs out-of-core）随 Y8 冻结，不再单独决策。
+
+### K5 P3 OpenCL（M1 已落地，issue #98）
+
+- [x] **M0 骨架/CI**：`contrib/nex_opencl`（`-DNEX_ENABLE_OPENCL=ON`，默认 OFF），
+      动态加载 OpenCL（Win `OpenCL.dll` / Linux `libOpenCL.so.1`），OpenCL 1.2
+      ABI 子集；CI `linux-opencl` 用 PoCL CPU 做正确性（`NEX_OPENCL_REQUIRE=1`）。
+- [x] **M1 elementwise + dot**：`madd` / `dot`，104 limb（≈1000 位十进制），
+      10k 元素：GPU 端到端 **≈6.9 ms / 4.6 ms**（RTX 4050），与 CPU/bigint
+      逐位一致；对比 16 线程 `parallel_vector` 14.85 ms ≈ **2.1×**。
+- [ ] **M2 矩阵×向量流式**：10k×10k 稠密 = **41.6 GB**（>31.7 GB RAM、>4 GB
+      VRAM），按 tile 从 NVMe/RAM 流入显存、`x` 常驻、digit 级 uint32 累加、
+      最后进位；验收 ≥3× 于 16 线程（148 s 基线）、峰值显存 <4 GB。
+- [ ] **P4 门槛**：M2 达标后再评估独立包/支持面；核心 API/ABI 不变。
 
 ---
 

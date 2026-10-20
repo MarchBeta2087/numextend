@@ -29,6 +29,13 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 
 ### 实验（`contrib/`，默认 OFF，不进核心）
 
+- **P3 OpenCL M1（issue #98）**：新增 `contrib/nex_opencl`
+  （`-DNEX_ENABLE_OPENCL=ON`，默认 OFF；动态加载 OpenCL.dll /
+  libOpenCL.so.1，不需要 SDK）。`nex_opencl_madd` / `nex_opencl_dot`
+  针对 104 limb（≈1000 位十进制）特化；10k 元素在 RTX 4050 上端到端
+  （含传输）**madd ≈6.9 ms / dot ≈4.6 ms**，与 CPU 参考及 `bigint_bin`
+  逐位一致；对比 16 线程 `parallel_vector` 的 14.85 ms 约 **2.1×**。
+  10k×10k 稠密矩阵（41.6 GB）按 4 GB 显存 tile 流式，列为 M2。
 - **P1b-SSA M1 原型（issue #102，PR #103）**：新增 `contrib/nex_ssa`
   （Schönhage–Strassen，`2^L+1` / `2^(L/2)+1` 双环 + CRT）。双环而非
   `2^L−1`：后者 DFT 存在零因子（`1−2^(L/2)` 与模不互素、变换不可逆）。
@@ -79,6 +86,9 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 - **contrib 大数实验 CI**：新增 `linux-bignum`，用 `-DNEX_ENABLE_BIGNUM=ON`
   `-DNEX_ENABLE_SSA=ON` 构建并运行 `block_ntt_selfcheck` / `nex_ssa_test` /
   `nex_ooc_test`（约 30 s），避免实验代码与核心漂移。
+- **OpenCL 实验 CI**：新增 `linux-opencl`，安装 `ocl-icd-opencl-dev` +
+  `pocl-opencl-icd`，在 PoCL CPU device 上跑 `nex_opencl_test`
+  （`NEX_OPENCL_REQUIRE=1`）；GPU 性能数由本机 RTX 4050 记录。
 - **线程池 TSan（TODO §F F3）**：新增 CI job `linux-thread-tsan`
   （`-DNEX_ENABLE_THREAD=ON -DNEX_SANITIZE=thread`），只跑 `parallel_ntt`
   相关测试；与 ASan job 分离，MSVC 不覆盖。测试命令用

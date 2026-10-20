@@ -188,6 +188,19 @@ if(NEX_ENABLE_SSA)
     endif()
 endif()
 
+# contrib/nex_opencl：OpenCL 批量大整数实验（issue #98 P3）。
+# 默认 OFF；动态加载运行库，不需要 OpenCL SDK。不进核心/amalgam/子集。
+option(NEX_ENABLE_OPENCL "构建 contrib/nex_opencl 实验" OFF)
+if(NEX_ENABLE_OPENCL)
+    if(NOT NEX_MODULES STREQUAL "all")
+        message(STATUS "NEX_ENABLE_OPENCL: 仅完整构建支持，已忽略")
+    elseif(NEX_AMALGAM)
+        message(STATUS "NEX_ENABLE_OPENCL: amalgam 构建不支持 contrib，已忽略")
+    else()
+        add_subdirectory(contrib/nex_opencl)
+    endif()
+endif()
+
 # 数学库：Linux/macOS 需显式 -lm（库内 floor/sqrt 等；Windows/mingw 的 libm 在 libc 内）
 if(NOT WIN32)
     target_link_libraries(nex PUBLIC m)
