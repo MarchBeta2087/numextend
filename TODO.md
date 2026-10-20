@@ -448,10 +448,20 @@ issue #98 记录决定（做 / 不做 / 时间盒），并满足下表「启动�
 
 | 项 | 现状 | 启动前置（缺一不可） | 验收（若启动） |
 |---|---|---|---|
-| **P2 Lean 4 形式化** | 零代码 | ① 明确验证边界（仅肢级乘法/进位/规范化，还是含 NTT/CRT）；② 固定 toolchain（Lean/Mathlib 版本）与 CI 方式（自托管或 nightly）；③ 时间盒 ≤2 周的可行性 spike | spike 产出可编译定理清单 + 1 个端到端引理（如进位链） |
+| **P2 形式化** | **C 已落地**（`verify/cbmc` + CI `linux-cbmc`，40 目标）；D 待做；Lean 已取消（2026-10-20） | ① **C（先做）**：CBMC/Frama-C 有界验证 limb/进位/规范化/比较（`nex/bigint/bin`），证明无溢出、无 UB；② **D（后做）**：差分/属性模糊测试 + debug 不变量断言，覆盖 NTT/CRT、dec↔bin、bigfloat 舍入、ball 包含性；③ 重启 Lean 需：合规/审计消费方 + 明确 C→模型精化链路 | C：机器检查的「无溢出/无 UB」；D：风险面进 CI（sanitizer + fuzz）；Lean 不再产出 |
 | **P3 OpenCL** | M1–M3 完成（madd/dot、稠密子矩阵、CSR/CSC 稀疏扫描，§K5）；P4 门槛待评估 | ① 最低 OpenCL 版本（建议 1.2）与设备范围（CPU/GPU、厂商）；② GPU CI 方案（自托管 runner，或 CI 只编译不跑）；③ 明确消费方（批量乘法而非单次大数） | 与 CPU 逐位一致；批量场景 ≥2×（与并行 NTT 同口径）；默认 OFF、不进核心 |
 | **P4 提升进核心** | 无候选达标 | 目标规模 ≥2× 且逐位一致（对 NTT 基线）、可复现、CI 可维护、跨平台（含 32 位/大端）；不改变零依赖/C99/amalgam 契约 | 进核心 AUTO 分派 + 全量回归 + 文档/基准更新 |
 
+- **P2 决策（2026-10-20，issue #98）**：取消 Lean 4 参考模型与完整形式化
+  （B/E）：核心 33k 行、7 个数值域（ball 5.8k / bigfloat 3.0k / decimal 2.2k /
+  series 2.2k / frac 2.1k / transcend 1.5k / convert 1.1k / bigint 0.7k /
+  ntt+fft 0.7k）；难点在 NTT/CRT/浮点误差界，Mathlib 无现成库；且没有
+  C→Lean 精化链路时定理无法为 C 背书（业界对应 Frama-C/Why3/CBMC/RefinedC）。
+  改为先 C（CBMC/Frama-C 有界验证 limb 层）后 D（模糊测试 + 不变量断言）。
+  **C 已落地**：`verify/cbmc`（加/减/比较功能对拍，乘法安全性质 +
+  常数乘子；肢数 0..3，含不等长与别名），CI `linux-cbmc`，本机约 30 s；
+  乘法完整功能等价因 SAT 难度留给 D。
+  重启 Lean 条件：出现合规/认证或下游要求机器检查证明，且精化链路可落地。
 - 当前没有候选满足 P4：1e9 位分块 NTT 与 OOC 都只在 `contrib/`，且 OOC
   的收益是大规模/低内存而非 ≥2× 加速。
 - 硬件门槛（≥128–256 GB 单机 vs out-of-core）随 Y8 冻结，不再单独决策。
