@@ -152,7 +152,7 @@ def cmd_gen_contrib_docs(out_path):
         "> [`contrib/modules.txt`](../contrib/modules.txt)。请勿手改。",
         "> 这些模块**不进入**核心 `libnex` / `nex_modules.txt` / 子集闭包 /",
         "> amalgam（design §14、TODO §F1）。渲染版 API 手册见",
-        "> [`docs/contrib-manual.html`](../contrib-manual.html)。", "",
+        "> [`docs/contrib-manual.html`](contrib-manual.html)。", "",
         "| 模块 | 目录 | 依赖 | 开关 | preset | 外部库 | 状态 |",
         "|---|---|---|---|---|---|---|",
     ]
@@ -160,9 +160,12 @@ def cmd_gen_contrib_docs(out_path):
         info = contrib[name]
         deps = ", ".join("`%s`" % d for d in info["deps"]) or "—"
         libs = info["libs"] or "—"
-        lines.append("| `%s` | [`contrib/%s`](../contrib/%s/README.md) | %s | "
+        readme = os.path.join(ROOT, "contrib", name, "README.md")
+        target = ("../contrib/%s/README.md" % name if os.path.exists(readme)
+                  else "../contrib/%s" % name)
+        lines.append("| `%s` | [`contrib/%s`](%s) | %s | "
                      "`%s` | `%s` | %s | %s |" %
-                     (name, name, name, deps, info["flag"], info["preset"],
+                     (name, name, target, deps, info["flag"], info["preset"],
                       libs, info["status"]))
     lines.append("")
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
