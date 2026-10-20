@@ -110,6 +110,10 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
   suite，绕过 profile 档位）与 `--suite-args NAME=ARGS`（向该 suite 追加参数，
   保留默认值；后出现的同名 flag 生效，`${json}` 仍有效）。`--dry-run`
   现在打印每个 suite 的最终参数。文档见 `docs/benchmarking.md` §3。
+- **性能报告日志 HTML**：`--html-out` 现在默认生成
+  `<报告名>-logs/`（每 suite 日志 HTML + `index.html`），主报告
+  “日志”列直接可点；新增 `--html-logs DIR` 与 `--render-json FILE`
+  （不重跑，仅从结果 JSON 重新渲染）。结果 JSON 增加 `elapsed_s`。
 - **HTML 性能报告**：`scripts/bench.py` 新增 `--html-out`
   （自包含 HTML：摘要卡片、环境、suite 表与日志路径），与
   `--json`/`--markdown-out` 共用同一份结果。
