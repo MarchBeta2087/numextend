@@ -27,7 +27,10 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import datetime
 import fnmatch
+import html
+import platform
 import json
 import os
 import shutil
@@ -347,6 +350,93 @@ def list_table(suites: list[dict], markdown: bool) -> None:
               f"{s['timeout_s']:>8} {s['rss_mb'] or '—':>7}  {tags}")
 
 
+def render_html(rows: list[dict], profile: str, budget: float,
+                elapsed: float) -> str:
+    ok = sum(r["status"] == "ok" for r in rows)
+    skipped = sum(r["status"].startswith("skip") for r in rows)
+    failed = len(rows) - ok - skipped
+    peak = max((r["peak_rss_mb"] for r in rows), default=0.0)
+    commit = "unknown"
+    try:
+        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                                cwd=ROOT, capture_output=True, text=True,
+                                errors="replace").stdout.strip() or "unknown"
+    except OSError:
+        pass
+    trs = []
+    for r in rows:
+        cls = {"ok": "ok"}.get(r["status"], "bad" if r["status"] in
+                               ("fail", "timeout", "rss") else "skip")
+        trs.append(
+            f'<tr><td><span class="badge {cls}">{html.escape(r["status"])}</span></td>'
+            f'<td class="name">{html.escape(r["suite"])}</td>'
+            f'<td>{html.escape(r["tier"])}</td>'
+            f'<td class="num">{r["seconds"]:.1f}</td>'
+            f'<td class="num">{r["peak_rss_mb"]:.0f}</td>'
+            f'<td>{html.escape(r["reason"] or "")}'
+            f'{("<br><code>" + html.escape(r["log"]) + "</code>") if r["log"] else ""}</td></tr>')
+    return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>性能测试报告 · {html.escape(commit)}</title>
+<style>
+body {{ margin: 0 auto; padding: 2rem 1.25rem 4rem; max-width: 72rem;
+  font-family: -apple-system, "Segoe UI", "Noto Sans CJK SC", "Microsoft YaHei",
+  Roboto, sans-serif; line-height: 1.6; color: #1f2328; }}
+h1 {{ font-size: 1.6rem; margin: 0 0 .3rem; }}
+h2 {{ font-size: 1.15rem; margin: 2rem 0 .6rem; border-bottom: 1px solid #d8dee4;
+  padding-bottom: .25rem; }}
+.muted {{ color: #57606a; }}
+.cards {{ display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.2rem 0 1.5rem; }}
+.card {{ flex: 1 1 9rem; border: 1px solid #d8dee4; border-radius: 8px;
+  padding: .7rem .9rem; background: #f6f8fa; }}
+.card .k {{ font-size: .8rem; color: #57606a; }}
+.card .v {{ font-size: 1.4rem; font-weight: 600; }}
+.card.ok .v {{ color: #1a7f37; }} .card.bad .v {{ color: #cf222e; }}
+table {{ width: 100%; border-collapse: collapse; font-size: .92rem; }}
+th, td {{ border: 1px solid #d0d7de; padding: .4rem .6rem; text-align: left;
+  vertical-align: top; }}
+th {{ background: #f6f8fa; }}
+td.name {{ font-family: "Cascadia Code", Consolas, monospace; }}
+td.num {{ text-align: right; white-space: nowrap; }}
+.badge {{ display: inline-block; padding: .05rem .45rem; border-radius: 999px;
+  font-size: .78rem; font-weight: 600; }}
+.badge.ok {{ background: #dafbe1; color: #1a7f37; }}
+.badge.bad {{ background: #ffebe9; color: #cf222e; }}
+.badge.skip {{ background: #fff8c5; color: #9a6700; }}
+code {{ font-size: .85em; }}
+</style>
+</head>
+<body>
+<h1>性能测试报告</h1>
+<div class="muted">{datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+ · commit <code>{html.escape(commit)}</code> · profile <code>{html.escape(profile)}</code></div>
+<div class="cards">
+  <div class="card ok"><div class="k">通过</div><div class="v">{ok}</div></div>
+  <div class="card bad"><div class="k">失败</div><div class="v">{failed}</div></div>
+  <div class="card"><div class="k">跳过</div><div class="v">{skipped}</div></div>
+  <div class="card"><div class="k">总耗时</div><div class="v">{elapsed:.0f}s</div></div>
+  <div class="card"><div class="k">峰值 RSS</div><div class="v">{peak:.0f}MB</div></div>
+</div>
+<div class="muted">预算 {budget:.0f}s（上限；各 suite 内部还有 --budget，实际通常更短）。
+  环境：{html.escape(platform.platform())} · Python {platform.python_version()}</div>
+<h2>suite 结果</h2>
+<table>
+<thead><tr><th>状态</th><th>suite</th><th>tier</th><th>耗时 s</th><th>峰值 MB</th><th>备注 / 日志</th></tr></thead>
+<tbody>
+{chr(10).join(trs)}
+</tbody>
+</table>
+<div class="muted" style="margin-top:2rem">由 <code>scripts/bench.py</code> 生成；
+suite 与预算定义见 <code>bench/suites.json</code>，使用说明见
+<code>docs/benchmarking.md</code>。</div>
+</body>
+</html>
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="统一性能测试入口（nex + contrib，可组合，带时间/内存预算）",
@@ -375,6 +465,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", metavar="FILE",
                     help="结果写 JSON（含 profile/budget/results）")
     ap.add_argument("--markdown-out", metavar="FILE", help="结果写 Markdown 表")
+    ap.add_argument("--html-out", metavar="FILE",
+                    help="结果写自包含 HTML 报告")
     ap.add_argument("--dry-run", action="store_true", help="只显示将运行的 suite")
     args = ap.parse_args(argv)
 
@@ -451,6 +543,13 @@ def main(argv: list[str] | None = None) -> int:
             for r in rows:
                 print(f"| `{r['suite']}` | {r['tier']} | {r['status']} | "
                       f"{r['seconds']:.1f} | {r['peak_rss_mb']:.0f} |", file=f)
+    if args.html_out:
+        out = Path(args.html_out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_html(rows, args.profile, budget,
+                                   time.monotonic() - started),
+                       encoding="utf-8", newline="\n")
+        print(f"== HTML: {out}")
 
     return 1 if failed else 0
 
