@@ -103,8 +103,12 @@ suite 的 `preset` 决定构建配置：
 - `--json FILE`：`{"profile","budget_s","results":[...]}`，每项含
   `suite/status/seconds/peak_rss_mb/rc/log/json/reason`。
 - `--markdown-out FILE`：结果表，可直接贴 PR/issue。
-- `--html-out FILE`：自包含 HTML 报告（摘要卡片、环境、suite 表、
-  日志路径），适合本地归档或作为 CI artifact。
+- `--html-out FILE`：自包含 HTML 报告（摘要卡片、环境、suite 表），
+  适合本地归档或作为 CI artifact；默认同时生成 `<报告名>-logs/`
+  （每 suite 日志 HTML + `index.html`），主报告“日志”列直接链接。
+- `--html-logs DIR`：自定义日志 HTML 目录。
+- `--render-json FILE`：不重新运行，仅用已有结果 JSON 重新渲染报告
+  与日志（适合补生成 HTML / 改样式）。
 - 单 suite 的 stdout/stderr：`build/bench/<suite>.log`。
 - `--json` 标记的 suite（`bench_math`）额外生成
   `build/bench/<suite>.json`（供趋势对比）。

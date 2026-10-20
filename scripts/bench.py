@@ -361,8 +361,95 @@ def list_table(suites: list[dict], markdown: bool) -> None:
               f"{s['timeout_s']:>8} {s['rss_mb'] or '—':>7}  {tags}")
 
 
+def suite_slug(name: str) -> str:
+    return name.replace(os.sep, "_").replace("/", "_")
+
+
+def render_log_pages(rows: list[dict], logs_dir: Path, back_href: str,
+                     index_href: str = "index.html") -> int:
+    """把每个 suite 的文本日志转成独立 HTML，并生成 index.html。"""
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    entries = []
+    for r in rows:
+        log = r.get("log")
+        if not log:
+            continue
+        src = Path(log)
+        if not src.is_file():
+            continue
+        try:
+            text = src.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        fname = suite_slug(r["suite"]) + ".html"
+        page = f"""<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>日志 · {html.escape(r["suite"])}</title>
+<style>
+body {{ margin: 0 auto; padding: 1.5rem 1.25rem 3rem; max-width: 80rem;
+  font-family: -apple-system, "Segoe UI", "Noto Sans CJK SC", "Microsoft YaHei",
+  Roboto, sans-serif; line-height: 1.55; color: #1f2328; }}
+a {{ color: #0969da; }}
+pre {{ background: #f6f8fa; border: 1px solid #d8dee4; border-radius: 6px;
+  padding: .9rem 1rem; overflow-x: auto; font-size: .85rem; white-space: pre-wrap; }}
+.meta {{ color: #57606a; margin: .4rem 0 1rem; }}
+</style></head><body>
+<div><a href="{html.escape(back_href)}">← 返回性能报告</a> ·
+<a href="{html.escape(index_href)}">全部日志</a></div>
+<h1>{html.escape(r["suite"])}</h1>
+<div class="meta">tier {html.escape(r["tier"])} · 状态 {html.escape(r["status"])} ·
+耗时 {r["seconds"]:.1f} s · 峰值 RSS {r["peak_rss_mb"]:.0f} MB
+{(" · " + html.escape(r["reason"])) if r.get("reason") else ""}</div>
+<pre>{html.escape(text)}</pre>
+</body></html>
+"""
+        (logs_dir / fname).write_text(page, encoding="utf-8", newline=chr(10))
+        entries.append((r, fname))
+
+    idx = ["<!DOCTYPE html>", '<html lang="zh-CN"><head><meta charset="utf-8">',
+           '<meta name="viewport" content="width=device-width, initial-scale=1">',
+           '<title>全部日志</title><style>',
+           'body{margin:0 auto;padding:2rem 1.25rem;max-width:64rem;'
+           'font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;'
+           'line-height:1.6;color:#1f2328}',
+           'table{width:100%;border-collapse:collapse}',
+           'th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}',
+           'th{background:#f6f8fa}td.n{text-align:right}',
+           '</style></head><body>',
+           f'<p><a href="{html.escape(back_href)}">← 返回性能报告</a></p>',
+           '<h1>全部日志</h1>',
+           '<table><thead><tr><th>suite</th><th>状态</th><th>耗时 s</th>'
+           '<th>峰值 MB</th></tr></thead><tbody>']
+    for r, fname in entries:
+        idx.append(f'<tr><td><a href="{html.escape(fname)}">'
+                   f'{html.escape(r["suite"])}</a></td>'
+                   f'<td>{html.escape(r["status"])}</td>'
+                   f'<td class="n">{r["seconds"]:.1f}</td>'
+                   f'<td class="n">{r["peak_rss_mb"]:.0f}</td></tr>')
+    idx += ['</tbody></table></body></html>', '']
+    (logs_dir / "index.html").write_text(chr(10).join(idx),
+                                         encoding="utf-8", newline=chr(10))
+    return len(entries)
+
+
+def write_html_report(rows: list[dict], profile: str, budget: float,
+                      elapsed: float, out_path: Path,
+                      logs_dir: Path | None) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    logs_rel = None
+    if logs_dir is not None:
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        rel = Path(os.path.relpath(logs_dir, out_path.parent)).as_posix()
+        logs_rel = "" if rel == "." else rel + "/"
+        n = render_log_pages(rows, logs_dir, out_path.name)
+        print(f"== 日志 HTML: {logs_dir}（{n} 个）")
+    out_path.write_text(render_html(rows, profile, budget, elapsed, logs_rel),
+                        encoding="utf-8", newline=chr(10))
+
+
 def render_html(rows: list[dict], profile: str, budget: float,
-                elapsed: float) -> str:
+                elapsed: float, logs_rel: str | None = None) -> str:
     ok = sum(r["status"] == "ok" for r in rows)
     skipped = sum(r["status"].startswith("skip") for r in rows)
     failed = len(rows) - ok - skipped
@@ -378,6 +465,13 @@ def render_html(rows: list[dict], profile: str, budget: float,
     for r in rows:
         cls = {"ok": "ok"}.get(r["status"], "bad" if r["status"] in
                                ("fail", "timeout", "rss") else "skip")
+        if logs_rel and r.get("log"):
+            log_cell = ('<a href="%s%s.html">日志</a>' %
+                        (logs_rel, suite_slug(r["suite"])))
+        elif r.get("log"):
+            log_cell = "<code>" + html.escape(r["log"]) + "</code>"
+        else:
+            log_cell = ""
         trs.append(
             f'<tr><td><span class="badge {cls}">{html.escape(r["status"])}</span></td>'
             f'<td class="name">{html.escape(r["suite"])}</td>'
@@ -385,7 +479,7 @@ def render_html(rows: list[dict], profile: str, budget: float,
             f'<td class="num">{r["seconds"]:.1f}</td>'
             f'<td class="num">{r["peak_rss_mb"]:.0f}</td>'
             f'<td>{html.escape(r["reason"] or "")}'
-            f'{("<br><code>" + html.escape(r["log"]) + "</code>") if r["log"] else ""}</td></tr>')
+            + log_cell + '</td></tr>')
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -483,8 +577,26 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--markdown-out", metavar="FILE", help="结果写 Markdown 表")
     ap.add_argument("--html-out", metavar="FILE",
                     help="结果写自包含 HTML 报告")
+    ap.add_argument("--html-logs", metavar="DIR",
+                    help="各 suite 日志的 HTML 目录（默认 <报告名>-logs/）")
+    ap.add_argument("--render-json", metavar="FILE",
+                    help="不运行，仅从已有结果 JSON 重新渲染 HTML 报告与日志")
     ap.add_argument("--dry-run", action="store_true", help="只显示将运行的 suite")
     args = ap.parse_args(argv)
+
+    if args.render_json:
+        data = json.loads(Path(args.render_json).read_text(encoding="utf-8"))
+        rows = data["results"]
+        profile = data.get("profile", "?")
+        budget = float(data.get("budget_s", 0) or 0)
+        elapsed = float(data.get("elapsed_s")
+                        or sum(r.get("seconds", 0) for r in rows))
+        out = Path(args.html_out or "build/bench-report.html")
+        logs = (Path(args.html_logs) if args.html_logs
+                else out.with_name(out.stem + "-logs"))
+        write_html_report(rows, profile, budget, elapsed, out, logs)
+        print(f"== HTML: {out}")
+        return 0
 
     suites = load_suites()
     if args.list:
@@ -566,6 +678,7 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
         with open(args.json, "w", encoding="utf-8") as f:
             f.write(json.dumps({"profile": args.profile, "budget_s": budget,
+                                "elapsed_s": round(time.monotonic() - started, 1),
                                 "results": rows}, ensure_ascii=False) + "\n")
     if args.markdown_out:
         Path(args.markdown_out).parent.mkdir(parents=True, exist_ok=True)
@@ -577,10 +690,10 @@ def main(argv: list[str] | None = None) -> int:
                       f"{r['seconds']:.1f} | {r['peak_rss_mb']:.0f} |", file=f)
     if args.html_out:
         out = Path(args.html_out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(render_html(rows, args.profile, budget,
-                                   time.monotonic() - started),
-                       encoding="utf-8", newline="\n")
+        logs = (Path(args.html_logs) if args.html_logs
+                else out.with_name(out.stem + "-logs"))
+        write_html_report(rows, args.profile, budget,
+                          time.monotonic() - started, out, logs)
         print(f"== HTML: {out}")
 
     return 1 if failed else 0
