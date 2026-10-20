@@ -39,10 +39,25 @@ python3 scripts/bench.py --profile quick \
 --all                # 忽略模块过滤，选中档位内全部
 --exclude 'core.*'   # 按 suite 名 glob 排除（可重复）
 --include-frozen     # 加入 SSA/OOC（冻结项）
---dry-run            # 只显示将运行什么与预估耗时
+--suite NAME         # 只跑指定 suite（可重复；绕过 profile 档位，frozen 仍需 --include-frozen）
+--suite-args NAME=ARGS  # 给某个 suite 追加参数（可重复）
+--dry-run            # 只显示将运行什么、参数与预估耗时
 ```
 
 `nex` 与 `contrib` 可以任意混合；`--all --include-frozen` 即“全量”。
+
+**给单个 suite 追加参数**（保留清单里的默认参数，后出现的同名 flag 生效，
+`${json}` 占位符仍有效）：
+
+```sh
+# 只跑数学 full，但只测 trans 段、预算 30 分钟
+python3 scripts/bench.py --suite core.math.full     --suite-args 'core.math.full=--sections trans --budget 1800'
+
+# 只跑 OpenCL 4k，并放宽内存上限
+python3 scripts/bench.py --suite contrib.opencl.matmul.4k     --max-rss-mb 24576
+```
+
+`--dry-run` 会打印每个 suite 的最终 `args`，可先确认再跑。
 
 ## 4. 预算、时间与内存
 

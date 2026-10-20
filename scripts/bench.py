@@ -33,6 +33,7 @@ import html
 import platform
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -101,9 +102,19 @@ def select(suites: list[dict], args) -> list[dict]:
     if args.include_frozen:
         tiers.add("frozen")
 
+    all_names = {s["name"] for s in suites}
+    for name in args.suite:
+        if name not in all_names:
+            sys.exit(f"未知 suite：{name}")
     out = []
     for s in suites:
-        if s["tier"] not in tiers and not (args.include_frozen and s["tier"] == "frozen"):
+        if args.suite:
+            if s["name"] not in args.suite:
+                continue
+            if s["tier"] == "frozen" and not args.include_frozen:
+                continue
+        elif s["tier"] not in tiers and not (
+                args.include_frozen and s["tier"] == "frozen"):
             continue
         if mods and not (set(s["modules"]) & mods or set(s["contrib"]) & mods):
             continue
@@ -450,6 +461,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--all", action="store_true", help="选择档位内全部 suite")
     ap.add_argument("--exclude", action="append", default=[], metavar="GLOB",
                     help="排除 suite 名（可重复）")
+    ap.add_argument("--suite", action="append", default=[], metavar="NAME",
+                    help="只跑指定 suite（可重复；优先于 --modules/--contrib）")
+    ap.add_argument("--suite-args", action="append", default=[],
+                    metavar="NAME=ARGS",
+                    help="给指定 suite 追加参数（可重复；${json} 仍生效）")
     ap.add_argument("--profile", choices=sorted(PROFILES), default="quick",
                     help="预算档：ci=300s / quick=1200s / full=7200s")
     ap.add_argument("--max-time", type=float, default=0.0,
@@ -476,6 +492,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     chosen = select(suites, args)
+
+    overrides = {}
+    all_names = {x["name"] for x in suites}
+    for item in args.suite_args:
+        if "=" not in item:
+            sys.exit(f"--suite-args 需要 NAME=ARGS：{item}")
+        name, raw = item.split("=", 1)
+        name = name.strip()
+        if name not in all_names:
+            sys.exit(f"--suite-args 未知 suite：{name}")
+        overrides.setdefault(name, []).extend(shlex.split(raw))
+    for s in chosen:
+        if s["name"] in overrides:
+            s["args"] = list(s["args"]) + overrides[s["name"]]
+
     if not chosen:
         print("没有匹配的 suite（检查 --modules/--contrib/--profile）")
         return 0
@@ -487,7 +518,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"== profile={args.profile} budget={budget:.0f}s suites={len(chosen)}")
     if args.dry_run:
         for s in chosen:
-            print(f"  {s['tier']:<7} est={s['est_s']:>5}s  {s['name']}")
+            print(f"  {s['tier']:<7} est={s['est_s']:>5}s  {s['name']}"
+                  f"  args: {' '.join(s['args'])}")
         total = sum(s["est_s"] for s in chosen)
         print(f"预估合计 {total}s（预算 {budget:.0f}s）")
         return 0
