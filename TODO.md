@@ -346,6 +346,10 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
       （advisory ±20%，低噪声 <10 µs；`--fail-over` 预留门禁；更新流程
       见 `bench/baseline/README.md`）。首个基线已从 dev dispatch
       `39184434034` 播种（Ubuntu 24.04 / 4 核 EPYC / GCC 13.3.0）。
+      **统一入口（v1.8）**：`scripts/bench.py` + `bench/suites.json`，按 nex
+      模块与 `contrib` 任意组合，ci=300 s / quick=1200 s / full=7200 s
+      预算 + 峰值 RSS 限制；`benchmark.yml` 已切换。文档
+      `docs/benchmarking.md`，suite 表 `docs/benchmark-suites.md` 自动生成。
 
 ---
 

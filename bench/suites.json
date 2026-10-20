@@ -1,0 +1,393 @@
+{
+  "suites": [
+    {
+      "name": "core.smoke",
+      "modules": [
+        "bigint_bin",
+        "ntt",
+        "bigfloat"
+      ],
+      "preset": "bench",
+      "target": "bench",
+      "args": [
+        "3"
+      ],
+      "tier": "ci",
+      "est_s": 10,
+      "timeout_s": 60,
+      "rss_mb": 512,
+      "note": "固定规模冒烟（madd/dot/mul 等）"
+    },
+    {
+      "name": "core.sweep.ci",
+      "modules": [
+        "bigint_bin",
+        "ntt",
+        "fft"
+      ],
+      "preset": "bench",
+      "target": "bench_sweep",
+      "args": [
+        "quick",
+        "--budget",
+        "60"
+      ],
+      "tier": "ci",
+      "est_s": 70,
+      "timeout_s": 120,
+      "rss_mb": 1024,
+      "note": "规模扫描 quick 子集"
+    },
+    {
+      "name": "core.math.ci",
+      "modules": [
+        "bigfloat",
+        "bigdecimal",
+        "bigcomplex_float",
+        "transcend"
+      ],
+      "preset": "bench",
+      "target": "bench_math",
+      "args": [
+        "--preset",
+        "ci",
+        "--budget",
+        "120",
+        "--json",
+        "${json}"
+      ],
+      "tier": "ci",
+      "est_s": 130,
+      "timeout_s": 180,
+      "rss_mb": 1024,
+      "json": true,
+      "note": "超越函数/常数/吞吐量 CI 缩减档（JSON 供趋势对比）"
+    },
+    {
+      "name": "core.sweep.deep",
+      "modules": [
+        "bigint_bin",
+        "ntt",
+        "fft"
+      ],
+      "preset": "bench",
+      "target": "bench_sweep",
+      "args": [
+        "deep",
+        "--budget",
+        "480"
+      ],
+      "tier": "quick",
+      "est_s": 480,
+      "timeout_s": 540,
+      "rss_mb": 2048,
+      "note": "规模扫描 deep（本地快速档主力）"
+    },
+    {
+      "name": "core.math.quick",
+      "modules": [
+        "bigfloat",
+        "bigdecimal",
+        "transcend",
+        "series"
+      ],
+      "preset": "bench",
+      "target": "bench_math",
+      "args": [
+        "--preset",
+        "quick",
+        "--budget",
+        "240",
+        "--json",
+        "${json}"
+      ],
+      "tier": "quick",
+      "est_s": 240,
+      "timeout_s": 300,
+      "rss_mb": 2048,
+      "json": true,
+      "note": "数学专项 quick 档"
+    },
+    {
+      "name": "contrib.block.1e6",
+      "modules": [
+        "bigint_bin",
+        "ntt"
+      ],
+      "contrib": [
+        "nex_bigint_block"
+      ],
+      "preset": "bignum",
+      "target": "nex_block_bench",
+      "args": [
+        "1000000",
+        "1"
+      ],
+      "tier": "quick",
+      "est_s": 30,
+      "timeout_s": 180,
+      "rss_mb": 1024,
+      "note": "1e6 位分块 NTT（三分块）"
+    },
+    {
+      "name": "contrib.parallel.ntt",
+      "modules": [
+        "ntt",
+        "bigint_bin"
+      ],
+      "contrib": [
+        "nex_parallel"
+      ],
+      "preset": "thread",
+      "target": "nex_parallel_bench",
+      "args": [],
+      "tier": "quick",
+      "est_s": 120,
+      "timeout_s": 600,
+      "rss_mb": 2048,
+      "note": "16k–64k 肢并行 NTT（1–16 线程）"
+    },
+    {
+      "name": "contrib.opencl.madddot",
+      "modules": [
+        "bigint_bin"
+      ],
+      "contrib": [
+        "nex_opencl"
+      ],
+      "preset": "opencl",
+      "target": "nex_opencl_bench",
+      "args": [
+        "10000",
+        "104"
+      ],
+      "tier": "quick",
+      "est_s": 10,
+      "timeout_s": 120,
+      "rss_mb": 1024,
+      "optional": true,
+      "note": "10k×104 limb madd/dot（需要 OpenCL 设备）"
+    },
+    {
+      "name": "contrib.opencl.matmul.512",
+      "modules": [
+        "bigint_bin"
+      ],
+      "contrib": [
+        "nex_opencl"
+      ],
+      "preset": "opencl",
+      "target": "nex_opencl_bench",
+      "args": [
+        "matmul",
+        "512",
+        "512",
+        "512",
+        "16",
+        "16"
+      ],
+      "tier": "quick",
+      "est_s": 30,
+      "timeout_s": 300,
+      "rss_mb": 1024,
+      "optional": true,
+      "note": "512³ 子矩阵乘（GPU）"
+    },
+    {
+      "name": "contrib.opencl.cpu.512",
+      "modules": [
+        "bigint_bin"
+      ],
+      "contrib": [
+        "nex_opencl"
+      ],
+      "preset": "opencl-cpu",
+      "target": "nex_opencl_bench",
+      "args": [
+        "matmul",
+        "512",
+        "512",
+        "512",
+        "16",
+        "16",
+        "--cpu"
+      ],
+      "tier": "quick",
+      "est_s": 30,
+      "timeout_s": 300,
+      "rss_mb": 1024,
+      "note": "512³ 子矩阵乘（真实 16 线程 CPU 基线）",
+      "optional": true
+    },
+    {
+      "name": "core.sweep.full",
+      "modules": [
+        "bigint_bin",
+        "ntt",
+        "fft"
+      ],
+      "preset": "bench",
+      "target": "bench_sweep",
+      "args": [
+        "deep",
+        "--budget",
+        "3600"
+      ],
+      "tier": "full",
+      "est_s": 3600,
+      "timeout_s": 3900,
+      "rss_mb": 4096,
+      "note": "规模扫描 full"
+    },
+    {
+      "name": "core.math.full",
+      "modules": [
+        "bigfloat",
+        "bigdecimal",
+        "transcend",
+        "series",
+        "ball"
+      ],
+      "preset": "bench",
+      "target": "bench_math",
+      "args": [
+        "--preset",
+        "full",
+        "--budget",
+        "5400",
+        "--json",
+        "${json}"
+      ],
+      "tier": "full",
+      "est_s": 5400,
+      "timeout_s": 6000,
+      "rss_mb": 4096,
+      "json": true,
+      "note": "数学专项 full 档（本地约 1.5–2 h）"
+    },
+    {
+      "name": "core.huge.1e8",
+      "modules": [
+        "bigint_bin",
+        "ntt"
+      ],
+      "preset": "bench",
+      "target": "bench_huge",
+      "args": [
+        "100000000",
+        "1"
+      ],
+      "tier": "full",
+      "est_s": 300,
+      "timeout_s": 900,
+      "rss_mb": 2048,
+      "note": "1e8 位直接 NTT（基准锚点）"
+    },
+    {
+      "name": "contrib.block.1e8",
+      "modules": [
+        "bigint_bin",
+        "ntt"
+      ],
+      "contrib": [
+        "nex_bigint_block"
+      ],
+      "preset": "bignum",
+      "target": "nex_block_bench",
+      "args": [
+        "100000000",
+        "1"
+      ],
+      "tier": "full",
+      "est_s": 600,
+      "timeout_s": 1800,
+      "rss_mb": 8192,
+      "note": "1e8 位分块 NTT"
+    },
+    {
+      "name": "contrib.opencl.matmul.4k",
+      "modules": [
+        "bigint_bin"
+      ],
+      "contrib": [
+        "nex_opencl"
+      ],
+      "preset": "opencl",
+      "target": "nex_opencl_bench",
+      "args": [
+        "matmul",
+        "4096",
+        "4096",
+        "4096",
+        "60",
+        "60"
+      ],
+      "tier": "full",
+      "est_s": 400,
+      "timeout_s": 3600,
+      "rss_mb": 20480,
+      "optional": true,
+      "note": "4k×4k 60+60 子矩阵乘（A/B 各 ~7 GB，需要 ≥24 GB 内存）"
+    },
+    {
+      "name": "contrib.ssa.1e6",
+      "modules": [
+        "bigint_bin",
+        "ntt"
+      ],
+      "contrib": [
+        "nex_ssa"
+      ],
+      "preset": "bignum",
+      "target": "nex_ssa_bench",
+      "args": [
+        "1000000"
+      ],
+      "tier": "frozen",
+      "est_s": 60,
+      "timeout_s": 600,
+      "rss_mb": 2048,
+      "note": "SSA 原型 1e6 肢（冻结项，--include-frozen 才跑）"
+    },
+    {
+      "name": "contrib.ooc.1e7",
+      "modules": [
+        "bigint_bin",
+        "ntt"
+      ],
+      "contrib": [
+        "nex_ooc"
+      ],
+      "preset": "bignum",
+      "target": "nex_ooc_bench",
+      "args": [
+        "10000000"
+      ],
+      "tier": "frozen",
+      "est_s": 60,
+      "timeout_s": 600,
+      "rss_mb": 1024,
+      "note": "OOC 1e7 位（冻结项，--include-frozen 才跑）"
+    },
+    {
+      "name": "contrib.ooc.1e8",
+      "modules": [
+        "bigint_bin",
+        "ntt"
+      ],
+      "contrib": [
+        "nex_ooc"
+      ],
+      "preset": "bignum",
+      "target": "nex_ooc_bench",
+      "args": [
+        "100000000"
+      ],
+      "tier": "frozen",
+      "est_s": 300,
+      "timeout_s": 1200,
+      "rss_mb": 2048,
+      "note": "OOC 1e8 位（冻结项，--include-frozen 才跑）"
+    }
+  ]
+}

@@ -153,6 +153,19 @@ sh scripts/bench-math.sh ci all 300        # CI 缩减档
 表达式 × 多种精度）、`throughput`（各规模运算的 ops/s）。`--json` 输出供
 夜间趋势收集。完整结果见 [`docs/bench-math.md`](docs/bench-math.md)。
 
+统一入口（推荐）：`scripts/bench.py` 可任意组合 nex 模块与 `contrib`，并带
+时间/内存预算：
+
+```sh
+python3 scripts/bench.py --list                        # suite 清单
+python3 scripts/bench.py --profile ci                  # CI 档，约 2–5 分钟
+python3 scripts/bench.py --modules bigint_bin,ntt      # 只跑相关模块
+python3 scripts/bench.py --all --include-frozen --profile quick   # 本地 20 分钟
+```
+
+详见 [`docs/benchmarking.md`](docs/benchmarking.md) 与自动生成的
+[`docs/benchmark-suites.md`](docs/benchmark-suites.md)。
+
 本机 full 档实测（WSL2 / Ubuntu 24.04 / GCC 13.3.0 / i5-13500H，-O2；
 预算 7200 s；v1.7 加入 32768 bit 吞吐档后约 98 min，此前为 96.5 min）：
 
