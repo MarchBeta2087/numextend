@@ -19,6 +19,14 @@ extern "C" {
  * 限制：10^10 位的分块/SSA 内存模型约 64–114 GB；34 GB 机器会在
  * 递归合并阶段 OOM（本实验实测）。更大规模需要 ≥256 GB 或 out-of-core。
  */
+
+/*
+ * brief: 分块 NTT 乘法：dst = lhs × rhs（突破直接 NTT 上限）
+ * param: dst 目标（已初始化；允许别名）
+ * param: lhs/rhs 非负操作数
+ * return: BIGINT_OK_E；规模/内存不满足时返回错误码
+ * note: 结果精确；1e9 位实测 2403 s / 6.24 GB；1e10 位需 ≥256 GB 或 OOC
+ */
 bigint_err_ty nex_block_bin_mul(bigint_bin_ty *dst,
         const bigint_bin_ty *lhs, const bigint_bin_ty *rhs);
 

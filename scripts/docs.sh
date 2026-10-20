@@ -7,6 +7,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 "${PYTHON:-python3}" scripts/gen_api_doc.py docs/manual
+"${PYTHON:-python3}" scripts/gen_api_doc.py --contrib docs/contrib-manual
 "${PYTHON:-python3}" scripts/modules.py gen-docs docs/modules.md
 "${PYTHON:-python3}" scripts/bench.py --list --markdown > docs/benchmark-suites.md
 "${PYTHON:-python3}" scripts/modules.py gen-contrib-docs docs/contrib-modules.md
@@ -24,6 +25,12 @@ if command -v "$PANDOC" > /dev/null 2>&1; then
         --metadata title="Numextend 参考手册" \
         --css "$TMP_CSS" \
         -o docs/manual.html
+    "$PANDOC" $(ls docs/contrib-manual/*.md | sort) \
+        --from gfm --to html5 --standalone --embed-resources \
+        --toc --toc-depth=3 \
+        --metadata title="Numextend contrib 参考手册" \
+        --css "$TMP_CSS" \
+        -o docs/contrib-manual.html
     rm -f "$TMP_CSS"
     echo "已生成 docs/manual.html（$("$PANDOC" --version | head -1)）"
 else

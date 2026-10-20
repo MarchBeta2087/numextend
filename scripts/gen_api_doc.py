@@ -179,7 +179,7 @@ def emit_code(out, run, doc, path):
     # 其余（宏、extern 变量等）忽略
 
 
-def gen_header(path, title):
+def gen_header(path, title, plain_fallback=False):
     text = open(path, encoding="utf-8", errors="ignore").read()
     tokens = tokenize(text)
     out = ["# %s" % title, ""]
@@ -210,6 +210,16 @@ def gen_header(path, title):
                 out.append("")
                 last_was_sep = False
                 first_comment = False
+                continue
+            if (plain_fallback and joined and not first_comment):
+                # contrib 头存在 `/* 说明 */` 简写；整段作为 brief
+                pending = {"brief": joined, "params": [],
+                           "return": "", "note": ""}
+                emit_code(out, code_run, pending_doc, path)
+                code_run = []
+                depth = 0
+                pending_doc = pending
+                last_was_sep = False
                 continue
             if first_comment and joined:
                 out.extend(lines)
@@ -242,24 +252,90 @@ def gen_header(path, title):
     return "\n".join(out).rstrip() + "\n"
 
 
-def main():
-    check_only = "--check" in sys.argv
-    out_dir = "docs/manual"
-    for arg in sys.argv[1:]:
-        if not arg.startswith("--"):
-            out_dir = arg
-    if not check_only:
-        os.makedirs(out_dir, exist_ok=True)
-    for path, slug, title in MODULES:
-        md = gen_header(path, title)
-        if not check_only:
+CONTRIB_MANIFEST = "contrib/modules.txt"
+
+
+def parse_contrib():
+    """读 contrib/modules.txt；*_abi.h / *_internal.h 不进手册。"""
+    entries = []
+    if not os.path.exists(CONTRIB_MANIFEST):
+        return entries
+    with open(CONTRIB_MANIFEST, encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = [x.strip() for x in line.split("|")]
+            if len(parts) != 8:
+                continue
+            name, deps, _srcs, hdrs, flag, _libs, preset, status = parts
+            doc_hdrs = [h for h in hdrs.split(",") if h
+                        and not h.endswith("_abi.h")
+                        and not h.endswith("_internal.h")]
+            if doc_hdrs:
+                entries.append((name, doc_hdrs, deps, flag, preset, status))
+    return entries
+
+
+def gen_contrib(out_dir):
+    entries = parse_contrib()
+    os.makedirs(out_dir, exist_ok=True)
+    overview = [
+        "# contrib 参考手册", "",
+        "> **非核心 API**：以下模块默认不构建，不进入 `libnex` / 子集闭包 /",
+        "> amalgam（design §14、TODO §F1）。启用方式见各模块 `flag` 列。",
+        "> 机器可读索引：[`docs/contrib-modules.md`](../contrib-modules.md)；",
+        "> 各模块的算法、参数与实测见 `contrib/<模块>/README.md`。", "",
+        "| 模块 | 依赖 | 开关 | preset | 状态 |",
+        "|---|---|---|---|---|",
+    ]
+    for name, _hdrs, deps, flag, preset, status in entries:
+        overview.append("| `%s` | %s | `%s` | `%s` | %s |" %
+                        (name, deps.replace(",", ", ") or "—",
+                         flag, preset, status))
+    overview.append("")
+    with open(os.path.join(out_dir, "00-overview.md"), "w",
+              encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(overview))
+    count = 0
+    for idx, (name, hdrs, _deps, _flag, _preset, _status) in enumerate(entries, 1):
+        for j, hdr in enumerate(hdrs):
+            title = name if j == 0 else "%s —— %s" % (
+                name, os.path.basename(hdr))
+            md = gen_header(hdr, title, plain_fallback=True)
+            slug = "api-%02d-%s" % (idx, name)
+            if j > 0:
+                slug += "-" + os.path.splitext(os.path.basename(hdr))[0]
             with open(os.path.join(out_dir, slug + ".md"), "w",
                       encoding="utf-8", newline="\n") as fh:
                 fh.write(md)
+            count += 1
+    print("已生成 %d 个 contrib API 页面到 %s/" % (count, out_dir))
+
+
+def main():
+    check_only = "--check" in sys.argv
+    contrib = "--contrib" in sys.argv
+    out_dir = "docs/contrib-manual" if contrib else "docs/manual"
+    for arg in sys.argv[1:]:
+        if not arg.startswith("--"):
+            out_dir = arg
+    if contrib:
+        if not check_only:
+            gen_contrib(out_dir)
+    else:
+        if not check_only:
+            os.makedirs(out_dir, exist_ok=True)
+        for path, slug, title in MODULES:
+            md = gen_header(path, title)
+            if not check_only:
+                with open(os.path.join(out_dir, slug + ".md"), "w",
+                          encoding="utf-8", newline="\n") as fh:
+                    fh.write(md)
+        if not check_only:
+            print("已生成 %d 个 API 页面到 %s/" % (len(MODULES), out_dir))
     for warning in WARNINGS:
         print("WARN " + warning, file=sys.stderr)
-    if not check_only:
-        print("已生成 %d 个 API 页面到 %s/" % (len(MODULES), out_dir))
     if check_only and WARNINGS:
         sys.exit(1)
 

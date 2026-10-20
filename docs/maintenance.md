@@ -157,7 +157,7 @@ git push -u origin hotfix/<name>
   --legacy` 清理（默认 dry-run，`--yes` 才删除；`--stale` 只列 CMakeCache
   源目录与当前仓库不一致的目录）。`scripts/build-msvc-debug.bat` 仍生成
   `build-dbg/`（MSVC Debug + CRT 调试堆）。
-- **文档生成**：`sh scripts/docs.sh` 生成 API 页、`docs/modules.md`、
+- **文档生成**：`sh scripts/docs.sh` 生成核心 API 页、contrib API 页、`docs/modules.md`、
   `docs/benchmark-suites.md`、`docs/contrib-modules.md` 与 `docs/manual.html`；
   HTML 由 CI 固定的 **pandoc 3.8.2.1** 生成（其他版本可能产生字节差异），
   `docs` job 会校验 `docs/manual.html` 与源 Markdown 同步。

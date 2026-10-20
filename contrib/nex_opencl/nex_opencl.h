@@ -34,7 +34,10 @@ nex_opencl_ctx_ty *nex_opencl_create(size_t limbs, char *err, size_t err_size);
 /* 释放上下文（可传 NULL）。 */
 void nex_opencl_destroy(nex_opencl_ctx_ty *ctx);
 
+/* 当前设备名（创建时选定，生命周期同 ctx）。 */
 const char *nex_opencl_device_name(const nex_opencl_ctx_ty *ctx);
+
+/* 最近一次失败的原因字符串（成功调用后不保证清空）。 */
 const char *nex_opencl_error(const nex_opencl_ctx_ty *ctx);
 
 /* 输入 limb 数（创建时指定）。 */
@@ -93,11 +96,12 @@ int nex_opencl_matmul_sparse(nex_opencl_ctx_ty *ctx,
         const uint32_t *cols, size_t ncols,
         uint32_t *C, size_t ldc);
 
-/* 便捷转换：把非负 bigint_bin 打包/解包为定长 limb 数组。
- * pack 时 v->len 必须 ≤ limbs；unpack 会裁剪前导零并置正/零符号。
- * unpack 要求 v 已用 bigint_bin_init()/init_cap() 初始化。
- * 返回 0 成功，-1 失败。 */
+/* 把非负 bigint_bin 打包为定长 limb 数组：v->len 必须 ≤ limbs，
+ * 不足高位补零；out 需 limbs 个 uint32_t。返回 0 成功，-1 失败。 */
 int nex_opencl_pack_bin(const bigint_bin_ty *v, uint32_t *out, size_t limbs);
+
+/* 解包：从 count 个 limb 还原 bigint_bin，裁剪前导零并置正/零符号；
+ * v 须已用 bigint_bin_init()/init_cap() 初始化。返回 0 成功，-1 失败。 */
 int nex_opencl_unpack_bin(const uint32_t *limbs, size_t count,
         bigint_bin_ty *v);
 

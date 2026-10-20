@@ -409,4 +409,5 @@ jobs:
         run: sh scripts/docs.sh
       - name: Verify generated docs are up to date
         run: git diff --exit-code -- docs/manual docs/manual.html \
+             docs/contrib-manual docs/contrib-manual.html \
              docs/modules.md docs/benchmark-suites.md docs/contrib-modules.md
