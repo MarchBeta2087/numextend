@@ -21,6 +21,15 @@ extern "C" {
  *
  * pool 为 NULL 时在调用线程顺序执行（用于对照/降级）。
  */
+
+/*
+ * brief: 并行多模数 CRT NTT 乘法：dst = lhs × rhs
+ * param: dst 目标（已初始化）
+ * param: lhs/rhs 非负操作数；len(lhs)+len(rhs) ≤ 2^26
+ * param: pool 线程池；NULL 表示在调用线程顺序执行
+ * return: BIGINT_OK_E / BIGINT_ERR_*（与核心乘法一致）
+ * note: 结果与核心 NTT 路径逐位一致；不改变核心分派
+ */
 bigint_err_ty nex_parallel_bin_mul_ntt(bigint_bin_ty *dst,
         const bigint_bin_ty *lhs, const bigint_bin_ty *rhs,
         nex_thread_pool_ty *pool);

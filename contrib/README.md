@@ -17,7 +17,8 @@
 
 各目录另有自己的 `README.md`（算法、参数模型、实测表）。机器可读索引见
 [`contrib/modules.txt`](modules.txt)，渲染版为
-[`docs/contrib-modules.md`](../docs/contrib-modules.md)（自动生成）。
+[`docs/contrib-modules.md`](../docs/contrib-modules.md)，API 手册为
+[`docs/contrib-manual.html`](../docs/contrib-manual.html)（均为自动生成）。
 规划状态见 `TODO.md` §K，里程碑与验收标准以 Issue 为准。
 
 CI 覆盖：`nex_thread` / `nex_parallel` 由 `linux-thread-tsan`（TSan）构建并跑

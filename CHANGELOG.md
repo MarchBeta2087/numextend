@@ -101,6 +101,11 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 
 ### 测试与 CI
 
+- **contrib 参考手册**：`gen_api_doc.py --contrib` 从
+  `contrib/modules.txt` 的公开头生成 `docs/contrib-manual/`（7 页 + 总览），
+  `docs.sh` 用同一份 CSS/pandoc 合成 `docs/contrib-manual.html`；纳入 docs CI
+  漂移检查。补齐 `nex_opencl` / `nex_parallel` / `nex_ssa` / `nex_bigint_block`
+  的函数注释（生成器零告警）。
 - **文档漂移加固**：`docs` CI 现在固定 pandoc **3.8.2.1** 生成并校验
   `docs/manual.html`，同时运行 `scripts/check-docs.py`（校验 Markdown 中
   引用的仓库路径与 CMake preset 名，跳过生成物/占位符）。

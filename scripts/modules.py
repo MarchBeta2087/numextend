@@ -151,7 +151,8 @@ def cmd_gen_contrib_docs(out_path):
         "> 由 `python3 scripts/modules.py gen-contrib-docs` 生成；数据源为",
         "> [`contrib/modules.txt`](../contrib/modules.txt)。请勿手改。",
         "> 这些模块**不进入**核心 `libnex` / `nex_modules.txt` / 子集闭包 /",
-        "> amalgam（design §14、TODO §F1）。", "",
+        "> amalgam（design §14、TODO §F1）。渲染版 API 手册见",
+        "> [`docs/contrib-manual.html`](../contrib-manual.html)。", "",
         "| 模块 | 目录 | 依赖 | 开关 | preset | 外部库 | 状态 |",
         "|---|---|---|---|---|---|---|",
     ]
