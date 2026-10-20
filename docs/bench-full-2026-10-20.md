@@ -79,5 +79,6 @@ python3 scripts/bench.py --all --include-frozen --profile full --max-time 10800 
 ## 相关
 
 - 工具与 suite 定义：`docs/benchmarking.md`、`bench/suites.json`
+- 同日 all-tier 18 suite（5 h 预算）：`docs/bench-full-2026-10-20-5h.md`
 - 规划与结果讨论：issue #128
 - 历史基线：`docs/bench-math.md`、`docs/performance.md`、`bench/baseline/`

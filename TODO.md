@@ -2,7 +2,8 @@
 
 > **活文档**：v1.0.0 – v1.4.0 已发布，本文件记录 **v1.4 之后的规划**。只收录已评估、
 > 可执行的方向；未决/否定的候选集中列在文末。优先级见 §0。
-> 最后更新：2026-10-20（v1.8.0 已发布：超大位宽乘法 §K 已收口，实用上限 10⁹ 位级；
+> 最后更新：2026-10-20（v1.8.1 已发布：bench full 预算 5 h + optional skip 语义；
+> 18-suite 全量归档。v1.8.0：超大位宽乘法 §K 已收口，实用上限 10⁹ 位级；
 > OpenCL M1–M3 + CPU 基线已合并；P2 形式化改为 C/D 并收口）
 
 ---
@@ -347,8 +348,9 @@ SIMD / GPU / 内部多线程 · 超越函数完整正确舍入前的中间态发
       见 `bench/baseline/README.md`）。首个基线已从 dev dispatch
       `39184434034` 播种（Ubuntu 24.04 / 4 核 EPYC / GCC 13.3.0）。
       **统一入口（v1.8）**：`scripts/bench.py` + `bench/suites.json`，按 nex
-      模块与 `contrib` 任意组合，ci=300 s / quick=1200 s / full=7200 s
-      预算 + 峰值 RSS 限制；`benchmark.yml` 已切换。文档
+      模块与 `contrib` 任意组合，ci=300 s / quick=1200 s / full=18000 s
+      （v1.8.1 起；v1.8 为 7200 s）预算 + 峰值 RSS 限制；`benchmark.yml`
+      已切换。文档
       `docs/benchmarking.md`，suite 表 `docs/benchmark-suites.md` 自动生成。
 
 ---

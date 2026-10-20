@@ -4,7 +4,7 @@
 设计：
   - 清单 `bench/suites.json` 是唯一事实来源（suite → modules/contrib/preset/
     target/args/tier/预算）；模块名取自 `cmake/nex_modules.txt` 与 `contrib/`。
-  - 档位：ci（默认 300 s）⊂ quick（1200 s，本地快速档）⊂ full（7200 s）；
+  - 档位：ci（默认 300 s）⊂ quick（1200 s，本地快速档）⊂ full（18000 s）；
     frozen 项仅在 --include-frozen 时参与。
   - 时间：全局 deadline + 单 suite timeout；超预算的 suite 标 skipped(budget)。
   - 内存：按单 suite 采样峰值 RSS，超限终止（100 ms 采样，软限制）；
@@ -43,7 +43,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SUITES = ROOT / "bench" / "suites.json"
-PROFILES = {"ci": 300, "quick": 1200, "full": 7200}
+PROFILES = {"ci": 300, "quick": 1200, "full": 18000}
 TIERS = {"ci": {"ci"}, "quick": {"ci", "quick"}, "full": {"ci", "quick", "full"}}
 
 
@@ -84,6 +84,7 @@ def load_suites() -> list[dict]:
         s.setdefault("est_s", 60)
         s.setdefault("rss_mb", 0)
         s.setdefault("optional", False)
+        s.setdefault("skip_rc", None)
         s.setdefault("json", False)
     return suites
 
@@ -319,9 +320,11 @@ def run_suite(suite: dict, args, build_root: Path, out_dir: Path,
     if watch.exceeded:
         rec["status"] = "rss"
         rec["reason"] = f"峰值 > {limit_kb // 1024} MB"
-    if rec["status"] != "ok" and suite["optional"]:
-        rec["status"] = "skip(optional)"
-        rec["reason"] = rec["reason"] or "optional"
+    if rec["status"] == "fail" and suite["optional"]:
+        skip_rc = suite.get("skip_rc")
+        if skip_rc is not None and rec["rc"] == skip_rc:
+            rec["status"] = "skip(optional)"
+            rec["reason"] = f"rc={skip_rc}（设备/依赖不可用）"
     return rec
 
 
@@ -561,7 +564,7 @@ def main(argv: list[str] | None = None) -> int:
                     metavar="NAME=ARGS",
                     help="给指定 suite 追加参数（可重复；${json} 仍生效）")
     ap.add_argument("--profile", choices=sorted(PROFILES), default="quick",
-                    help="预算档：ci=300s / quick=1200s / full=7200s")
+                    help="预算档：ci=300s / quick=1200s / full=18000s")
     ap.add_argument("--max-time", type=float, default=0.0,
                     help="全局时间预算（秒），覆盖档位")
     ap.add_argument("--max-rss-mb", type=int, default=0,
@@ -673,6 +676,12 @@ def main(argv: list[str] | None = None) -> int:
     failed = [r for r in rows if r["status"] in ("fail", "timeout", "rss")]
     print(f"== 完成：ok={ok} skipped={skipped} failed={len(failed)} "
           f"耗时 {time.monotonic() - started:.0f}s")
+    if skipped:
+        print("== 跳过项：")
+        for r in rows:
+            if r["status"].startswith("skip"):
+                print(f"  {r['suite']:<28} {r['status']:<14} "
+                      f"{r.get('reason') or ''}")
 
     if args.json:
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)

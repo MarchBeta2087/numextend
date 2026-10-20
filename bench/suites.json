@@ -166,6 +166,7 @@
       "timeout_s": 120,
       "rss_mb": 1024,
       "optional": true,
+      "skip_rc": 77,
       "note": "10k×104 limb madd/dot（需要 OpenCL 设备）"
     },
     {
@@ -191,6 +192,7 @@
       "timeout_s": 300,
       "rss_mb": 1024,
       "optional": true,
+      "skip_rc": 77,
       "note": "512³ 子矩阵乘（GPU）"
     },
     {
@@ -327,6 +329,7 @@
       "timeout_s": 3600,
       "rss_mb": 20480,
       "optional": true,
+      "skip_rc": 77,
       "note": "4k×4k 60+60 子矩阵乘（A/B 各 ~7 GB，需要 ≥24 GB 内存）"
     },
     {
