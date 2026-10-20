@@ -8,6 +8,9 @@
  *
  * 输出：CPU 单线程参考、GPU madd/dot（min of 5）、有效传输带宽；
  * matmul 打印 GPU（或 --cpu 时 16 线程 schoolbook）行/列两趟耗时与吞吐。
+ *
+ * 退出码：0 成功；1 运行失败；2 用法/配置错误；77 环境不可用（无 OpenCL
+ * 设备/驱动），供 scripts/bench.py 记 skip(optional)。
  */
 
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
@@ -23,6 +26,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define NEX_BENCH_EXIT_UNAVAILABLE 77
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -453,7 +458,7 @@ static int run_sparse_bench(size_t m, size_t k, size_t n, size_t sel_r,
     nex_opencl_ctx_ty *ctx = nex_opencl_create(limbs, err, sizeof(err));
     if (ctx == NULL) {
         fprintf(stderr, "OpenCL 不可用: %s\n", err);
-        return 1;
+        return NEX_BENCH_EXIT_UNAVAILABLE;
     }
     const size_t out_limbs = nex_opencl_out_limbs(ctx);
     nex_opencl_csr_ty A;
@@ -629,7 +634,7 @@ static int run_matmul_bench(int argc, char **argv)
     nex_opencl_ctx_ty *ctx = nex_opencl_create(limbs, err, sizeof(err));
     if (ctx == NULL) {
         fprintf(stderr, "OpenCL 不可用: %s\n", err);
-        return 1;
+        return NEX_BENCH_EXIT_UNAVAILABLE;
     }
     const size_t out_limbs = nex_opencl_out_limbs(ctx);
     const size_t lda = k * limbs;
@@ -775,7 +780,7 @@ int main(int argc, char **argv)
     nex_opencl_ctx_ty *ctx = nex_opencl_create(limbs, err, sizeof(err));
     if (ctx == NULL) {
         fprintf(stderr, "OpenCL 不可用: %s\n", err);
-        return 1;
+        return NEX_BENCH_EXIT_UNAVAILABLE;
     }
     const size_t out_limbs = nex_opencl_out_limbs(ctx);
     const size_t a_count = n * limbs;

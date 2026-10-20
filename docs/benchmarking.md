@@ -10,6 +10,7 @@
 python3 scripts/bench.py --list                    # 有哪些 suite
 python3 scripts/bench.py --profile ci              # CI 档，约 2–5 分钟
 python3 scripts/bench.py --profile quick           # 本地快速档，默认 20 分钟
+python3 scripts/bench.py --all --include-frozen --profile full  # 全量，5 h 上限
 python3 scripts/bench.py --modules bigint_bin,ntt  # 只跑相关模块
 python3 scripts/bench.py --profile quick \
     --json build/bench/quick.json --markdown-out build/bench/quick.md \
@@ -44,7 +45,10 @@ python3 scripts/bench.py --profile quick \
 --dry-run            # 只显示将运行什么、参数与预估耗时
 ```
 
-`nex` 与 `contrib` 可以任意混合；`--all --include-frozen` 即“全量”。
+`nex` 与 `contrib` 可以任意混合。`--profile full` 的 tier 集合是
+`ci + quick + full`；再加 `--include-frozen`（即
+`--all --include-frozen --profile full`）才是所有 tier 的全量。
+`--exclude` 只用于缩减范围，不要用它排除 ci/quick 后仍称“全量”。
 
 **给单个 suite 追加参数**（保留清单里的默认参数，后出现的同名 flag 生效，
 `${json}` 占位符仍有效）：
@@ -65,7 +69,7 @@ python3 scripts/bench.py --suite contrib.opencl.matmul.4k     --max-rss-mb 24576
 |---|---:|---|
 | `ci` | 300 s | CI/PR 前的快速回归 |
 | `quick` | 1200 s（20 min） | 本地快速档（默认） |
-| `full` | 7200 s | 发版前/夜间完整档 |
+| `full` | 18000 s（5 h） | 发版前/夜间完整档；含 ci+quick+full |
 
 - **时间**：全局 deadline + 单 suite `timeout_s`。剩余预算不足时，后续 suite
   标记 `skipped(budget)`（不算失败）。`--max-time` 覆盖档位预算。
@@ -75,11 +79,14 @@ python3 scripts/bench.py --suite contrib.opencl.matmul.4k     --max-rss-mb 24576
 - **内存**：每 100 ms 采样峰值 RSS（Linux `VmHWM`、Windows
   `PeakWorkingSetSize`、macOS `ps`），超过 `rss_mb`（或 `--max-rss-mb`，取小）
   终止进程并记 `rss` 失败。POSIX 另设 `RLIMIT_AS = 2×` 预算作为硬安全网。
-- **optional**：需要设备/大内存的 suite（OpenCL、4k×4k）标 `optional`，
-  失败只记 `skip(optional)`，不改变退出码。
+- **optional**：需要特定设备的 suite（OpenCL）标 `optional`。只有
+  **产物缺失**或程序返回 `skip_rc`（OpenCL 无设备/驱动时为 77）才记
+  `skip(optional)`；`timeout` / `rss` / 其他非零退出码仍计失败，避免把
+  真实回归伪装成“跳过”。4k×4k 内存不足现在会明确报 `rss`，请调高
+  `--max-rss-mb` 或 `--exclude` 该项。
 
-退出码：`0` 正常（含预算跳过/optional 失败）；`1` 有非 optional 失败
-（`fail` / `timeout` / `rss`）。
+退出码：`0` 正常（含预算跳过 / 设备不可用的 `skip(optional)`）；`1` 有
+失败（`fail` / `timeout` / `rss`；optional suite 的这类状态也算失败）。
 
 ## 5. 构建与目录
 
@@ -137,7 +144,8 @@ PR 不跑性能门禁（runner 噪声大）；`docs` job 校验所有生成文�
 
 1. 在 `bench/suites.json` 增加条目（`name` 唯一；`modules`/`contrib` 必须是
    已知名字；给出 `preset`/`target`/`args`）。
-2. 设定 `tier`、`est_s`、`timeout_s`、`rss_mb`；设备相关项加 `optional`。
+2. 设定 `tier`、`est_s`、`timeout_s`、`rss_mb`；设备相关项加
+   `optional`，并让程序在设备不可用时返回 `skip_rc`（如 OpenCL 用 77）。
 3. 需要机器可读结果时加 `"json": true`，参数里用 `${json}` 占位。
 4. 验收：单次耗时 < `timeout_s`；输出确定性（固定种子）；报告峰值 RSS；
    与现有基线同优化级别。
@@ -149,7 +157,8 @@ PR 不跑性能门禁（runner 噪声大）；`docs` job 校验所有生成文�
 | 现象 | 处理 |
 |---|---|
 | `cmake --preset` 失败 | 需要 CMake ≥3.19 + Ninja；或改用 `cmake -B build/xxx` 并 `--build-root` |
-| OpenCL suite `skip(optional)` | 无设备/驱动；`NEX_OPENCL_DEVICE` 指定设备，或只跑 `--modules bigint_bin` |
+| OpenCL suite `skip(optional)` | 无设备/驱动（退出码 77）；`NEX_OPENCL_DEVICE` 指定设备，或只跑 `--modules bigint_bin` |
+| OpenCL suite `timeout` / `rss` / `fail` | 不再算跳过；查日志与预算，设备正常时按真实失败处理 |
 | `rss` 失败 | 调高该 suite `rss_mb` 或 `--max-rss-mb`；看 `build/bench/<suite>.log` |
 | `timeout` | 提高 `--max-time` 或该 suite `timeout_s`；CI 档不应放长基准 |
 | 数字波动大 | 关闭后台任务；固定 CPU 频率；用 `full` 档并对比 baseline |
@@ -159,7 +168,8 @@ PR 不跑性能门禁（runner 噪声大）；`docs` job 校验所有生成文�
 
 | 内容 | 位置 |
 |---|---|
-| 完整单机实测（快照） | `docs/bench-full-2026-10-20.md` |
+| 完整单机实测（all-tier 18 suite） | `docs/bench-full-2026-10-20-5h.md` |
+| 完整单机实测（full+frozen 8 suite） | `docs/bench-full-2026-10-20.md` |
 | 数学专项解读 | `docs/bench-math.md` |
 | 核心性能报告 | `docs/performance.md`（`scripts/bench.sh` 生成） |
 | 夜间趋势基线 | `bench/baseline/*.json` |

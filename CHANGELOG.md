@@ -9,6 +9,21 @@ v1.0.0 之前的开发以设计文档的「修订记录」逐次跟踪（见
 
 ## [Unreleased]
 
+### 基准
+
+- **`bench.py` full 预算提升到 18000 s（5 h）**：`--profile full` 覆盖
+  ci+quick+full 三档；原 7200 s 在本机 all-tier 实测（约 7692 s）下会让最后
+  一个 suite 被判 timeout。5 h 是上限，当前 workload 实际仍约 2 h。
+- **optional 不再吞掉失败**：OpenCL 基准在无设备/驱动时返回 77，runner
+  仅对“产物缺失”或 `skip_rc` 记 `skip(optional)`；`timeout` / `rss` / 其他
+  非零退出码计入失败。运行结束会列出所有跳过项及原因。
+- **全量口径文档化**：`--all --include-frozen --profile full` 为 all-tier
+  全量；`--exclude` 只用于缩减范围，不再作为“全量”推荐跑法。详见
+  `docs/benchmarking.md`。
+- **2026-10-20 all-tier 全量归档**：18/18 通过、0 跳过，实际 7553 s
+  （2 h 06 min）；产物见 `bench/artifacts/2026-10-20-full-5h.zip` 与
+  `docs/bench-full-2026-10-20-5h.md`。
+
 ## [1.8.0] - 2026-10-20
 
 ### 基准

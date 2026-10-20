@@ -166,14 +166,17 @@ sh scripts/bench-math.sh ci all 300        # CI 缩减档
 ```sh
 python3 scripts/bench.py --list                        # suite 清单
 python3 scripts/bench.py --profile ci                  # CI 档，约 2–5 分钟
+python3 scripts/bench.py --all --include-frozen --profile full  # 全量，5 h 上限
 python3 scripts/bench.py --modules bigint_bin,ntt      # 只跑相关模块
 python3 scripts/bench.py --all --include-frozen --profile quick   # 本地 20 分钟
 python3 scripts/bench.py --profile ci --html-out build/bench-report.html
 ```
 
 详见 [`docs/benchmarking.md`](docs/benchmarking.md) 与自动生成的
-[`docs/benchmark-suites.md`](docs/benchmark-suites.md)。2026-10-20 的完整单机实测
-（nex + contrib，8 个 suite，约 2 h）见
+[`docs/benchmark-suites.md`](docs/benchmark-suites.md)。2026-10-20 的 all-tier
+全量（18 个 suite，5 h 预算，实测约 2 h 06 min）见
+[`docs/bench-full-2026-10-20-5h.md`](docs/bench-full-2026-10-20-5h.md)；同日
+full + frozen 8 项快照见
 [`docs/bench-full-2026-10-20.md`](docs/bench-full-2026-10-20.md)。
 
 本机 full 档实测（WSL2 / Ubuntu 24.04 / GCC 13.3.0 / i5-13500H，-O2；
